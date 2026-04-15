@@ -2,49 +2,84 @@ import { useEffect, useState } from 'react'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import AiExplanation from './components/AiExplanation'
+import ConfigModal from './components/ConfigModal'
 import ImageCard from './components/ImageCard'
 import PromptInput from './components/PromptInput'
 import ResultPanel from './components/ResultPanel'
 
 function App() {
   const [promptUsuario, setPromptUsuario] = useState('')
-  const [promptOriginal, setPromptOriginal] = useState('')
   const [aiExplanation, setAiExplanation] = useState('')
-  const [score, setScore] = useState('—')
+  const [scorePercent, setScorePercent] = useState(null)
   const [submitted, setSubmitted] = useState(false)
-  const [dailyChallenge, setDailyChallenge] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState('random')
+  const [difficulty, setDifficulty] = useState('Media')
+  const [tema, setTema] = useState('Ciencia ficción')
+  const [configOpen, setConfigOpen] = useState(false)
+  const [draftMode, setDraftMode] = useState('random')
+  const [draftDifficulty, setDraftDifficulty] = useState('Media')
+  const [draftTema, setDraftTema] = useState('Ciencia ficción')
+  const [imageData, setImageData] = useState(null)
+  const [loadingImage, setLoadingImage] = useState(true)
+
+  const computeScorePercent = (text) => {
+    const base = Math.min(92, Math.max(34, Math.round(text.length * 0.8)))
+    return base
+  }
 
   useEffect(() => {
-    const fetchDailyChallenge = async () => {
+    const fetchImageData = async () => {
       try {
         const response = await fetch('/dailyChallenge.json')
         const data = await response.json()
-        setDailyChallenge(data)
+        setImageData(data)
       } catch (error) {
-        console.error('Error cargando el desafío diario:', error)
+        console.error('Error cargando datos de la imagen:', error)
       } finally {
-        setLoading(false)
+        setLoadingImage(false)
       }
     }
 
-    fetchDailyChallenge()
+    fetchImageData()
   }, [])
 
   const handleSubmit = (event) => {
     event.preventDefault()
     const submittedPrompt = promptUsuario.trim()
-    if (!submittedPrompt || !dailyChallenge) {
+    if (!submittedPrompt) {
       return
     }
 
-    setPromptOriginal(submittedPrompt)
     setAiExplanation(
-      'La IA ha analizado tu prompt y lo adapta para reforzar la atmósfera, la escena y los detalles visuales. De esta manera se prepara un prompt más preciso para generar la imagen diaria.'
+      'La IA ha analizado tu prompt y lo adapta para reforzar la atmósfera, la escena y los detalles visuales. De esta manera se prepara un prompt más preciso para generar la imagen deseada.'
     )
-    setScore('Pendiente')
+    setScorePercent(computeScorePercent(submittedPrompt))
     setSubmitted(true)
+  }
+
+  const openConfig = () => {
+    setDraftMode(mode)
+    setDraftDifficulty(difficulty)
+    setDraftTema(tema)
+    setConfigOpen(true)
+  }
+
+  const closeConfig = () => {
+    setConfigOpen(false)
+  }
+
+  const saveConfig = () => {
+    setMode(draftMode)
+    setDifficulty(draftDifficulty)
+    setTema(draftTema)
+    setConfigOpen(false)
+  }
+
+  const handleReset = () => {
     setPromptUsuario('')
+    setAiExplanation('')
+    setScorePercent(null)
+    setSubmitted(false)
   }
 
   return (
@@ -52,43 +87,70 @@ function App() {
       <Header />
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6">
-        <div className="overflow-hidden rounded-[2.5rem] bg-slate-50">
-          <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
-            <section className="space-y-6 p-6">
-              <div className="space-y-2">
-                <span className="inline-flex rounded-full border border-slate-200/70 px-4 py-2 text-xs uppercase tracking-[0.32em] text-slate-500">
-                  Desafío diario
-                </span>
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                  Promptle diario
-                </h1>
-                <p className="max-w-2xl text-xs leading-6 text-slate-600">
-                  Envía tu prompt y recibe una explicación clara de cómo la IA interpreta tu intención. El panel se mantiene limpio, profesional y unificado.
-                </p>
-              </div>
+        <div className="mb-6 rounded-[2rem] bg-white px-4 py-5 shadow-sm sm:px-6">
+          <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={openConfig}
+              className="rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+            >
+              Configurar
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 17a9 9 0 1 0 4-7.5" />
+                <polyline points="3 10 3 17 10 17" />
+              </svg>
+              Reset
+            </button>
+          </div>
+          <p className="mt-4 text-center text-xs uppercase tracking-[0.32em] text-slate-500">
+            Usa el botón Configurar para ajustar modo, dificultad y temática.
+          </p>
+        </div>
 
+        <div className="overflow-hidden rounded-[2.5rem] bg-slate-50">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
+            <section className="space-y-6 p-6 lg:p-8">
               <div className="space-y-6">
-                {submitted ? (
-                  <AiExplanation promptOriginal={promptOriginal} explanation={aiExplanation} />
-                ) : (
+                {!submitted ? (
                   <PromptInput
                     promptUsuario={promptUsuario}
                     setPromptUsuario={setPromptUsuario}
                     onSubmit={handleSubmit}
-                    isLoading={loading}
+                    isLoading={loadingImage}
                   />
+                ) : (
+                  <div className="space-y-6">
+                    <AiExplanation explanation={aiExplanation} />
+                    <ResultPanel scorePercent={scorePercent} />
+                  </div>
                 )}
-
-                {submitted && <ResultPanel promptOriginal={promptOriginal} score={score} />}
               </div>
             </section>
 
             <aside className="flex flex-col justify-start gap-4 p-6">
-              <ImageCard challenge={dailyChallenge} loading={loading} />
+              <ImageCard mode={mode} data={{ ...imageData, dificultad: difficulty, tematica: tema }} loading={loadingImage} />
             </aside>
           </div>
         </div>
       </main>
+
+      <ConfigModal
+        open={configOpen}
+        mode={draftMode}
+        difficulty={draftDifficulty}
+        tema={draftTema}
+        onClose={closeConfig}
+        onSave={saveConfig}
+        onModeChange={setDraftMode}
+        onDifficultyChange={setDraftDifficulty}
+        onTemaChange={setDraftTema}
+      />
 
       <Footer />
     </div>

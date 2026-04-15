@@ -5,7 +5,7 @@ const Header = () => (
         <div className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
           Promptle
         </div>
-        <p className="text-sm text-slate-500">imagen | diario</p>
+        <p className="text-sm text-slate-500">prompt | score</p>
       </div>
 
       <nav className="hidden items-center gap-8 text-sm text-slate-600 md:flex">
