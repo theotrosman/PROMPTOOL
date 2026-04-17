@@ -6,6 +6,52 @@ import ImageCard from './components/ImageCard'
 import PromptInput from './components/PromptInput'
 import ResultPanel from './components/ResultPanel'
 import { comparePrompts } from './services/geminiService'
+import { getRecommendedGuides } from './data/guides'
+
+const getTodayIsoDate = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const normalizeChallenges = (payload) => (Array.isArray(payload) ? payload : payload ? [payload] : [])
+
+const resolveDailyChallenge = (challenges = []) => {
+  if (!challenges.length) return null
+  const today = getTodayIsoDate()
+  return challenges.find((item) => item?.date === today) ?? challenges[challenges.length - 1]
+}
+
+const getRandomChallenge = (challenges = []) => {
+  if (!challenges.length) return null
+  const randomIndex = Math.floor(Math.random() * challenges.length)
+  return challenges[randomIndex]
+}
+
+const normalizeText = (value = '') =>
+  String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+const getFilteredRandomChallenge = (challenges = [], difficulty = '', tema = '') => {
+  if (!challenges.length) return null
+
+  const targetDifficulty = normalizeText(difficulty)
+  const targetTema = normalizeText(tema)
+
+  const filtered = challenges.filter((c) => {
+    const cd = normalizeText(c?.dificultad)
+    const ct = normalizeText(c?.tematica)
+    const okDifficulty = !targetDifficulty || cd === targetDifficulty
+    const okTema = !targetTema || ct === targetTema
+    return okDifficulty && okTema
+  })
+
+  return getRandomChallenge(filtered.length ? filtered : challenges)
+}
 
 const normalizeDifficulty = (difficulty = 'Media') =>
   difficulty
@@ -20,7 +66,7 @@ const formatDuration = (seconds = 0) => {
   return `${mins}:${String(secs).padStart(2, '0')}`
 }
 
-const getTimePenalty = ({ elapsedSeconds = 0, recommendedSeconds = 0 }, difficulty = 'Media') => {
+const getTimePenalty = ({ elapsedSeconds = 0, recommendedSeconds = 0 }, difficulty = 'Media', mode = 'random') => {
   if (!recommendedSeconds || elapsedSeconds <= recommendedSeconds) {
     return { penalty: 0, message: '' }
   }
@@ -33,12 +79,13 @@ const getTimePenalty = ({ elapsedSeconds = 0, recommendedSeconds = 0 }, difficul
     : normalizedDifficulty.includes('dificil')
       ? 1.2
       : 1.05
+  const modeFactor = mode === 'daily' ? 1.12 : 0.95
 
   const penalty = Math.min(
     30,
     Math.max(
       4,
-      Math.round((overtimeRatio * 22 + overtimeSeconds / 18) * difficultyFactor)
+      Math.round((overtimeRatio * 22 + overtimeSeconds / 18) * difficultyFactor * modeFactor)
     )
   )
 
@@ -53,13 +100,14 @@ function App() {
   const [aiExplanation, setAiExplanation] = useState('')
   const [scorePercent, setScorePercent] = useState(null)
   const [submitted, setSubmitted] = useState(false)
-  const [mode, setMode] = useState('random')
+  const [mode, setMode] = useState('daily')
   const [difficulty, setDifficulty] = useState('Media')
   const [tema, setTema] = useState('Ciencia ficción')
   const [configOpen, setConfigOpen] = useState(false)
-  const [draftMode, setDraftMode] = useState('random')
+  const [draftMode, setDraftMode] = useState('daily')
   const [draftDifficulty, setDraftDifficulty] = useState('Media')
   const [draftTema, setDraftTema] = useState('Ciencia ficción')
+  const [challenges, setChallenges] = useState([])
   const [imageData, setImageData] = useState(null)
   const [loadingImage, setLoadingImage] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
@@ -69,6 +117,8 @@ function App() {
   const [timingData, setTimingData] = useState({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
   const [timePenaltyMessage, setTimePenaltyMessage] = useState('')
   const [error, setError] = useState('')
+  const recommendedGuideIds = getRecommendedGuides(improvements, suggestions)
+
 
 
   useEffect(() => {
@@ -76,7 +126,7 @@ function App() {
       try {
         const response = await fetch('/dailyChallenge.json')
         const data = await response.json()
-        setImageData(data)
+        setChallenges(normalizeChallenges(data))
       } catch (error) {
         console.error('Error cargando datos de la imagen:', error)
       } finally {
@@ -86,6 +136,23 @@ function App() {
 
     fetchImageData()
   }, [])
+
+  useEffect(() => {
+    if (!challenges.length) return
+
+    const selectedChallenge =
+      mode === 'daily'
+        ? resolveDailyChallenge(challenges)
+        : getFilteredRandomChallenge(challenges, difficulty, tema)
+    if (!selectedChallenge) return
+
+    setImageData(selectedChallenge)
+
+    if (mode === 'daily') {
+      if (selectedChallenge.dificultad) setDifficulty(selectedChallenge.dificultad)
+      if (selectedChallenge.tematica) setTema(selectedChallenge.tematica)
+    }
+  }, [mode, challenges, difficulty, tema])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -105,7 +172,7 @@ function App() {
 
     try {
       const result = await comparePrompts(submittedPrompt, imageData.prompt, difficulty)
-      const timePenalty = getTimePenalty(timingData, difficulty)
+      const timePenalty = getTimePenalty(timingData, difficulty, mode)
       setScorePercent(Math.max(0, (result.score ?? 0) - timePenalty.penalty))
       setAiExplanation(result.explanation)
       setSuggestions(result.suggestions)
@@ -184,10 +251,10 @@ function App() {
   )
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <Header />
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-4">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4">
         <div className="overflow-hidden rounded-[2.5rem] bg-slate-50">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
             <section className="space-y-6 p-6 lg:p-8">
@@ -199,7 +266,9 @@ function App() {
                       setPromptUsuario={setPromptUsuario}
                       onSubmit={handleSubmit}
                       isLoading={loadingImage || analyzing}
+                      mode={mode}
                       difficulty={difficulty}
+                      tema={tema}
                       onTimingChange={setTimingData}
                     />
                     {renderControls()}
@@ -227,6 +296,7 @@ function App() {
                           strengths={strengths}
                           improvements={improvements}
                           timePenaltyMessage={timePenaltyMessage}
+                          recommendedGuideIds={recommendedGuideIds}
                         />
                       </>
                     )}

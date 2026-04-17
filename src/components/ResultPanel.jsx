@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import GUIDE_LIBRARY from '../data/guides'
 
 const ScoreCircle = ({ value }) => {
   const [animatedValue, setAnimatedValue] = useState(0)
@@ -111,7 +112,16 @@ const buildFallbackPoints = (score = 0, suggestions = '', minPassScore = 70) => 
   }
 }
 
-const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], timePenaltyMessage = '' }) => {
+const ResultPanel = ({
+  scorePercent,
+  explanation,
+  suggestions,
+  difficulty,
+  strengths = [],
+  improvements = [],
+  timePenaltyMessage = '',
+  recommendedGuideIds = [],
+}) => {
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
   const difficultyConfig = getDifficultyConfig(difficulty)
   const isPass = safeScore >= difficultyConfig.minPassScore
@@ -120,6 +130,7 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
   const fallback = buildFallbackPoints(safeScore, suggestions, difficultyConfig.minPassScore)
   const finalStrengths = Array.isArray(strengths) && strengths.length ? strengths.slice(0, 3) : fallback.strengths
   const finalImprovements = Array.isArray(improvements) && improvements.length ? improvements.slice(0, 3) : fallback.improvements
+  const recommendedGuides = GUIDE_LIBRARY.filter((guide) => recommendedGuideIds.includes(guide.id))
 
   return (
     <div className="rounded-[1.75rem] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
@@ -169,6 +180,23 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
             ))}
           </div>
         </div>
+
+        {recommendedGuides.length > 0 && (
+          <div className="rounded-[1.25rem] border border-indigo-200 bg-indigo-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">Guias recomendadas</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {recommendedGuides.map((guide) => (
+                <a
+                  key={guide.id}
+                  href={`/guides.html#guia-${guide.id}`}
+                  className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
+                >
+                  {guide.title}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -10,3 +10,24 @@ body {
   @apply bg-slate-50 text-slate-900 antialiased;
   min-height: 100vh;
 }
+
+@keyframes guide-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.guide-card {
+  animation: guide-card-enter 420ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-card {
+    animation: none;
+  }
+}
