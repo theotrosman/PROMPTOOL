@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import Header from './components/Header'
 import Footer from './components/Footer'
-import AiExplanation from './components/AiExplanation'
 import ConfigModal from './components/ConfigModal'
 import ImageCard from './components/ImageCard'
 import PromptInput from './components/PromptInput'
@@ -24,6 +23,8 @@ function App() {
   const [loadingImage, setLoadingImage] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
   const [suggestions, setSuggestions] = useState('')
+  const [strengths, setStrengths] = useState([])
+  const [improvements, setImprovements] = useState([])
   const [error, setError] = useState('')
 
 
@@ -60,15 +61,19 @@ function App() {
     setSubmitted(true)
 
     try {
-      const result = await comparePrompts(submittedPrompt, imageData.prompt)
+      const result = await comparePrompts(submittedPrompt, imageData.prompt, difficulty)
       setScorePercent(result.score)
       setAiExplanation(result.explanation)
       setSuggestions(result.suggestions)
+      setStrengths(result.strengths ?? [])
+      setImprovements(result.improvements ?? [])
     } catch (err) {
       setError(err.message)
       setScorePercent(0)
       setAiExplanation('Hubo un error al analizar tu prompt.')
       setSuggestions('')
+      setStrengths([])
+      setImprovements([])
     } finally {
       setAnalyzing(false)
     }
@@ -98,54 +103,60 @@ function App() {
     setScorePercent(null)
     setSubmitted(false)
     setSuggestions('')
+    setStrengths([])
+    setImprovements([])
     setError('')
     setAnalyzing(false)
   }
+
+  const renderControls = () => (
+    <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+      <button
+        type="button"
+        onClick={openConfig}
+        className="rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+      >
+        Configurar
+      </button>
+      <button
+        type="button"
+        onClick={handleReset}
+        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+      >
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 17a9 9 0 1 0 4-7.5" />
+          <polyline points="3 10 3 17 10 17" />
+        </svg>
+        Reset
+      </button>
+      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+        Ajusta modo, dificultad y temática.
+      </p>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <Header />
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-6">
-        <div className="mb-6 rounded-[2rem] bg-white px-4 py-5 shadow-sm sm:px-6">
-          <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-center">
-            <button
-              type="button"
-              onClick={openConfig}
-              className="rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-            >
-              Configurar
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M3 17a9 9 0 1 0 4-7.5" />
-                <polyline points="3 10 3 17 10 17" />
-              </svg>
-              Reset
-            </button>
-          </div>
-          <p className="mt-4 text-center text-xs uppercase tracking-[0.32em] text-slate-500">
-            Usa el botón Configurar para ajustar modo, dificultad y temática.
-          </p>
-        </div>
-
+      <main className="mx-auto w-full max-w-7xl px-4 py-4">
         <div className="overflow-hidden rounded-[2.5rem] bg-slate-50">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
             <section className="space-y-6 p-6 lg:p-8">
               <div className="space-y-6">
                 {!submitted ? (
-                  <PromptInput
-                    promptUsuario={promptUsuario}
-                    setPromptUsuario={setPromptUsuario}
-                    onSubmit={handleSubmit}
-                    isLoading={loadingImage || analyzing}
-                  />
+                  <>
+                    <PromptInput
+                      promptUsuario={promptUsuario}
+                      setPromptUsuario={setPromptUsuario}
+                      onSubmit={handleSubmit}
+                      isLoading={loadingImage || analyzing}
+                    />
+                    {renderControls()}
+                  </>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="space-y-6 rounded-[2rem] border border-slate-200/70 bg-white/60 p-4 sm:p-5">
+                    {renderControls()}
                     {error && (
                       <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-4">
                         <p className="text-sm text-rose-700">{error}</p>
@@ -158,8 +169,14 @@ function App() {
                       </div>
                     ) : (
                       <>
-                        <AiExplanation explanation={aiExplanation} />
-                        <ResultPanel scorePercent={scorePercent} suggestions={suggestions} />
+                        <ResultPanel
+                          scorePercent={scorePercent}
+                          explanation={aiExplanation}
+                          suggestions={suggestions}
+                          difficulty={difficulty}
+                          strengths={strengths}
+                          improvements={improvements}
+                        />
                       </>
                     )}
                   </div>

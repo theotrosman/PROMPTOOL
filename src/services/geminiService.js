@@ -1,6 +1,92 @@
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
-export async function comparePrompts(userPrompt, originalPrompt) {
+const clamp = (value, min = 0, max = 100) => Math.min(max, Math.max(min, Number(value) || 0));
+
+const sanitizeList = (value, fallback = []) => {
+  if (!Array.isArray(value)) return fallback;
+  const cleaned = value
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .map((item) => item.slice(0, 120));
+  return cleaned.length ? cleaned.slice(0, 4) : fallback;
+};
+
+const computeWeightedScore = (criteria = {}) => {
+  const weights = {
+    visualElements: 0.3,
+    styleAtmosphere: 0.25,
+    technicalDetails: 0.2,
+    clarity: 0.25,
+  };
+
+  const baseScore =
+    clamp(criteria.visualElements) * weights.visualElements +
+    clamp(criteria.styleAtmosphere) * weights.styleAtmosphere +
+    clamp(criteria.technicalDetails) * weights.technicalDetails +
+    clamp(criteria.clarity) * weights.clarity;
+
+  let penalty = 0;
+  if (clamp(criteria.clarity) <= 20) penalty += 14;
+  if (clamp(criteria.visualElements) <= 20) penalty += 12;
+  if (clamp(criteria.technicalDetails) <= 20) penalty += 10;
+
+  return clamp(Math.round(baseScore - penalty));
+};
+
+const normalizeDifficulty = (difficulty = "Media") =>
+  String(difficulty)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const evaluatePromptQuality = (userPrompt = "", difficulty = "Media") => {
+  const cleanPrompt = String(userPrompt || "").trim();
+  const normalizedPrompt = cleanPrompt.toLowerCase();
+  const words = cleanPrompt.split(/\s+/).filter(Boolean);
+  const meaningfulWords = words.filter((word) => /[a-zA-ZáéíóúñÁÉÍÓÚÑ]/.test(word) && word.length >= 3);
+  const uniqueMeaningful = new Set(meaningfulWords.map((word) => word.toLowerCase()));
+  const lexicalDiversity = meaningfulWords.length ? uniqueMeaningful.size / meaningfulWords.length : 0;
+  const hasStructure = /[,.;:]/.test(cleanPrompt);
+
+  const descriptorRegex =
+    /(cinematic|realista|fotoreal|atmosfera|atm[oó]sfera|iluminaci[oó]n|iluminacion|luz|sombras|textura|detalle|detallado|composici[oó]n|composicion|encuadre|plano|4k|8k|noir|acuarela|oleo|hyperreal|dram[aá]tico|dramatico|volumetric|depth of field|bokeh|render)/gi;
+  const descriptorHits = (normalizedPrompt.match(descriptorRegex) || []).length;
+
+  const lengthScore = clamp((meaningfulWords.length / 24) * 100);
+  const descriptorScore = clamp((descriptorHits / 5) * 100);
+  const diversityScore = clamp(lexicalDiversity * 100);
+  const structureScore = hasStructure ? 100 : 40;
+
+  const quality = clamp(
+    Math.round(
+      lengthScore * 0.42 +
+      descriptorScore * 0.33 +
+      diversityScore * 0.15 +
+      structureScore * 0.1
+    )
+  );
+
+  const normalizedDifficulty = normalizeDifficulty(difficulty);
+  let targetQuality = 60;
+  if (normalizedDifficulty.includes("facil")) targetQuality = 42;
+  if (normalizedDifficulty.includes("dificil")) targetQuality = 75;
+
+  let penalty = 0;
+  if (quality < targetQuality) {
+    penalty += Math.round((targetQuality - quality) * 0.55);
+  }
+  if (meaningfulWords.length < 6) penalty += 10;
+  if (lexicalDiversity < 0.5) penalty += 6;
+  if (!hasStructure) penalty += 4;
+  if (descriptorHits === 0) penalty += 8;
+
+  return {
+    quality,
+    penalty: clamp(penalty, 0, 35),
+  };
+};
+
+export async function comparePrompts(userPrompt, originalPrompt, difficulty = "Media") {
   try {
     const prompt = `Eres un experto en prompts de generación de imágenes con IA. 
 
@@ -9,7 +95,7 @@ Compara estos dos prompts:
 PROMPT ORIGINAL:
 "${originalPrompt}"
 
-PROMPT DEL USUARIO:
+SU PROMPT:
 "${userPrompt}"
 
 Analiza la similitud considerando:
@@ -17,13 +103,21 @@ Analiza la similitud considerando:
 - Estilo y atmósfera
 - Detalles técnicos
 - Claridad
+- Contexto de dificultad: ${difficulty}
 
 Devuelve SOLO un JSON válido así:
 
 {
-  "score": número entre 0 y 100,
-  "explanation": "explicación clara en español (mínimo 4 oraciones)",
-  "suggestions": "sugerencias concretas para mejorar (mínimo 3 oraciones)"
+  "criteria": {
+    "visualElements": número entre 0 y 100,
+    "styleAtmosphere": número entre 0 y 100,
+    "technicalDetails": número entre 0 y 100,
+    "clarity": número entre 0 y 100
+  },
+  "explanation": "explicación clara en español (2 a 4 oraciones, concreta y específica)",
+  "strengths": ["fortaleza concreta 1", "fortaleza concreta 2", "fortaleza concreta 3"],
+  "improvements": ["mejora concreta 1", "mejora concreta 2", "mejora concreta 3"],
+  "suggestions": "resumen breve de mejoras en 1 o 2 oraciones"
 }`;
 
     console.log("🚀 Enviando request a Groq...");
@@ -68,10 +162,24 @@ Devuelve SOLO un JSON válido así:
       parsed = JSON.parse(match[0]);
     }
 
+    const criteria = {
+      visualElements: clamp(parsed?.criteria?.visualElements),
+      styleAtmosphere: clamp(parsed?.criteria?.styleAtmosphere),
+      technicalDetails: clamp(parsed?.criteria?.technicalDetails),
+      clarity: clamp(parsed?.criteria?.clarity),
+    };
+
+    const weightedScore = computeWeightedScore(criteria);
+    const qualityResult = evaluatePromptQuality(userPrompt, difficulty);
+    const adjustedScore = clamp(weightedScore - qualityResult.penalty);
+
     return {
-      score: Math.min(100, Math.max(0, parsed.score)),
-      explanation: parsed.explanation,
-      suggestions: parsed.suggestions,
+      score: adjustedScore,
+      criteria,
+      explanation: String(parsed.explanation || "").trim(),
+      strengths: sanitizeList(parsed.strengths, ["Base inicial reconocible"]),
+      improvements: sanitizeList(parsed.improvements, ["Agregar más precisión visual y técnica"]),
+      suggestions: String(parsed.suggestions || "").trim(),
     };
 
   } catch (error) {
