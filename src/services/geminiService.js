@@ -1,13 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
 export async function comparePrompts(userPrompt, originalPrompt) {
   try {
-    const model = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash",
-});
-
     const prompt = `Eres un experto en prompts de generación de imágenes con IA. 
 
 Compara estos dos prompts:
@@ -32,45 +26,47 @@ Devuelve SOLO un JSON válido así:
   "suggestions": "sugerencias concretas para mejorar (mínimo 3 oraciones)"
 }`;
 
-    console.log("🔍 DEBUG - Enviando prompt a Gemini...");
+    console.log("🚀 Enviando request a Groq...");
 
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 2048,
-        responseMimeType: "application/json",
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GROQ_API_KEY}`,
       },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+      }),
     });
 
-    const textResponse = result.response.text();
+    const data = await response.json();
 
-    console.log("📝 DEBUG - Raw response:", textResponse);
+    if (!response.ok) {
+      console.error("❌ API ERROR:", data);
+      throw new Error(data.error?.message || "Error en la API");
+    }
+
+    const textResponse = data.choices[0].message.content;
+
+    console.log("📝 RAW:", textResponse);
 
     let parsed;
 
     try {
       parsed = JSON.parse(textResponse);
-    } catch (err) {
-      console.error("❌ ERROR - JSON inválido:", textResponse);
-      throw new Error("La IA devolvió un formato inválido.");
+    } catch {
+      // fallback por si mete texto extra
+      const match = textResponse.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No vino JSON válido");
+      parsed = JSON.parse(match[0]);
     }
-
-    if (
-      typeof parsed.score !== "number" ||
-      !parsed.explanation ||
-      !parsed.suggestions
-    ) {
-      console.error("❌ ERROR - JSON incompleto:", parsed);
-      throw new Error("Respuesta incompleta de la IA.");
-    }
-
-    console.log("🎉 DEBUG - Resultado final:", parsed);
 
     return {
       score: Math.min(100, Math.max(0, parsed.score)),
