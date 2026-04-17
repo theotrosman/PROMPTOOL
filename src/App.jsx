@@ -7,6 +7,47 @@ import PromptInput from './components/PromptInput'
 import ResultPanel from './components/ResultPanel'
 import { comparePrompts } from './services/geminiService'
 
+const normalizeDifficulty = (difficulty = 'Media') =>
+  difficulty
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+const formatDuration = (seconds = 0) => {
+  const safe = Math.max(0, Math.floor(seconds))
+  const mins = Math.floor(safe / 60)
+  const secs = safe % 60
+  return `${mins}:${String(secs).padStart(2, '0')}`
+}
+
+const getTimePenalty = ({ elapsedSeconds = 0, recommendedSeconds = 0 }, difficulty = 'Media') => {
+  if (!recommendedSeconds || elapsedSeconds <= recommendedSeconds) {
+    return { penalty: 0, message: '' }
+  }
+
+  const overtimeSeconds = elapsedSeconds - recommendedSeconds
+  const overtimeRatio = overtimeSeconds / Math.max(recommendedSeconds, 1)
+  const normalizedDifficulty = normalizeDifficulty(difficulty)
+  const difficultyFactor = normalizedDifficulty.includes('facil')
+    ? 0.85
+    : normalizedDifficulty.includes('dificil')
+      ? 1.2
+      : 1.05
+
+  const penalty = Math.min(
+    30,
+    Math.max(
+      4,
+      Math.round((overtimeRatio * 22 + overtimeSeconds / 18) * difficultyFactor)
+    )
+  )
+
+  return {
+    penalty,
+    message: `Tardaste demasiado (${formatDuration(overtimeSeconds)} extra). Se descontaron ${penalty} puntos por exceder el tiempo recomendado.`,
+  }
+}
+
 function App() {
   const [promptUsuario, setPromptUsuario] = useState('')
   const [aiExplanation, setAiExplanation] = useState('')
@@ -25,6 +66,8 @@ function App() {
   const [suggestions, setSuggestions] = useState('')
   const [strengths, setStrengths] = useState([])
   const [improvements, setImprovements] = useState([])
+  const [timingData, setTimingData] = useState({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
+  const [timePenaltyMessage, setTimePenaltyMessage] = useState('')
   const [error, setError] = useState('')
 
 
@@ -62,11 +105,13 @@ function App() {
 
     try {
       const result = await comparePrompts(submittedPrompt, imageData.prompt, difficulty)
-      setScorePercent(result.score)
+      const timePenalty = getTimePenalty(timingData, difficulty)
+      setScorePercent(Math.max(0, (result.score ?? 0) - timePenalty.penalty))
       setAiExplanation(result.explanation)
       setSuggestions(result.suggestions)
       setStrengths(result.strengths ?? [])
       setImprovements(result.improvements ?? [])
+      setTimePenaltyMessage(timePenalty.message)
     } catch (err) {
       setError(err.message)
       setScorePercent(0)
@@ -74,6 +119,7 @@ function App() {
       setSuggestions('')
       setStrengths([])
       setImprovements([])
+      setTimePenaltyMessage('')
     } finally {
       setAnalyzing(false)
     }
@@ -105,6 +151,8 @@ function App() {
     setSuggestions('')
     setStrengths([])
     setImprovements([])
+    setTimingData({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
+    setTimePenaltyMessage('')
     setError('')
     setAnalyzing(false)
   }
@@ -151,6 +199,8 @@ function App() {
                       setPromptUsuario={setPromptUsuario}
                       onSubmit={handleSubmit}
                       isLoading={loadingImage || analyzing}
+                      difficulty={difficulty}
+                      onTimingChange={setTimingData}
                     />
                     {renderControls()}
                   </>
@@ -176,6 +226,7 @@ function App() {
                           difficulty={difficulty}
                           strengths={strengths}
                           improvements={improvements}
+                          timePenaltyMessage={timePenaltyMessage}
                         />
                       </>
                     )}

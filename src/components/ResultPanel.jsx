@@ -111,7 +111,7 @@ const buildFallbackPoints = (score = 0, suggestions = '', minPassScore = 70) => 
   }
 }
 
-const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [] }) => {
+const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], timePenaltyMessage = '' }) => {
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
   const difficultyConfig = getDifficultyConfig(difficulty)
   const isPass = safeScore >= difficultyConfig.minPassScore
@@ -124,6 +124,11 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
   return (
     <div className="rounded-[1.75rem] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
       <div className="grid gap-3">
+        {timePenaltyMessage && (
+          <div className="rounded-[1.25rem] border border-rose-200 bg-rose-50 p-4">
+            <p className="text-sm font-semibold text-rose-700">{timePenaltyMessage}</p>
+          </div>
+        )}
         <div className="grid gap-3 md:grid-cols-[120px_1fr]">
           <div className="flex items-center justify-center rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3">
             <ScoreCircle value={safeScore} />
