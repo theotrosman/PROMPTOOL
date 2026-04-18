@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Perfil - PrompTool</title>
+    <script>
+      // /user/nombredeusuario → redirige a usuario.html?u=nombredeusuario
+      // Funciona tanto en dev (Vite) como en producción con el plugin de rewrite
+      const path = window.location.pathname
+      const match = path.match(/^\/user\/([^/]+)/)
+      if (match) {
+        const username = match[1]
+        window.location.replace('/usuario.html?u=' + encodeURIComponent(username))
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

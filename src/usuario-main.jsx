@@ -1,11 +1,11 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import GuidesApp from './GuidesApp'
+import UsuarioApp from './UsuarioApp'
 import { Providers } from './Providers'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <Providers><GuidesApp /></Providers>
+    <Providers><UsuarioApp /></Providers>
   </React.StrictMode>,
 )

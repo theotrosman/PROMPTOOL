@@ -11,15 +11,69 @@ body {
   min-height: 100vh;
 }
 
+/* ── Dark mode ── */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Superficies */
+html.dark .bg-white        { background-color: #1e293b !important; }
+html.dark .bg-slate-50     { background-color: #0f172a !important; }
+html.dark .bg-slate-100    { background-color: #1e293b !important; }
+html.dark .bg-white\/60    { background-color: rgb(30 41 59 / 0.6) !important; }
+html.dark .bg-white\/90    { background-color: rgb(15 23 42 / 0.92) !important; }
+
+/* Bordes */
+html.dark .border-slate-100 { border-color: #1e293b !important; }
+html.dark .border-slate-200 { border-color: #334155 !important; }
+html.dark .border-slate-200\/70 { border-color: rgb(51 65 85 / 0.7) !important; }
+html.dark .border-slate-200\/90 { border-color: rgb(51 65 85 / 0.9) !important; }
+
+/* Texto */
+html.dark .text-slate-900  { color: #f1f5f9 !important; }
+html.dark .text-slate-800  { color: #e2e8f0 !important; }
+html.dark .text-slate-700  { color: #cbd5e1 !important; }
+html.dark .text-slate-600  { color: #94a3b8 !important; }
+html.dark .text-slate-500  { color: #64748b !important; }
+html.dark .text-slate-400  { color: #475569 !important; }
+
+/* Hover superficies */
+html.dark .hover\:bg-slate-50:hover  { background-color: #1e293b !important; }
+html.dark .hover\:bg-slate-100:hover { background-color: #334155 !important; }
+html.dark .hover\:bg-slate-200:hover { background-color: #334155 !important; }
+html.dark .hover\:bg-white:hover     { background-color: #1e293b !important; }
+
+/* Inputs y formularios */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #475569 !important;
+}
+
+/* Disabled inputs */
+html.dark .disabled\:bg-slate-100:disabled { background-color: #1e293b !important; }
+html.dark .disabled\:text-slate-400:disabled { color: #475569 !important; }
+
+/* Backdrop */
+html.dark .backdrop-blur-xl { backdrop-filter: blur(24px); }
+
+/* Colores que NO deben cambiar en dark mode (emerald, rose, amber, indigo, purple) */
+/* Estos ya tienen suficiente contraste en ambos modos */
+
 @keyframes guide-card-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .guide-card {
@@ -27,7 +81,5 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .guide-card {
-    animation: none;
-  }
+  .guide-card { animation: none; }
 }

@@ -33,13 +33,10 @@ const computeWeightedScore = (criteria = {}) => {
   return clamp(Math.round(baseScore - penalty));
 };
 
-const normalizeDifficulty = (difficulty = "Media") =>
-  String(difficulty)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+const normalizeDifficulty = (difficulty = "Medium") =>
+  String(difficulty).toLowerCase()
 
-const evaluatePromptQuality = (userPrompt = "", difficulty = "Media") => {
+const evaluatePromptQuality = (userPrompt = "", difficulty = "Medium") => {
   const cleanPrompt = String(userPrompt || "").trim();
   const normalizedPrompt = cleanPrompt.toLowerCase();
   const words = cleanPrompt.split(/\s+/).filter(Boolean);
@@ -68,8 +65,8 @@ const evaluatePromptQuality = (userPrompt = "", difficulty = "Media") => {
 
   const normalizedDifficulty = normalizeDifficulty(difficulty);
   let targetQuality = 60;
-  if (normalizedDifficulty.includes("facil")) targetQuality = 42;
-  if (normalizedDifficulty.includes("dificil")) targetQuality = 75;
+  if (normalizedDifficulty === 'easy') targetQuality = 42;
+  if (normalizedDifficulty === 'hard') targetQuality = 75;
 
   let penalty = 0;
   if (quality < targetQuality) {
