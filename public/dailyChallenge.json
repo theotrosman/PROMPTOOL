@@ -1,1 +1,211 @@
-.
+[
+  {
+    "id": 1,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Wine, cheese, and grapes in a café with the background of Rome, a girl and a man sitting and smiling, realistic style, warm and inviting atmosphere, detailed, vibrant colors, art by Diego Rivera and Edward Hopper, high quality, photorealistic, 8K resolution.",
+    "dificultad": "Media",
+    "tematica": "Café y gastronomía",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 5,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Supergirl, Kara Zor-El, in an action pose flying through the skies of Metropolis, vibrant blue and red costume, powerful and confident expression, digital painting, comic book style, by Jim Lee and Alex Ross, high quality, ultra-detailed, dynamic composition, 4K resolution",
+    "dificultad": "Media",
+    "tematica": "Superhéroes",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 9,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Sara Lance as White Canary, striking a powerful pose in a dynamic urban setting, action-packed, highly detailed, comic book style, inspired by DC Comics, dramatic lighting, vibrant colors, intricate details, 8K resolution, cinematic quality.",
+    "dificultad": "Media",
+    "tematica": "Cómics",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 13,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Scarlet Witch casting powerful spells, surrounded by mystical energy and swirling chaos, (sorceress:1.2), (dramatic lighting:1.5), (highly detailed:1.3), dynamic pose, expression of concentration, comic book style, art by Marvel Comics artists, vivid colors, 4K high-definition, intricate details, cinematic",
+    "dificultad": "Media",
+    "tematica": "Fantástico",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 17,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Double exposure of a silk mosaic featuring larks among a forest path adorned with meadow flowers, joyful and bright atmosphere, fantastical digital art with botanical elements, intricate details, vibrant colors, high quality, stunning composition, trending on ArtStation.",
+    "dificultad": "Media",
+    "tematica": "Naturaleza",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 21,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Seamless textures made of vegetables - tomatoes, cucumbers, zucchinis, radishes, bell peppers. Pastel colors. Intricate, highly detailed, 8K resolution, photorealistic, aesthetic design.",
+    "dificultad": "Fácil",
+    "tematica": "Texturas de vegetales",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 25,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "An expensive oil painting of abstract art, showcasing the Mediterranean Sea with houses featuring orange roofs in the foreground. Vibrant colors, highly detailed, masterful brush strokes, influenced by artists like Claude Monet and Paul Cézanne, 8K resolution, ultra-high definition.",
+    "dificultad": "Media",
+    "tematica": "Arte",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 29,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "A lone wanderer traversing a vast desert landscape, searching for truth under a sky filled with wispy clouds at sunset, soft golden light casting long shadows on the sand dunes, deeply introspective, mystical atmosphere, art by Caspar David Friedrich, hyperrealistic, 8K resolution, intricate details, serene, evocative, fine-tuned.",
+    "dificultad": "Media",
+    "tematica": "Naturaleza",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 33,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Name embellished with gold DmitrySick, illuminated with white neon lights in a dark style, dramatic, elegant, artistic typography, high quality, sharp focus, intricate details, 8K resolution, photorealistic",
+    "dificultad": "Media",
+    "tematica": "Arte",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 37,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Name adorned with gold 'DmitrySick', white neon lighting, dark style, (highly detailed:1.5), (dramatic contrast:1.4), (sophisticated design:1.3), (cinematic feel:1.2), photorealistic, 8K resolution, intricate details",
+    "dificultad": "Media",
+    "tematica": "Arte",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 41,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Name adorned with gold DmitrySick, white neon glow in a dark style, (highly detailed:1.5), (elegant:1.3), (dramatic lighting:1.4), digital art, captivating design, ultra-high resolution, photorealistic, intricate details, sleek and modern aesthetic",
+    "dificultad": "Media",
+    "tematica": "Arte Digital",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 45,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "A decorative element enhanced with gold accents and white backlighting, featuring the name 'DMITRYSICK' elegantly displayed in the center. Intricate details, modern design, luxurious ambiance, photorealistic, high quality, 8K resolution.",
+    "dificultad": "Media",
+    "tematica": "Decoración",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 49,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "DMITRYsick text, adorned with gold in a black style and neon backlighting, elegant, modern design, high contrast, sleek aesthetic, futuristic vibe, intricate details, ultra-high resolution, photorealistic.",
+    "dificultad": "Media",
+    "tematica": "Diseño Moderno",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 53,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "AIRBORN text in the sky, made by an airplane trailing smoke, bright blue sky, fluffy white clouds, dynamic composition, lively atmosphere, vibrant colors, photorealistic, high detail, cinematic view, ultra-high resolution.",
+    "dificultad": "Media",
+    "tematica": "Aviación",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 57,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "A large house from 1956, showcasing mid-century modern architecture with expansive windows, lush gardens surrounding the property, and vintage cars parked in the driveway. Warm sunlight casts soft shadows, creating a nostalgic and tranquil atmosphere. Highly detailed, photorealistic, art by Greg Rutkowski and Midjourney, 8K resolution, vibrant colors, intricate details.",
+    "dificultad": "Media",
+    "tematica": "Arquitectura",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 61,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "A massage therapist from Voronezh performing a back massage on a client who knows how to relieve tension and restore energy. Relaxing atmosphere, warm lighting, soothing colors, photorealistic, intricate details, art by Greg Rutkowski, trending on ArtStation, high quality, 8K resolution.",
+    "dificultad": "Media",
+    "tematica": "Bienestar",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 65,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "A skilled male massage therapist creates a serene atmosphere, gently relieving tension and promoting relaxation through his expert technique, soft ambient lighting, soothing colors, tranquil setting, hyperrealistic, award-winning photography, detailed, high quality, 8k resolution.",
+    "dificultad": "Media",
+    "tematica": "Bienestar",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 69,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Colorful poster with the text 'ВАШИ ОТЗЫВЫ' in capital letters, classical style, intricate details, elegant composition, harmonious colors, inspired by classical art movements, high quality, sharp focus, ornate borders, photorealistic, 8K resolution.",
+    "dificultad": "Media",
+    "tematica": "Arte",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  },
+  {
+    "id": 73,
+    "date": "2026-04-18",
+    "imageUrl": null,
+    "prompt": "Relaxing professional massage, feel each muscle rejuvenate and find tranquility, serene atmosphere, calming colors, soft lighting, natural elements, art by Alphonse Mucha, high quality, ultra-detailed, 8K resolution, soothing and harmonious composition.",
+    "dificultad": "Fácil",
+    "tematica": "Bienestar",
+    "source": "telegram",
+    "verified": false,
+    "safe_for_work": true
+  }
+]
