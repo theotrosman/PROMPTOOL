@@ -118,17 +118,17 @@ function UsuarioApp() {
 
         setProfile(prof)
 
-        const ownProfile = !targetId && !targetUsername
-          ? !!user
-          : (idToLoad === user?.id)
+        const ownProfile =
+  (!targetId && !targetUsername && !!user) ||
+  (targetId && user && targetId === user.id)
 
-        // Cargar intentos solo si es perfil propio o admin
-        if (idToLoad) {
-          const { data: intentos } = await supabase
+        // Cargar intentos — RLS permite leer solo los propios, admin puede leer todos
+        if (ownProfile || isAdmin || !targetId) {
+          const { data: intentos, error: intentosError } = await supabase
             .from('intentos')
-            .select('puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, imagenes_ia(url_image, prompt_original, image_diff)')
-            .eq('id_usuario', idToLoad)
-            .order('fecha_hora', { ascending: false })
+.select('puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, imagenes_ia(url_image, prompt_original, image_diff)')            .order('fecha_hora', { ascending: false })
+
+          console.log('[intentos] data:', intentos?.length, 'error:', intentosError?.message)
 
           if (intentos && intentos.length > 0) {
             const total = intentos.length
@@ -225,7 +225,7 @@ function UsuarioApp() {
       } catch (err) {
         console.error('fetchData error:', err)
       } finally {
-        setLoadingData(false)
+        setLoadingData(false)   
       }
     }
 
@@ -233,8 +233,7 @@ function UsuarioApp() {
     }
 
     run()
-  }, [authLoading, user, targetId, targetUsername, isAdmin])
-
+}, [authLoading, user?.id, targetId, targetUsername, isAdmin])
   const handleAvatarFileChange = (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -383,8 +382,12 @@ function UsuarioApp() {
   }
 
   // ── Heatmap component ──
-  const ActivityHeatmap = ({ data }) => {
+  const ActivityHeatmap = ({ data, allAttempts }) => {
     const { t, lang } = useLang()
+    const scrollRef = useRef(null)
+    const [tooltip, setTooltip] = useState(null) // { key, count, x, y, dayAttempts }
+    const [expandedDay, setExpandedDay] = useState(null)
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
@@ -396,18 +399,24 @@ function UsuarioApp() {
       days.push({ date: d, key, count: data[key] || 0 })
     }
 
+    // Scroll al final al montar
+    useEffect(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+      }
+    }, [])
+
     const firstDay = days[0].date.getDay()
     const paddedDays = [...Array(firstDay).fill(null), ...days]
     const weeks = []
     for (let i = 0; i < paddedDays.length; i += 7) weeks.push(paddedDays.slice(i, i + 7))
 
-    // Colores inline para que funcionen en dark mode sin depender de Tailwind
     const getStyle = (count) => {
       if (count === 0) return { backgroundColor: 'var(--heatmap-empty)' }
-      if (count === 1) return { backgroundColor: '#818cf8' }  // indigo-400
-      if (count === 2) return { backgroundColor: '#6366f1' }  // indigo-500
-      if (count <= 4) return { backgroundColor: '#4f46e5' }   // indigo-600
-      return { backgroundColor: '#3730a3' }                    // indigo-800
+      if (count === 1) return { backgroundColor: '#818cf8' }
+      if (count === 2) return { backgroundColor: '#6366f1' }
+      if (count <= 4) return { backgroundColor: '#4f46e5' }
+      return { backgroundColor: '#3730a3' }
     }
 
     const totalYear = days.reduce((s, d) => s + d.count, 0)
@@ -431,9 +440,21 @@ function UsuarioApp() {
 
     const legendColors = ['var(--heatmap-empty)', '#818cf8', '#6366f1', '#4f46e5', '#3730a3']
 
+    // Intentos agrupados por día para el tooltip
+    const attemptsByDay = {}
+    if (allAttempts) {
+      allAttempts.forEach(a => {
+        const d = new Date(a.fecha_hora)
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+        if (!attemptsByDay[key]) attemptsByDay[key] = []
+        attemptsByDay[key].push(a)
+      })
+    }
+
+    const getScoreColor = (s) => s >= 70 ? '#10b981' : s >= 50 ? '#f59e0b' : '#ef4444'
+
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-4"
-        style={{ '--heatmap-empty': 'var(--tw-prose-body, #e2e8f0)' }}>
+      <div className="rounded-xl border border-slate-200 bg-white p-4 relative">
         <style>{`
           html.dark .heatmap-wrap { --heatmap-empty: #334155; }
           html:not(.dark) .heatmap-wrap { --heatmap-empty: #e2e8f0; }
@@ -446,13 +467,13 @@ function UsuarioApp() {
             <div className="flex items-center gap-1 text-xs text-slate-400">
               <span>{lang === 'en' ? 'Less' : 'Menos'}</span>
               {legendColors.map((c, i) => (
-                <div key={i} style={{ backgroundColor: c, width: 12, height: 12, borderRadius: 3 }} />
+                <div key={i} style={{ backgroundColor: c, width: 11, height: 11, borderRadius: 3 }} />
               ))}
               <span>{lang === 'en' ? 'More' : 'Más'}</span>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div ref={scrollRef} className="overflow-x-auto">
             <div className="inline-flex gap-0.5">
               <div className="flex flex-col gap-0.5 mr-1">
                 <div className="h-4" />
@@ -473,9 +494,24 @@ function UsuarioApp() {
                       {week.map((day, di) => (
                         <div
                           key={di}
-                          title={day ? `${day.key}: ${day.count} ${day.count === 1 ? t('attempt') : t('attempts')}` : ''}
                           style={day ? getStyle(day.count) : { backgroundColor: 'transparent' }}
-                          className="h-3 w-3 rounded-sm transition-colors"
+                          className="h-3 w-3 rounded-sm transition-colors cursor-pointer relative"
+                          onMouseEnter={(e) => {
+                            if (!day || day.count === 0) return
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setTooltip({
+                              key: day.key,
+                              count: day.count,
+                              dayAttempts: attemptsByDay[day.key] || [],
+                              x: rect.left + window.scrollX,
+                              y: rect.top + window.scrollY,
+                            })
+                          }}
+                          onMouseLeave={() => setTooltip(null)}
+                          onClick={() => {
+                            if (!day || day.count === 0) return
+                            setExpandedDay(expandedDay === day.key ? null : day.key)
+                          }}
                         />
                       ))}
                     </div>
@@ -484,11 +520,61 @@ function UsuarioApp() {
               </div>
             </div>
           </div>
+
+          {/* Tooltip flotante */}
+          {tooltip && (
+            <div
+              className="fixed z-[500] pointer-events-none"
+              style={{ left: tooltip.x + 16, top: tooltip.y - 8 }}
+            >
+              <div className="rounded-xl border border-slate-200 bg-white shadow-xl p-3 min-w-[180px] max-w-[240px]">
+                <p className="text-xs font-semibold text-slate-700 mb-2">
+                  {tooltip.key} · {tooltip.count} {tooltip.count === 1 ? t('attempt') : t('attempts')}
+                </p>
+                <div className="space-y-1.5">
+                  {tooltip.dayAttempts.slice(0, 5).map((a, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs font-bold" style={{ color: getScoreColor(a.puntaje_similitud) }}>
+                        {a.puntaje_similitud}%
+                      </span>
+                      <span className="text-xs text-slate-500 truncate flex-1">{a.prompt_usuario}</span>
+                    </div>
+                  ))}
+                  {tooltip.dayAttempts.length > 5 && (
+                    <p className="text-xs text-slate-400">+{tooltip.dayAttempts.length - 5} más</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Panel expandido al hacer click en un día */}
+          {expandedDay && attemptsByDay[expandedDay] && (
+            <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-indigo-700">{expandedDay}</p>
+                <button onClick={() => setExpandedDay(null)} className="text-xs text-indigo-400 hover:text-indigo-700">✕</button>
+              </div>
+              <div className="space-y-1.5">
+                {attemptsByDay[expandedDay].map((a, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-lg bg-white px-3 py-2 border border-indigo-100">
+                    <span className="text-sm font-bold shrink-0" style={{ color: getScoreColor(a.puntaje_similitud) }}>
+                      {a.puntaje_similitud}%
+                    </span>
+                    <span className="text-xs text-slate-600 truncate flex-1">{a.prompt_usuario}</span>
+                    <span className="text-xs text-slate-400 shrink-0">
+                      {new Date(a.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )
   }
-
+console.log('🔍 RENDER STATE:')
   if (authLoading || loadingData) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
@@ -805,130 +891,101 @@ function UsuarioApp() {
             )}
 
             {/* Heatmap de actividad */}
-            <ActivityHeatmap data={heatmapData} />
+            <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} />
 
             {(ownProfile || isAdmin) && (
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold text-slate-800">
-                    Historial de resoluciones
-                    <span className="ml-2 text-sm font-normal text-slate-400">
-                      Hoy: {stats.intentosHoy} · Esta semana: {stats.intentosEstaSemana}
-                    </span>
+                    {t('resolutionHistory')}
                   </h2>
+                  <span className="text-xs text-slate-400">
+                    {t('today')}: {stats.intentosHoy} · {t('thisWeek')}: {stats.intentosEstaSemana}
+                  </span>
                 </div>
 
                 {recentAttempts.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    {/* Header */}
+                    <div className="grid grid-cols-[2fr_1fr_auto] gap-3 px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      <span>{t('yourPrompt')}</span>
+                      <span>{lang === 'en' ? 'Date' : 'Fecha'}</span>
+                      <span className="text-right">{t('similarity')}</span>
+                    </div>
+
                     {recentAttempts.map((attempt, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setSelectedAttempt(selectedAttempt === i ? null : i)}
-                        className={`w-full text-left rounded-xl border transition-all duration-200 overflow-hidden ${
-                          selectedAttempt === i
-                            ? 'border-indigo-300 shadow-sm'
-                            : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
-                        }`}
-                      >
-                        {/* Fila resumen */}
-                        <div className={`flex items-center gap-3 p-3 ${selectedAttempt === i ? 'bg-indigo-50' : 'bg-white'}`}>
-                          {/* Score badge */}
-                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold border ${
-                            attempt.puntaje_similitud >= 70 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
-                            attempt.puntaje_similitud >= 50 ? 'bg-amber-50 border-amber-200 text-amber-700' :
-                            'bg-rose-50 border-rose-200 text-rose-700'
-                          }`}>
-                            {attempt.puntaje_similitud}%
+                      <div key={i}>
+                        <button
+                          onClick={() => setSelectedAttempt(selectedAttempt === i ? null : i)}
+                          className={`w-full grid grid-cols-[2fr_1fr_auto] gap-3 items-center px-4 py-2.5 text-left transition border-b border-slate-100 last:border-0 ${
+                            selectedAttempt === i ? 'bg-indigo-50' : 'bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <p className="truncate text-sm text-slate-700">{attempt.prompt_usuario || '—'}</p>
+                          <p className="text-xs text-slate-400 whitespace-nowrap">
+                            {new Date(attempt.fecha_hora).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric' })}
+                          </p>
+                          <div className="flex items-center gap-2 justify-end">
+                            {attempt.imagenes_ia?.image_diff && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400 hidden sm:inline">
+                                {attempt.imagenes_ia.image_diff}
+                              </span>
+                            )}
+                            <span className={`text-sm font-bold w-12 text-right ${
+                              attempt.puntaje_similitud >= 70 ? 'text-emerald-600' :
+                              attempt.puntaje_similitud >= 50 ? 'text-amber-500' : 'text-rose-500'
+                            }`}>
+                              {attempt.puntaje_similitud}%
+                            </span>
+                            <svg className={`h-3.5 w-3.5 text-slate-300 transition-transform ${selectedAttempt === i ? 'rotate-180' : ''}`}
+                              fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
                           </div>
+                        </button>
 
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate text-sm font-medium text-slate-700">
-                              {attempt.prompt_usuario || 'Sin prompt'}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-slate-400">{formatDate(attempt.fecha_hora)}</p>
-                              {attempt.imagenes_ia?.image_diff && (
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                                  {attempt.imagenes_ia.image_diff}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Chevron */}
-                          <svg
-                            className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${selectedAttempt === i ? 'rotate-180' : ''}`}
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-
-                        {/* Detalle expandido */}
+                        {/* Detalle expandido — compacto */}
                         {selectedAttempt === i && (
-                          <div className="border-t border-indigo-100 bg-white p-4" onClick={e => e.stopPropagation()}>
-                            <div className="flex flex-col gap-4 sm:flex-row">
-                              {/* Imagen de referencia */}
+                          <div className="bg-slate-50 border-b border-slate-200 px-4 py-3" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-4">
                               {attempt.imagenes_ia?.url_image && (
-                                <div className="shrink-0">
-                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Imagen</p>
-                                  <img
-                                    src={attempt.imagenes_ia.url_image}
-                                    alt="Imagen de referencia"
-                                    className="h-32 w-32 rounded-lg object-cover border border-slate-200"
-                                  />
-                                </div>
+                                <img src={attempt.imagenes_ia.url_image} alt=""
+                                  className="h-20 w-20 shrink-0 rounded-lg object-cover border border-slate-200" />
                               )}
-
-                              <div className="flex-1 space-y-3">
-                                {/* Tu prompt */}
+                              <div className="flex-1 min-w-0 space-y-2">
                                 <div>
-                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Tu prompt</p>
-                                  <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3 border border-slate-200">
+                                  <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('yourPrompt')}</p>
+                                  <p className="text-xs text-slate-700 bg-white rounded-lg px-3 py-2 border border-slate-200 line-clamp-2">
                                     {attempt.prompt_usuario}
                                   </p>
                                 </div>
-
-                                {/* Prompt original */}
                                 {attempt.imagenes_ia?.prompt_original && (
                                   <div>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Prompt original</p>
-                                    <p className="text-sm text-slate-600 bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                                    <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('originalPrompt')}</p>
+                                    <p className="text-xs text-slate-600 bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-200 line-clamp-2">
                                       {attempt.imagenes_ia.prompt_original}
                                     </p>
                                   </div>
                                 )}
-
-                                {/* Score visual */}
-                                <div>
-                                  <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                                    <span>Similitud</span>
-                                    <span className="font-semibold">{attempt.puntaje_similitud}%</span>
-                                  </div>
-                                  <div className="h-2 rounded-full bg-slate-100">
-                                    <div
-                                      className={`h-full rounded-full transition-all ${
-                                        attempt.puntaje_similitud >= 70 ? 'bg-emerald-500' :
-                                        attempt.puntaje_similitud >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-                                      }`}
-                                      style={{ width: `${attempt.puntaje_similitud}%` }}
-                                    />
-                                  </div>
+                                <div className="h-1.5 rounded-full bg-slate-200">
+                                  <div className={`h-full rounded-full ${
+                                    attempt.puntaje_similitud >= 70 ? 'bg-emerald-500' :
+                                    attempt.puntaje_similitud >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                                  }`} style={{ width: `${attempt.puntaje_similitud}%` }} />
                                 </div>
                               </div>
                             </div>
                           </div>
                         )}
-                      </button>
+                      </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center">
-                    <p className="text-slate-500 text-sm">Sin intentos registrados</p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+                    <p className="text-slate-500 text-sm">{t('noAttempts')}</p>
                     {ownProfile && (
                       <a href="/" className="mt-3 inline-block rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700">
-                        Hacer mi primer intento
+                        {t('firstAttempt')}
                       </a>
                     )}
                   </div>
