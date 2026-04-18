@@ -70,5 +70,45 @@
     "prompt": "Exploded view of a taco presented like a clean commercial recipe infographic. Components arranged vertically: tomato sauce, cheddar cheese, grilled chicken, lettuce and wheat taco bread. Each element is separated with precise spacing and annotated with labels and gram weights. Minimal neutral background, sans-serif typography, thin connector lines, educational and commercial design style with high clarity and organization.",
     "dificultad": "Media",
     "temática": "Gastronomía e infografía"
+  },
+  {
+    "id": 10,
+    "date": "2026-04-27",
+    "image": "https://cdn.yooprompt.org/nanobanana/media/8288907f5bd080718d4a4557.jpg",
+    "prompt": "Ultra-realistic cinematic scene of a smartphone lying on a wooden table, where the phone screen transforms into a fully detailed miniature professional tennis court. The court has a pristine blue hardcourt surface with fine scratches and chalk marks. Tiny realistic tennis players are actively serving, volleying and diving in intense match action. Dramatic stadium-style lighting from the sides creates strong highlights and long shadows, with subtle reflections on the phone glass. Dust particles float in the air, enhancing depth. Shot with DSLR 50mm lens, shallow depth of field, dynamic slightly tilted courtside perspective, ultra-crisp details, high-end sports advertisement aesthetic, 8K realism.",
+    "dificultad": "Alta",
+    "temática": "Tecnología y deporte"
+  },
+  {
+    "id": 11,
+    "date": "2026-04-27",
+    "image": "https://cdn.yooprompt.org/nanobanana/media/cfc7227e65abd53a4e8b8003.jpg",
+    "prompt": "Ultra-realistic premium beverage photography of a chilled aluminum soda can floating upright at the center of the frame, partially submerged in crystal-clear blue water. Dynamic ripples and splashes radiate outward. The can is covered in condensation droplets, with a clean yellow-and-white label design. The brand name 'lemonate' is displayed in bold black typography, replacing any original branding. Soft minimalist secondary text details. High-speed studio lighting freezes motion, creating a fresh, refreshing commercial beverage aesthetic, ultra detailed water physics, high contrast, 8K product photography realism.",
+    "dificultad": "Media",
+    "temática": "Bebidas y publicidad"
+  },
+  {
+    "id": 12,
+    "date": "2026-04-27",
+    "image": "https://cdn.yooprompt.org/nanobanana/media/c551440ec7342f2841c5a9e4.jpg",
+    "prompt": "Anime-style cozy winter scene of a young woman crouching in fresh snow building a snowman. She carefully places a carrot nose while wearing an oversized black puffer jacket with fur-lined hood, grey knit beanie and winter gloves. Snow rests naturally on her clothing. The snowman is two-tiered with charcoal eyes and twig arms. The environment is a quiet residential winter street with houses, snow piles and footprints. Twilight blue hour lighting with warm orange glow from windows creates cinematic contrast. Soft painterly shading, atmospheric slice-of-life aesthetic inspired by high-end anime backgrounds, 8K detail.",
+    "dificultad": "Media",
+    "temática": "Invierno y animación"
+  },
+  {
+    "id": 13,
+    "date": "2026-04-27",
+    "image": "https://cdn.yooprompt.org/nanobanana/media/cb97286a2f3ce7d1720c6d76.jpg",
+    "prompt": "Hyper-realistic digital food photography of a cake designed to perfectly resemble a logo shape. The cake sits on a pristine white table and is partially bitten, revealing rich interior layers of sponge, frosting and crumbs. The exterior shell mimics the logo structure while the inside bursts with vibrant playful colors. Slight overhead angle emphasizes contrast between exterior and interior. Soft diffused studio lighting enhances textures and shadows. Minimal bright background, whimsical yet photorealistic aesthetic, ultra detailed, commercial dessert photography style.",
+    "dificultad": "Alta",
+    "temática": "Gastronomía creativa"
+  },
+  {
+    "id": 14,
+    "date": "2026-04-27",
+    "image": "https://cdn.yooprompt.org/nanobanana/media/eec27b4553d8eabc0a471fbd.jpg",
+    "prompt": "Cinematic wide-angle street photography of a Malaysian city road in daytime. A large billboard on the upper right displays the uploaded image content, mounted on a visible metal structure. The street is surrounded by low to mid-rise commercial shophouses with mixed English and Malay signage. Tropical palm trees line the road, and multiple cars move with motion blur enhancing depth and realism. Bright natural sunlight, slightly warm color grading, clear blue sky with light clouds. Strong perspective lines lead toward the horizon, ultra realistic urban documentary style, high resolution, cinematic commercial photography aesthetic.",
+    "dificultad": "Alta",
+    "temática": "Paisaje urbano"
   }
 ]
