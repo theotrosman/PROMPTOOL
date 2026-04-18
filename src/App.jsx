@@ -7,6 +7,8 @@ import PromptInput from './components/PromptInput'
 import ResultPanel from './components/ResultPanel'
 import { comparePrompts } from './services/geminiService'
 import { getRecommendedGuides } from './data/guides'
+import { supabase } from './supabaseClient'
+
 
 const getTodayIsoDate = () => {
   const now = new Date()
@@ -35,6 +37,19 @@ const normalizeText = (value = '') =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+
+// Asegura que imageData tenga los campos necesarios para la relación en Supabase
+const normalizeImageData = (challenge) => {
+  if (!challenge) return null
+  
+  return {
+    ...challenge,
+    // Campo id_imagen: usar id_imagen si existe, sino usar id
+    id_imagen: challenge.id_imagen ?? challenge.id,
+    // Campo id_desafio: usar id_desafio si existe, sino null
+    id_desafio: challenge.id_desafio ?? null,
+  }
+}
 
 const getFilteredRandomChallenge = (challenges = [], difficulty = '', tema = '') => {
   if (!challenges.length) return null
@@ -121,21 +136,26 @@ function App() {
 
 
 
-  useEffect(() => {
-    const fetchImageData = async () => {
-      try {
-        const response = await fetch('/dailyChallenge.json')
-        const data = await response.json()
-        setChallenges(normalizeChallenges(data))
-      } catch (error) {
-        console.error('Error cargando datos de la imagen:', error)
-      } finally {
-        setLoadingImage(false)
-      }
+useEffect(() => {
+  const fetchImageData = async () => {
+    try {
+      // Pedimos todas las imágenes de tu tabla en Supabase
+      const { data, error } = await supabase
+        .from('imagenes_ia')
+        .select('*')
+      
+      if (error) throw error
+      setChallenges(normalizeChallenges(data))
+    } catch (error) {
+      console.error('Error cargando datos de Supabase:', error)
+      setError('No se pudieron cargar los desafíos.')
+    } finally {
+      setLoadingImage(false)
     }
+  }
 
-    fetchImageData()
-  }, [])
+  fetchImageData()
+}, [])
 
   useEffect(() => {
     if (!challenges.length) return
@@ -146,7 +166,8 @@ function App() {
         : getFilteredRandomChallenge(challenges, difficulty, tema)
     if (!selectedChallenge) return
 
-    setImageData(selectedChallenge)
+    // Normalizar los datos para asegurar que incluya id_imagen e id_desafio
+    setImageData(normalizeImageData(selectedChallenge))
 
     if (mode === 'daily') {
       if (selectedChallenge.dificultad) setDifficulty(selectedChallenge.dificultad)
@@ -154,14 +175,16 @@ function App() {
     }
   }, [mode, challenges, difficulty, tema])
 
-  const handleSubmit = async (event) => {
+const handleSubmit = async (event) => {
     event.preventDefault()
     const submittedPrompt = promptUsuario.trim()
-    if (!submittedPrompt) {
-      return
-    }
+    
+    if (!submittedPrompt) return
 
-    if (!imageData || !imageData.prompt) {
+    // Ajusté 'imageData.prompt' a 'imageData.prompt_original' si es que así lo pusiste en Supabase
+    const promptReferencia = imageData?.prompt_original || imageData?.prompt
+
+    if (!imageData || !promptReferencia) {
       setError('No se pudo cargar el prompt original. Por favor, recarga la página.')
       return
     }
@@ -171,14 +194,39 @@ function App() {
     setSubmitted(true)
 
     try {
-      const result = await comparePrompts(submittedPrompt, imageData.prompt, difficulty)
+      // 1. Ejecutamos tu lógica actual de comparación con Gemini
+      const result = await comparePrompts(submittedPrompt, promptReferencia, difficulty)
       const timePenalty = getTimePenalty(timingData, difficulty, mode)
-      setScorePercent(Math.max(0, (result.score ?? 0) - timePenalty.penalty))
+      const finalScore = Math.max(0, (result.score ?? 0) - timePenalty.penalty)
+
+      // 2. Actualizamos los estados de la interfaz
+      setScorePercent(finalScore)
       setAiExplanation(result.explanation)
       setSuggestions(result.suggestions)
       setStrengths(result.strengths ?? [])
       setImprovements(result.improvements ?? [])
       setTimePenaltyMessage(timePenalty.message)
+
+      // 3. ENVIAR A SUPABASE (El nuevo paso)
+      // Guardamos el intento para las estadísticas que planeaste
+      const { error: dbError } = await supabase
+        .from('intentos')
+        .insert([
+          {
+            prompt_usuario: submittedPrompt,
+            puntaje_similitud: finalScore,
+            // Los campos id_imagen e id_desafio están garantizados por normalizeImageData
+            id_imagen: imageData.id_imagen,
+            id_desafio: imageData.id_desafio,
+            fecha_hora: new Date().toISOString()
+          }
+        ])
+
+      if (dbError) {
+        console.error('Error al guardar el intento en Supabase:', dbError.message)
+        // No bloqueamos al usuario si falla el guardado, pero lo logueamos
+      }
+
     } catch (err) {
       setError(err.message)
       setScorePercent(0)

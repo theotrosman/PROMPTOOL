@@ -1,6 +1,8 @@
 [
   {
     "id": 1,
+    "id_imagen": 1,
+    "id_desafio": null,
     "date": "2026-04-18",
     "image": "https://cdn.yooprompt.org/nanobanana/media/3badf1c08833db8e7b5940e8.jpg",
     "prompt": "Hyper-realistic cinematic shot of a Red Bull can bursting with icy mist. Frost crystals form over the aluminum surface while cold vapor clouds explode outward. Frozen splash particles surround the can. Background is dark black-blue with glowing cold light rays. Ultra dramatic lighting, high contrast, macro photography style, cinematic commercial advertising look. Ultra-detailed textures, 4K UHD realism. Ice explosion and cold mist atmosphere.",
@@ -9,6 +11,8 @@
   },
   {
     "id": 2,
+    "id_imagen": 2,
+    "id_desafio": null,
     "date": "2026-04-19",
     "image": "https://cdn.yooprompt.org/nanobanana/media/6264d685b174d255928b1699.jpg",
     "prompt": "Ultra-realistic futuristic cinematic portrait of a man standing confidently in a minimalist studio. Moody lighting with soft shadows and a clean dark background. He wears a sleek layered jacket with subtle tech textures, modern fabrics, hidden seams and minimal accessories. Mid-shot to full-body framing, shallow depth of field, sharp focus on subject, slightly blurred background. Soft rim light and key light with cinematic contrast. Cool desaturated futuristic color tone. Editorial fashion photography style, 85mm lens, f/1.8, HDR, film-grade grading, ultra detailed skin and fabric textures.",
@@ -17,6 +21,8 @@
   },
   {
     "id": 3,
+    "id_imagen": 3,
+    "id_desafio": null,
     "date": "2026-04-20",
     "image": "https://cdn.yooprompt.org/nanobanana/media/26acdceba796504f160ee30c.jpg",
     "prompt": "Hyper-realistic candid winter scene of a young woman kneeling in a snowy field hugging a Siberian Husky. She wears a large brown faux fur ushanka hat and a thick black fur coat. Her face shows a natural rosy cold blush and a warm gentle smile. The Husky has icy blue eyes, thick fur and snow resting on its head and nose. Snow falls heavily in a soft, overcast rural landscape with blurred farmhouses and trees in the background. Cinematic depth, soft diffused lighting, high detail, 8K raw photography style.",
@@ -25,6 +31,8 @@
   },
   {
     "id": 4,
+    "id_imagen": 4,
+    "id_desafio": null,
     "date": "2026-04-21",
     "image": "https://cdn.yooprompt.org/nanobanana/media/74d4e1d4f43114bc06c98a5c.jpg",
     "prompt": "High-quality anime-style cinematic illustration of a human character riding a Pegasus at high speed. The Pegasus flies powerfully with strong wing motion cutting through the wind. The rider leans forward maintaining balance, holding reins naturally with a focused and cool expression. Hair and clothing flow dynamically with the motion. Aerial scene emphasizing speed and tension. Preserve Pegasus design and composition, no extra characters or elements. Cinematic lighting, unified color palette, 16:9 aspect ratio.",
@@ -33,6 +41,8 @@
   },
   {
     "id": 5,
+    "id_imagen": 5,
+    "id_desafio": null,
     "date": "2026-04-22",
     "image": "https://cdn.yooprompt.org/nanobanana/media/8c7cb473f169757ec37b080b.jpg",
     "prompt": "Photorealistic cinematic portrait of a professional Formula 1 racer standing beside a Ferrari Formula 1 car. The racer wears a red Ferrari racing suit with detailed sponsor patches, gloves and boots. Confident posture, calm focused expression. The F1 car is glossy red with aerodynamic details and reflections, positioned for visual impact. Background is a modern pit lane with soft depth of field. Sports editorial photography style, ultra realistic textures, cinematic grading, 8K resolution, sharp focus.",
@@ -41,6 +51,8 @@
   },
   {
     "id": 6,
+    "id_imagen": 6,
+    "id_desafio": null,
     "date": "2026-04-23",
     "image": "https://cdn.yooprompt.org/nanobanana/media/86bdf5e53af69d110e298cc2.jpg",
     "prompt": "High-fashion cinematic scene of a stylish young man and a female farmer harvesting potatoes together. The man wears a tailored charcoal suit while the woman wears denim overalls, plaid shirt and straw hat. Joyful collaborative expressions. Golden hour sunlight creates warm highlights and long shadows. DSLR photography style with shallow depth of field, sharp focus on subjects and potatoes. Cinematic editorial aesthetic with rich earthy tones, vibrant greens and warm gold grading, 8K ultra HD.",
@@ -49,6 +61,8 @@
   },
   {
     "id": 7,
+    "id_imagen": 7,
+    "id_desafio": null,
     "date": "2026-04-24",
     "image": "https://cdn.yooprompt.org/nanobanana/media/a004288f69a71b0685e9c95e.jpg",
     "prompt": "Hyper-realistic studio portrait of a stylish person interacting with 3D photorealistic Tom and Jerry. The person wears a light grey knitted sweater, high-waisted jeans and white sneakers, with a playful mischievous expression. Tom appears confident and Jerry playful on Tom’s shoulder. Clean grey-blue studio background, cinematic lighting, ultra-detailed textures, high resolution, polished finish, seamless integration of cartoon and realism.",
@@ -57,6 +71,8 @@
   },
   {
     "id": 8,
+    "id_imagen": 8,
+    "id_desafio": null,
     "date": "2026-04-25",
     "image": "https://cdn.yooprompt.org/nanobanana/media/5d00bb9371d8688f7615b090.jpg",
     "prompt": "Minimalist ink gesture sketch of a subject, drawn with loose expressive black lines on off-white canvas. Dynamic motion captured in imperfect strokes with varied line weight. Raw artistic energy and strong use of negative space. Modern editorial illustration style focused on simplicity and expression over detail.",
@@ -65,6 +81,8 @@
   },
   {
     "id": 9,
+    "id_imagen": 9,
+    "id_desafio": null,
     "date": "2026-04-26",
     "image": "https://cdn.yooprompt.org/nanobanana/media/474198a168de289acab70fc8.jpg",
     "prompt": "Exploded view of a taco presented like a clean commercial recipe infographic. Components arranged vertically: tomato sauce, cheddar cheese, grilled chicken, lettuce and wheat taco bread. Each element is separated with precise spacing and annotated with labels and gram weights. Minimal neutral background, sans-serif typography, thin connector lines, educational and commercial design style with high clarity and organization.",
@@ -73,6 +91,8 @@
   },
   {
     "id": 10,
+    "id_imagen": 10,
+    "id_desafio": null,
     "date": "2026-04-27",
     "image": "https://cdn.yooprompt.org/nanobanana/media/8288907f5bd080718d4a4557.jpg",
     "prompt": "Ultra-realistic cinematic scene of a smartphone lying on a wooden table, where the phone screen transforms into a fully detailed miniature professional tennis court. The court has a pristine blue hardcourt surface with fine scratches and chalk marks. Tiny realistic tennis players are actively serving, volleying and diving in intense match action. Dramatic stadium-style lighting from the sides creates strong highlights and long shadows, with subtle reflections on the phone glass. Dust particles float in the air, enhancing depth. Shot with DSLR 50mm lens, shallow depth of field, dynamic slightly tilted courtside perspective, ultra-crisp details, high-end sports advertisement aesthetic, 8K realism.",
@@ -81,6 +101,8 @@
   },
   {
     "id": 11,
+    "id_imagen": 11,
+    "id_desafio": null,
     "date": "2026-04-28",
     "image": "https://cdn.yooprompt.org/nanobanana/media/cfc7227e65abd53a4e8b8003.jpg",
     "prompt": "Ultra-realistic premium beverage photography of a chilled aluminum soda can floating upright at the center of the frame, partially submerged in crystal-clear blue water. Dynamic ripples and splashes radiate outward. The can is covered in condensation droplets, with a clean yellow-and-white label design. The brand name 'lemonate' is displayed in bold black typography, replacing any original branding. Soft minimalist secondary text details. High-speed studio lighting freezes motion, creating a fresh, refreshing commercial beverage aesthetic, ultra detailed water physics, high contrast, 8K product photography realism.",
@@ -89,6 +111,8 @@
   },
   {
     "id": 12,
+    "id_imagen": 12,
+    "id_desafio": null,
     "date": "2026-04-29",
     "image": "https://cdn.yooprompt.org/nanobanana/media/c551440ec7342f2841c5a9e4.jpg",
     "prompt": "Anime-style cozy winter scene of a young woman crouching in fresh snow building a snowman. She carefully places a carrot nose while wearing an oversized black puffer jacket with fur-lined hood, grey knit beanie and winter gloves. Snow rests naturally on her clothing. The snowman is two-tiered with charcoal eyes and twig arms. The environment is a quiet residential winter street with houses, snow piles and footprints. Twilight blue hour lighting with warm orange glow from windows creates cinematic contrast. Soft painterly shading, atmospheric slice-of-life aesthetic inspired by high-end anime backgrounds, 8K detail.",
@@ -97,6 +121,8 @@
   },
   {
     "id": 13,
+    "id_imagen": 13,
+    "id_desafio": null,
     "date": "2026-04-30",
     "image": "https://cdn.yooprompt.org/nanobanana/media/cb97286a2f3ce7d1720c6d76.jpg",
     "prompt": "Hyper-realistic digital food photography of a cake designed to perfectly resemble a logo shape. The cake sits on a pristine white table and is partially bitten, revealing rich interior layers of sponge, frosting and crumbs. The exterior shell mimics the logo structure while the inside bursts with vibrant playful colors. Slight overhead angle emphasizes contrast between exterior and interior. Soft diffused studio lighting enhances textures and shadows. Minimal bright background, whimsical yet photorealistic aesthetic, ultra detailed, commercial dessert photography style.",
@@ -105,6 +131,8 @@
   },
   {
     "id": 14,
+    "id_imagen": 14,
+    "id_desafio": null,
     "date": "2026-05-01",
     "image": "https://cdn.yooprompt.org/nanobanana/media/eec27b4553d8eabc0a471fbd.jpg",
     "prompt": "Cinematic wide-angle street photography of a Malaysian city road in daytime. A large billboard on the upper right displays the uploaded image content, mounted on a visible metal structure. The street is surrounded by low to mid-rise commercial shophouses with mixed English and Malay signage. Tropical palm trees line the road, and multiple cars move with motion blur enhancing depth and realism. Bright natural sunlight, slightly warm color grading, clear blue sky with light clouds. Strong perspective lines lead toward the horizon, ultra realistic urban documentary style, high resolution, cinematic commercial photography aesthetic.",
@@ -113,6 +141,8 @@
   },
   {
     "id": 15,
+    "id_imagen": 15,
+    "id_desafio": null,
     "date": "2026-05-02",
     "image": "https://cdn.yooprompt.org/nanobanana/media/b8e4261d89b92e0718453f2e.jpg",
     "prompt": "Clean exploded-view composition of a burger separated into exactly five floating layers with perfect vertical alignment and even spacing. The layers are: brioche bun, beef patty, melted cheese, fresh lettuce, and ripe tomato. Each ingredient remains photorealistic, preserving original proportions and textures. Minimal technical annotations with thin clean lines and modern typography describe each layer’s benefits: brioche bun with soft texture and lightly toasted finish; beef patty with juicy rich flavor and perfect sear; melted cheese with creamy melt enhancing savoriness; fresh lettuce with crisp freshness balance; ripe tomato with natural sweetness and juicy contrast. Background is slightly darkened for readability, lighting consistent with original shot, commercial product visualization style, ultra clean and precise.",
@@ -121,6 +151,8 @@
   },
   {
     "id": 16,
+    "id_imagen": 16,
+    "id_desafio": null,
     "date": "2026-05-03",
     "image": "https://cdn.yooprompt.org/nanobanana/media/141f6089be9928739475b614.jpg",
     "prompt": "Cinematic surreal sci-fi composition of a solitary figure standing with their back to the viewer, small in scale against a massive split cosmic environment. Left side dominated by a swirling vibrant spiral galaxy with nebula clouds in burning orange, deep red and cyan blue tones. Right side transitions into deep space darkness covered with glowing white mathematical equations and physics formulas like a cosmic chalkboard. The ground is a reflective infinite grid resembling a simulation. Dramatic lighting with galaxy rim light outlining the figure, mixing cool blue ambient tones with warm nebula highlights. Wide-angle cinematic framing, hyper-realistic sci-fi concept art inspired by Interstellar aesthetic.",
@@ -129,6 +161,8 @@
   },
   {
     "id": 17,
+    "id_imagen": 17,
+    "id_desafio": null,
     "date": "2026-05-04",
     "image": "https://cdn.yooprompt.org/nanobanana/media/86a1d9c0a76528e6f21c9691.jpg",
     "prompt": "Ultra-photorealistic scientific macro documentary photograph of a single crystal-clear water droplet resting on a broad tropical rainforest leaf. The droplet shows natural spherical tension with subtle optical refraction revealing leaf veins inside. The leaf has waxy micro texture, visible branching veins, tiny pores, dust particles and organic imperfections. Dense rainforest environment with soft green bokeh and misty humid atmosphere. Natural diffused sunlight filtered through canopy creates soft non-directional lighting and gentle highlights on the droplet. 100mm macro lens, f/8, extreme depth realism, 1:1 macro ratio, scientifically accurate natural photography.",
@@ -137,6 +171,8 @@
   },
   {
     "id": 18,
+    "id_imagen": 18,
+    "id_desafio": null,
     "date": "2026-05-05",
     "image": "https://cdn.yooprompt.org/nanobanana/media/b92e50c88050272f6d27cc9a.jpg",
     "prompt": "Hyper-realistic fashion composite image of a stylish person whose face is preserved with exact reference matching, standing confidently. They wear a knitted sweater themed in Family Guy style, high-waisted denim blue jeans, and white high-top sneakers. The person poses with one arm around a giant 3D photorealistic Peter Griffin while Brian Griffin sits playfully on Peter’s shoulder. The expression is fun and mischievous. The characters are rendered as a seamless 3D photorealistic duo integrated into the scene. Clean studio-like Family Guy themed background, cinematic lighting, ultra-detailed textures, polished high-resolution finish.",
