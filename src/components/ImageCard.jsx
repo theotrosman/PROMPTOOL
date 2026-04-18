@@ -3,18 +3,23 @@ import { useEffect, useState } from 'react'
 const ImageCard = ({ mode, data, loading }) => {
   const [aspectRatio, setAspectRatio] = useState('4 / 3')
   const [previewOpen, setPreviewOpen] = useState(false)
-  const imageUrl = data?.imageUrl ?? '/sample.jpg'
+  const imageUrl =
+    data?.imageUrl ||
+    data?.image ||
+    data?.image_url ||
+    data?.url ||
+    '/sample.jpg'
 
   useEffect(() => {
-    if (!data?.imageUrl) return
+    if (!imageUrl) return
     const img = new Image()
-    img.src = data.imageUrl
+    img.src = imageUrl
     img.onload = () => {
       if (img.naturalWidth && img.naturalHeight) {
         setAspectRatio(`${img.naturalWidth} / ${img.naturalHeight}`)
       }
     }
-  }, [data?.imageUrl])
+  }, [imageUrl])
 
   useEffect(() => {
     if (!previewOpen) return

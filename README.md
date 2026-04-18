@@ -52,12 +52,17 @@ Cada día se presenta una imagen y el usuario debe escribir el prompt que cree q
 
 Para mayor seguridad, las credenciales de Supabase se configuran mediante variables de entorno:
 
-1. Copia el archivo `.env.example` como `.env`:
+1. Instala las dependencias si aún no lo has hecho:
+   ```bash
+   npm install
+   ```
+
+2. Copia el archivo `.env.example` como `.env`:
    ```bash
    cp .env.example .env
    ```
 
-2. Completa las variables en `.env` con tus credenciales reales:
+3. Completa las variables en `.env` con tus credenciales reales:
    ```env
    VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
    VITE_SUPABASE_ANON_KEY=tu_clave_anonima_aqui

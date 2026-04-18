@@ -42,12 +42,29 @@ const normalizeText = (value = '') =>
 const normalizeImageData = (challenge) => {
   if (!challenge) return null
   
+  const normalizedImageUrl =
+    challenge.imageUrl ||
+    challenge.image_url ||
+    challenge.image ||
+    challenge.url ||
+    challenge.imagen ||
+    challenge.imagen_url ||
+    challenge.imagenUrl ||
+    null
+
   return {
     ...challenge,
     // Campo id_imagen: usar id_imagen si existe, sino usar id
     id_imagen: challenge.id_imagen ?? challenge.id,
     // Campo id_desafio: usar id_desafio si existe, sino null
     id_desafio: challenge.id_desafio ?? null,
+    // Mapea el campo de imagen desde distintas columnas posibles
+    imageUrl: normalizedImageUrl,
+    image: normalizedImageUrl,
+    image_url: normalizedImageUrl,
+    // Normaliza la temática y dificultad si vienen con diferentes nombres
+    tematica: challenge.tematica ?? challenge['temática'] ?? challenge.temática ?? challenge.topic ?? '',
+    dificultad: challenge.dificultad ?? challenge.difficulty ?? '',
   }
 }
 
@@ -134,28 +151,27 @@ function App() {
   const [error, setError] = useState('')
   const recommendedGuideIds = getRecommendedGuides(improvements, suggestions)
 
-
-
-useEffect(() => {
-  const fetchImageData = async () => {
-    try {
-      // Pedimos todas las imágenes de tu tabla en Supabase
-      const { data, error } = await supabase
-        .from('imagenes_ia')
-        .select('*')
-      
-      if (error) throw error
-      setChallenges(normalizeChallenges(data))
-    } catch (error) {
-      console.error('Error cargando datos de Supabase:', error)
-      setError('No se pudieron cargar los desafíos.')
-    } finally {
-      setLoadingImage(false)
+  useEffect(() => {
+    const fetchImageData = async () => {
+      try {
+        // Pedimos todas las imágenes de tu tabla en Supabase
+        const { data, error } = await supabase
+          .from('imagenes_ia')
+          .select('*')
+        
+        if (error) throw error
+        const normalized = normalizeChallenges(data).map(normalizeImageData)
+        setChallenges(normalized)
+      } catch (error) {
+        console.error('Error cargando datos de Supabase:', error)
+        setError('No se pudieron cargar los desafíos desde la base de datos.')
+      } finally {
+        setLoadingImage(false)
+      }
     }
-  }
 
-  fetchImageData()
-}, [])
+    fetchImageData()
+  }, [])
 
   useEffect(() => {
     if (!challenges.length) return
@@ -175,7 +191,7 @@ useEffect(() => {
     }
   }, [mode, challenges, difficulty, tema])
 
-const handleSubmit = async (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     const submittedPrompt = promptUsuario.trim()
     
@@ -309,6 +325,11 @@ const handleSubmit = async (event) => {
               <div className="space-y-6">
                 {!submitted ? (
                   <>
+                    {error && (
+                      <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-4">
+                        <p className="text-sm text-rose-700">{error}</p>
+                      </div>
+                    )}
                     <PromptInput
                       promptUsuario={promptUsuario}
                       setPromptUsuario={setPromptUsuario}
