@@ -40,8 +40,8 @@ const getDifficultyConfig = (difficulty = 'Medium') => {
   }
 }
 
-const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [] }) => {
-  const { t } = useLang()
+const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry }) => {
+  const { t, lang } = useLang()
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
   const difficultyConfig = getDifficultyConfig(difficulty)
   const isPass = safeScore >= difficultyConfig.minPassScore
@@ -62,6 +62,15 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isPass ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                 {isPass ? t('levelPassed') : t('keepTrying')}
               </span>
+              {!isPass && onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                >
+                  {lang === 'en' ? 'Try again' : 'Reintentar'}
+                </button>
+              )}
             </div>
             <p className="mt-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{t('aiAnalysis')}</p>
             <p className="mt-1 text-sm leading-relaxed text-slate-800">

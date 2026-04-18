@@ -33,10 +33,10 @@ function LeaderboardApp() {
   const getProfileUrl = (p) => p.username ? `/user/${p.username}` : `/usuario.html?id=${p.id_usuario}`
 
   const cols = [
-    { key: 'promedio_score', label: lang === 'en' ? 'Avg Score' : 'Promedio', suffix: '%' },
-    { key: 'mejor_score', label: lang === 'en' ? 'Best Score' : 'Mejor', suffix: '%' },
-    { key: 'total_intentos', label: lang === 'en' ? 'Attempts' : 'Intentos', suffix: '' },
-    { key: 'porcentaje_aprobacion', label: lang === 'en' ? 'Approval' : 'Aprobación', suffix: '%' },
+    { key: 'promedio_score', label: t('avgScore'), suffix: '%' },
+    { key: 'mejor_score', label: t('bestScore'), suffix: '%' },
+    { key: 'total_intentos', label: t('attempts2'), suffix: '' },
+    { key: 'porcentaje_aprobacion', label: t('approval'), suffix: '%' },
   ]
 
   return (
@@ -46,10 +46,10 @@ function LeaderboardApp() {
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900">
-            {lang === 'en' ? 'Global Leaderboard' : 'Ranking Global'}
+            {t('globalLeaderboard')}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {lang === 'en' ? 'Top players ranked by performance' : 'Los mejores jugadores por rendimiento'}
+            {t('leaderboardDesc')}
           </p>
         </div>
 
@@ -76,14 +76,14 @@ function LeaderboardApp() {
           </div>
         ) : players.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-            <p className="text-slate-500">{lang === 'en' ? 'No players yet' : 'Sin jugadores todavía'}</p>
+            <p className="text-slate-500">{t('noPlayers')}</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
             {/* Table header */}
             <div className="grid grid-cols-[2.5rem_1fr_repeat(4,5rem)] gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
               <span>#</span>
-              <span>{lang === 'en' ? 'Player' : 'Jugador'}</span>
+              <span>{t('player')}</span>
               {cols.map(c => (
                 <span key={c.key} className={`text-right ${sortBy === c.key ? 'text-slate-700' : ''}`}>{c.label}</span>
               ))}

@@ -381,12 +381,60 @@ function UsuarioApp() {
     )
   }
 
+  // ── Medals section ──
+  const MedalsSection = ({ userId }) => {
+    const [medals, setMedals] = useState([])
+
+    useEffect(() => {
+      if (!userId) return
+      const fetchMedals = async () => {
+        const { data } = await supabase
+          .from('usuario_medallas')
+          .select('fecha_obtenida, medallas(nombre, descripcion, icono_url, color)')
+          .eq('id_usuario', userId)
+          .order('fecha_obtenida', { ascending: false })
+        setMedals(data || [])
+      }
+      fetchMedals()
+    }, [userId])
+
+    if (medals.length === 0) return null
+
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+          {lang === 'en' ? 'Medals' : 'Medallas'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {medals.map((m, i) => {
+            const medal = m.medallas
+            if (!medal) return null
+            return (
+              <div
+                key={i}
+                title={`${medal.nombre}${medal.descripcion ? ` — ${medal.descripcion}` : ''}`}
+                className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold cursor-default transition hover:scale-105"
+                style={{ borderColor: medal.color + '40', backgroundColor: medal.color + '15', color: medal.color }}
+              >
+                {medal.icono_url ? (
+                  <img src={medal.icono_url} alt={medal.nombre} className="h-4 w-4 object-contain" />
+                ) : (
+                  <span>★</span>
+                )}
+                {medal.nombre}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   // ── Heatmap component ──
-  const ActivityHeatmap = ({ data, allAttempts }) => {
+  const ActivityHeatmap = ({ data, allAttempts, isOwn }) => {
     const { t, lang } = useLang()
     const scrollRef = useRef(null)
-    const [tooltip, setTooltip] = useState(null) // { key, count, x, y, dayAttempts }
-    const [expandedDay, setExpandedDay] = useState(null)
+    const [tooltip, setTooltip] = useState(null)
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -508,10 +556,6 @@ function UsuarioApp() {
                             })
                           }}
                           onMouseLeave={() => setTooltip(null)}
-                          onClick={() => {
-                            if (!day || day.count === 0) return
-                            setExpandedDay(expandedDay === day.key ? null : day.key)
-                          }}
                         />
                       ))}
                     </div>
@@ -527,54 +571,25 @@ function UsuarioApp() {
               className="fixed z-[500] pointer-events-none"
               style={{ left: tooltip.x + 16, top: tooltip.y - 8 }}
             >
-              <div className="rounded-xl border border-slate-200 bg-white shadow-xl p-3 min-w-[180px] max-w-[240px]">
-                <p className="text-xs font-semibold text-slate-700 mb-2">
-                  {tooltip.key} · {tooltip.count} {tooltip.count === 1 ? t('attempt') : t('attempts')}
+              <div className="rounded-xl border border-slate-200 bg-white shadow-xl px-3 py-2.5 min-w-[150px]">
+                <p className="text-xs font-semibold text-slate-700">{tooltip.key}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {tooltip.count} {tooltip.count === 1 ? t('attempt') : t('attempts')}
                 </p>
-                <div className="space-y-1.5">
-                  {tooltip.dayAttempts.slice(0, 5).map((a, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-xs font-bold" style={{ color: getScoreColor(a.puntaje_similitud) }}>
-                        {a.puntaje_similitud}%
-                      </span>
-                      <span className="text-xs text-slate-500 truncate flex-1">{a.prompt_usuario}</span>
-                    </div>
-                  ))}
-                  {tooltip.dayAttempts.length > 5 && (
-                    <p className="text-xs text-slate-400">+{tooltip.dayAttempts.length - 5} más</p>
-                  )}
-                </div>
+                {tooltip.dayAttempts.length > 0 && (
+                  <p className="text-xs font-bold mt-1" style={{ color: getScoreColor(Math.round(tooltip.dayAttempts.reduce((s, a) => s + a.puntaje_similitud, 0) / tooltip.dayAttempts.length)) }}>
+                    {lang === 'en' ? 'Avg' : 'Prom'}: {Math.round(tooltip.dayAttempts.reduce((s, a) => s + a.puntaje_similitud, 0) / tooltip.dayAttempts.length)}%
+                  </p>
+                )}
               </div>
             </div>
           )}
 
-          {/* Panel expandido al hacer click en un día */}
-          {expandedDay && attemptsByDay[expandedDay] && (
-            <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-indigo-700">{expandedDay}</p>
-                <button onClick={() => setExpandedDay(null)} className="text-xs text-indigo-400 hover:text-indigo-700">✕</button>
-              </div>
-              <div className="space-y-1.5">
-                {attemptsByDay[expandedDay].map((a, i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-lg bg-white px-3 py-2 border border-indigo-100">
-                    <span className="text-sm font-bold shrink-0" style={{ color: getScoreColor(a.puntaje_similitud) }}>
-                      {a.puntaje_similitud}%
-                    </span>
-                    <span className="text-xs text-slate-600 truncate flex-1">{a.prompt_usuario}</span>
-                    <span className="text-xs text-slate-400 shrink-0">
-                      {new Date(a.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Panel expandido — eliminado, solo hover */}
         </div>
       </div>
     )
   }
-console.log('🔍 RENDER STATE:')
   if (authLoading || loadingData) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
@@ -748,6 +763,9 @@ console.log('🔍 RENDER STATE:')
           {/* Contenido principal */}
           <div className="flex-1 min-w-0 space-y-5">
 
+            {/* Medallas */}
+            <MedalsSection userId={profile?.id_usuario} />
+
             {/* Header stats */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-800">Estadísticas</h2>
@@ -891,7 +909,7 @@ console.log('🔍 RENDER STATE:')
             )}
 
             {/* Heatmap de actividad */}
-            <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} />
+            <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} isOwn={ownProfile} />
 
             {(ownProfile || isAdmin) && (
               <div>
@@ -908,12 +926,12 @@ console.log('🔍 RENDER STATE:')
                   <div className="rounded-xl border border-slate-200 overflow-hidden">
                     {/* Header */}
                     <div className="grid grid-cols-[2fr_1fr_auto] gap-3 px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      <span>{t('yourPrompt')}</span>
+                      <span>{ownProfile ? t('yourPrompt') : (lang === 'en' ? 'Image' : 'Imagen')}</span>
                       <span>{lang === 'en' ? 'Date' : 'Fecha'}</span>
                       <span className="text-right">{t('similarity')}</span>
                     </div>
 
-                    {recentAttempts.map((attempt, i) => (
+                    {recentAttempts.slice(0, 5).map((attempt, i) => (
                       <div key={i}>
                         <button
                           onClick={() => setSelectedAttempt(selectedAttempt === i ? null : i)}
@@ -921,7 +939,14 @@ console.log('🔍 RENDER STATE:')
                             selectedAttempt === i ? 'bg-indigo-50' : 'bg-white hover:bg-slate-50'
                           }`}
                         >
-                          <p className="truncate text-sm text-slate-700">{attempt.prompt_usuario || '—'}</p>
+                          <p className="truncate text-sm text-slate-700">
+                            {ownProfile
+                              ? (attempt.prompt_usuario || '—')
+                              : (attempt.imagenes_ia?.image_diff
+                                  ? `${lang === 'en' ? 'Difficulty' : 'Dificultad'}: ${attempt.imagenes_ia.image_diff}`
+                                  : '—')
+                            }
+                          </p>
                           <p className="text-xs text-slate-400 whitespace-nowrap">
                             {new Date(attempt.fecha_hora).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric' })}
                           </p>
@@ -953,18 +978,33 @@ console.log('🔍 RENDER STATE:')
                                   className="h-20 w-20 shrink-0 rounded-lg object-cover border border-slate-200" />
                               )}
                               <div className="flex-1 min-w-0 space-y-2">
-                                <div>
-                                  <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('yourPrompt')}</p>
-                                  <p className="text-xs text-slate-700 bg-white rounded-lg px-3 py-2 border border-slate-200 line-clamp-2">
-                                    {attempt.prompt_usuario}
-                                  </p>
-                                </div>
-                                {attempt.imagenes_ia?.prompt_original && (
+                                {ownProfile ? (
+                                  <div>
+                                    <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('yourPrompt')}</p>
+                                    <p className="text-xs text-slate-700 bg-white rounded-lg px-3 py-2 border border-slate-200 line-clamp-2">
+                                      {attempt.prompt_usuario}
+                                    </p>
+                                  </div>
+                                ) : null}
+                                {attempt.imagenes_ia?.prompt_original && ownProfile && (
                                   <div>
                                     <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('originalPrompt')}</p>
                                     <p className="text-xs text-slate-600 bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-200 line-clamp-2">
                                       {attempt.imagenes_ia.prompt_original}
                                     </p>
+                                  </div>
+                                )}
+                                {/* Improvements — visible para todos */}
+                                {attempt.improvements?.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('improvements')}</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {attempt.improvements.slice(0, 3).map((imp, j) => (
+                                        <span key={j} className="rounded-full bg-rose-50 px-2 py-0.5 text-xs text-rose-700 ring-1 ring-rose-200">
+                                          {imp}
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                                 <div className="h-1.5 rounded-full bg-slate-200">

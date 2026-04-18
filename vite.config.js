@@ -19,6 +19,8 @@ module.exports = defineConfig({
             req.url = '/admin.html' + query
           } else if (url === '/guides' || url === '/guides/') {
             req.url = '/guides.html' + query
+          } else if (url === '/leaderboard' || url === '/leaderboard/') {
+            req.url = '/leaderboard.html' + query
           } else if (url === '/perfil' || url === '/perfil/' || url.startsWith('/perfil?')) {
             req.url = '/usuario.html' + query
           }
@@ -35,6 +37,7 @@ module.exports = defineConfig({
         usuario: resolve(__dirname, 'usuario.html'),
         admin: resolve(__dirname, 'admin.html'),
         user: resolve(__dirname, 'user.html'),
+        leaderboard: resolve(__dirname, 'leaderboard.html'),
       },
     },
   },

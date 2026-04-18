@@ -7,14 +7,15 @@ const getTimerConfig = (mode = 'random', difficulty = 'Medium') => {
   const normalized = normalizeDifficulty(difficulty)
   const isDaily = mode === 'daily'
   if (normalized === 'easy') return isDaily
-    ? { recommendedSeconds: 70, targetWords: 12, graceSeconds: 15 }
-    : { recommendedSeconds: 85, targetWords: 14, graceSeconds: 20 }
+    ? { recommendedSeconds: 120, targetWords: 12, graceSeconds: 30 }
+    : { recommendedSeconds: 150, targetWords: 14, graceSeconds: 40 }
   if (normalized === 'hard') return isDaily
-    ? { recommendedSeconds: 145, targetWords: 24, graceSeconds: 22 }
-    : { recommendedSeconds: 165, targetWords: 28, graceSeconds: 28 }
+    ? { recommendedSeconds: 240, targetWords: 24, graceSeconds: 60 }
+    : { recommendedSeconds: 270, targetWords: 28, graceSeconds: 60 }
+  // Medium
   return isDaily
-    ? { recommendedSeconds: 105, targetWords: 18, graceSeconds: 18 }
-    : { recommendedSeconds: 120, targetWords: 20, graceSeconds: 22 }
+    ? { recommendedSeconds: 180, targetWords: 18, graceSeconds: 45 }
+    : { recommendedSeconds: 210, targetWords: 20, graceSeconds: 50 }
 }
 
 const formatTime = (seconds = 0) => {

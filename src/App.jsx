@@ -150,6 +150,14 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, difficulty])
 
+  // Si el diario ya está hecho al cargar, cambiar a random automáticamente
+  useEffect(() => {
+    if (dailyDone && mode === 'daily') {
+      setMode('random')
+      setDraftMode('random')
+    }
+  }, [dailyDone])
+
   const hasImage = imageStatus === 'ok' && imageData !== null
   const isDisabled = !hasImage || (mode === 'daily' && dailyDone)
 
@@ -229,6 +237,20 @@ function App() {
     setAnalyzing(false)
   }
 
+  // Retry: vuelve al input con el mismo prompt y misma imagen, sin guardar nuevo intento
+  const handleRetry = () => {
+    setAiExplanation('')
+    setScorePercent(null)
+    setSubmitted(false)
+    setSuggestions('')
+    setStrengths([])
+    setImprovements([])
+    setTimingData({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
+    setTimePenaltyMessage('')
+    setAnalyzing(false)
+    // promptUsuario se mantiene para que el usuario lo vea y mejore
+  }
+
   const renderControls = () => (
     <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
       <button type="button" onClick={openConfig}
@@ -299,6 +321,7 @@ function App() {
                         improvements={improvements}
                         timePenaltyMessage={timePenaltyMessage}
                         recommendedGuideIds={recommendedGuideIds}
+                        onRetry={scorePercent !== null && scorePercent < 60 ? handleRetry : undefined}
                       />
                     )}
                   </div>
