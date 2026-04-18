@@ -2,210 +2,73 @@
   {
     "id": 1,
     "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Wine, cheese, and grapes in a café with the background of Rome, a girl and a man sitting and smiling, realistic style, warm and inviting atmosphere, detailed, vibrant colors, art by Diego Rivera and Edward Hopper, high quality, photorealistic, 8K resolution.",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/3badf1c08833db8e7b5940e8.jpg",
+    "prompt": "Hyper-realistic cinematic shot of a Red Bull can bursting with icy mist. Frost crystals form over the aluminum surface while cold vapor clouds explode outward. Frozen splash particles surround the can. Background is dark black-blue with glowing cold light rays. Ultra dramatic lighting, high contrast, macro photography style, cinematic commercial advertising look. Ultra-detailed textures, 4K UHD realism. Ice explosion and cold mist atmosphere.",
     "dificultad": "Media",
-    "tematica": "Café y gastronomía",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
+    "tematica": "Bebidas y publicidad"
+  },
+  {
+    "id": 2,
+    "date": "2026-04-19",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/6264d685b174d255928b1699.jpg",
+    "prompt": "Ultra-realistic futuristic cinematic portrait of a man standing confidently in a minimalist studio. Moody lighting with soft shadows and a clean dark background. He wears a sleek layered jacket with subtle tech textures, modern fabrics, hidden seams and minimal accessories. Mid-shot to full-body framing, shallow depth of field, sharp focus on subject, slightly blurred background. Soft rim light and key light with cinematic contrast. Cool desaturated futuristic color tone. Editorial fashion photography style, 85mm lens, f/1.8, HDR, film-grade grading, ultra detailed skin and fabric textures.",
+    "dificultad": "Alta",
+    "tematica": "Moda futurista"
+  },
+  {
+    "id": 3,
+    "date": "2026-04-20",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/26acdceba796504f160ee30c.jpg",
+    "prompt": "Hyper-realistic candid winter scene of a young woman kneeling in a snowy field hugging a Siberian Husky. She wears a large brown faux fur ushanka hat and a thick black fur coat. Her face shows a natural rosy cold blush and a warm gentle smile. The Husky has icy blue eyes, thick fur and snow resting on its head and nose. Snow falls heavily in a soft, overcast rural landscape with blurred farmhouses and trees in the background. Cinematic depth, soft diffused lighting, high detail, 8K raw photography style.",
+    "dificultad": "Media",
+    "tematica": "Naturaleza y animales"
+  },
+  {
+    "id": 4,
+    "date": "2026-04-21",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/74d4e1d4f43114bc06c98a5c.jpg",
+    "prompt": "High-quality anime-style cinematic illustration of a human character riding a Pegasus at high speed. The Pegasus flies powerfully with strong wing motion cutting through the wind. The rider leans forward maintaining balance, holding reins naturally with a focused and cool expression. Hair and clothing flow dynamically with the motion. Aerial scene emphasizing speed and tension. Preserve Pegasus design and composition, no extra characters or elements. Cinematic lighting, unified color palette, 16:9 aspect ratio.",
+    "dificultad": "Alta",
+    "tematica": "Fantasía épica"
   },
   {
     "id": 5,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Supergirl, Kara Zor-El, in an action pose flying through the skies of Metropolis, vibrant blue and red costume, powerful and confident expression, digital painting, comic book style, by Jim Lee and Alex Ross, high quality, ultra-detailed, dynamic composition, 4K resolution",
-    "dificultad": "Media",
-    "tematica": "Superhéroes",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
+    "date": "2026-04-22",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/8c7cb473f169757ec37b080b.jpg",
+    "prompt": "Photorealistic cinematic portrait of a professional Formula 1 racer standing beside a Ferrari Formula 1 car. The racer wears a red Ferrari racing suit with detailed sponsor patches, gloves and boots. Confident posture, calm focused expression. The F1 car is glossy red with aerodynamic details and reflections, positioned for visual impact. Background is a modern pit lane with soft depth of field. Sports editorial photography style, ultra realistic textures, cinematic grading, 8K resolution, sharp focus.",
+    "dificultad": "Alta",
+    "tematica": "Automovilismo"
+  },
+  {
+    "id": 6,
+    "date": "2026-04-23",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/86bdf5e53af69d110e298cc2.jpg",
+    "prompt": "High-fashion cinematic scene of a stylish young man and a female farmer harvesting potatoes together. The man wears a tailored charcoal suit while the woman wears denim overalls, plaid shirt and straw hat. Joyful collaborative expressions. Golden hour sunlight creates warm highlights and long shadows. DSLR photography style with shallow depth of field, sharp focus on subjects and potatoes. Cinematic editorial aesthetic with rich earthy tones, vibrant greens and warm gold grading, 8K ultra HD.",
+    "dificultad": "Alta",
+    "tematica": "Moda editorial / rural"
+  },
+  {
+    "id": 7,
+    "date": "2026-04-24",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/a004288f69a71b0685e9c95e.jpg",
+    "prompt": "Hyper-realistic studio portrait of a stylish person interacting with a 3D photorealistic Tom and Jerry. The person wears a light grey knitted sweater, high-waisted jeans and white sneakers, with a playful mischievous expression. Tom appears confident and Jerry playful on Tom’s shoulder. Clean grey-blue studio background, cinematic lighting, ultra-detailed textures, high resolution, polished finish, seamless integration of cartoon and realism.",
+    "dificultad": "Alta",
+    "tematica": "Animación y cultura pop"
+  },
+  {
+    "id": 8,
+    "date": "2026-04-25",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/5d00bb9371d8688f7615b090.jpg",
+    "prompt": "Minimalist ink gesture sketch of a subject, drawn with loose expressive black lines on off-white canvas. Dynamic motion captured in imperfect strokes with varied line weight. Raw artistic energy and strong use of negative space. Modern editorial illustration style focused on simplicity and expression over detail.",
+    "dificultad": "Fácil",
+    "tematica": "Arte minimalista"
   },
   {
     "id": 9,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Sara Lance as White Canary, striking a powerful pose in a dynamic urban setting, action-packed, highly detailed, comic book style, inspired by DC Comics, dramatic lighting, vibrant colors, intricate details, 8K resolution, cinematic quality.",
+    "date": "2026-04-26",
+    "imageUrl": "https://cdn.yooprompt.org/nanobanana/media/474198a168de289acab70fc8.jpg",
+    "prompt": "Exploded view of a taco presented like a clean commercial recipe infographic. Components arranged vertically: tomato sauce, cheddar cheese, grilled chicken, lettuce and wheat taco bread. Each element is separated with precise spacing and annotated with labels and gram weights. Minimal neutral background, sans-serif typography, thin connector lines, educational and commercial design style with high clarity and organization.",
     "dificultad": "Media",
-    "tematica": "Cómics",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 13,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Scarlet Witch casting powerful spells, surrounded by mystical energy and swirling chaos, (sorceress:1.2), (dramatic lighting:1.5), (highly detailed:1.3), dynamic pose, expression of concentration, comic book style, art by Marvel Comics artists, vivid colors, 4K high-definition, intricate details, cinematic",
-    "dificultad": "Media",
-    "tematica": "Fantástico",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 17,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Double exposure of a silk mosaic featuring larks among a forest path adorned with meadow flowers, joyful and bright atmosphere, fantastical digital art with botanical elements, intricate details, vibrant colors, high quality, stunning composition, trending on ArtStation.",
-    "dificultad": "Media",
-    "tematica": "Naturaleza",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 21,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Seamless textures made of vegetables - tomatoes, cucumbers, zucchinis, radishes, bell peppers. Pastel colors. Intricate, highly detailed, 8K resolution, photorealistic, aesthetic design.",
-    "dificultad": "Fácil",
-    "tematica": "Texturas de vegetales",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 25,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "An expensive oil painting of abstract art, showcasing the Mediterranean Sea with houses featuring orange roofs in the foreground. Vibrant colors, highly detailed, masterful brush strokes, influenced by artists like Claude Monet and Paul Cézanne, 8K resolution, ultra-high definition.",
-    "dificultad": "Media",
-    "tematica": "Arte",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 29,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "A lone wanderer traversing a vast desert landscape, searching for truth under a sky filled with wispy clouds at sunset, soft golden light casting long shadows on the sand dunes, deeply introspective, mystical atmosphere, art by Caspar David Friedrich, hyperrealistic, 8K resolution, intricate details, serene, evocative, fine-tuned.",
-    "dificultad": "Media",
-    "tematica": "Naturaleza",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 33,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Name embellished with gold DmitrySick, illuminated with white neon lights in a dark style, dramatic, elegant, artistic typography, high quality, sharp focus, intricate details, 8K resolution, photorealistic",
-    "dificultad": "Media",
-    "tematica": "Arte",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 37,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Name adorned with gold 'DmitrySick', white neon lighting, dark style, (highly detailed:1.5), (dramatic contrast:1.4), (sophisticated design:1.3), (cinematic feel:1.2), photorealistic, 8K resolution, intricate details",
-    "dificultad": "Media",
-    "tematica": "Arte",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 41,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Name adorned with gold DmitrySick, white neon glow in a dark style, (highly detailed:1.5), (elegant:1.3), (dramatic lighting:1.4), digital art, captivating design, ultra-high resolution, photorealistic, intricate details, sleek and modern aesthetic",
-    "dificultad": "Media",
-    "tematica": "Arte Digital",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 45,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "A decorative element enhanced with gold accents and white backlighting, featuring the name 'DMITRYSICK' elegantly displayed in the center. Intricate details, modern design, luxurious ambiance, photorealistic, high quality, 8K resolution.",
-    "dificultad": "Media",
-    "tematica": "Decoración",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 49,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "DMITRYsick text, adorned with gold in a black style and neon backlighting, elegant, modern design, high contrast, sleek aesthetic, futuristic vibe, intricate details, ultra-high resolution, photorealistic.",
-    "dificultad": "Media",
-    "tematica": "Diseño Moderno",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 53,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "AIRBORN text in the sky, made by an airplane trailing smoke, bright blue sky, fluffy white clouds, dynamic composition, lively atmosphere, vibrant colors, photorealistic, high detail, cinematic view, ultra-high resolution.",
-    "dificultad": "Media",
-    "tematica": "Aviación",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 57,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "A large house from 1956, showcasing mid-century modern architecture with expansive windows, lush gardens surrounding the property, and vintage cars parked in the driveway. Warm sunlight casts soft shadows, creating a nostalgic and tranquil atmosphere. Highly detailed, photorealistic, art by Greg Rutkowski and Midjourney, 8K resolution, vibrant colors, intricate details.",
-    "dificultad": "Media",
-    "tematica": "Arquitectura",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 61,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "A massage therapist from Voronezh performing a back massage on a client who knows how to relieve tension and restore energy. Relaxing atmosphere, warm lighting, soothing colors, photorealistic, intricate details, art by Greg Rutkowski, trending on ArtStation, high quality, 8K resolution.",
-    "dificultad": "Media",
-    "tematica": "Bienestar",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 65,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "A skilled male massage therapist creates a serene atmosphere, gently relieving tension and promoting relaxation through his expert technique, soft ambient lighting, soothing colors, tranquil setting, hyperrealistic, award-winning photography, detailed, high quality, 8k resolution.",
-    "dificultad": "Media",
-    "tematica": "Bienestar",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 69,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Colorful poster with the text 'ВАШИ ОТЗЫВЫ' in capital letters, classical style, intricate details, elegant composition, harmonious colors, inspired by classical art movements, high quality, sharp focus, ornate borders, photorealistic, 8K resolution.",
-    "dificultad": "Media",
-    "tematica": "Arte",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
-  },
-  {
-    "id": 73,
-    "date": "2026-04-18",
-    "imageUrl": null,
-    "prompt": "Relaxing professional massage, feel each muscle rejuvenate and find tranquility, serene atmosphere, calming colors, soft lighting, natural elements, art by Alphonse Mucha, high quality, ultra-detailed, 8K resolution, soothing and harmonious composition.",
-    "dificultad": "Fácil",
-    "tematica": "Bienestar",
-    "source": "telegram",
-    "verified": false,
-    "safe_for_work": true
+    "tematica": "Gastronomía e infografía"
   }
 ]
