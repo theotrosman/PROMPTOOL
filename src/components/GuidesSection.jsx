@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import GUIDE_LIBRARY from '../data/guides'
+import { useLang } from '../contexts/LangContext'
 
 const ACCENTS = {
   indigo: { soft: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', pill: 'bg-indigo-100 text-indigo-800' },
@@ -26,7 +27,7 @@ const shuffle = (arr) => {
   return copy
 }
 
-const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved }) => {
+const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved, lang = 'es' }) => {
   const [pool, setPool] = useState(() => shuffle(activity.items))
   const [slots, setSlots] = useState(() => activity.solution.map(() => null))
   const [dragging, setDragging] = useState(null)
@@ -93,18 +94,18 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved }) => {
     <div className={`rounded-[1.25rem] border bg-white p-4 ${a.border}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${a.text}`}>Actividad</p>
+          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${a.text}`}>{lang === 'en' ? 'Activity' : 'Actividad'}</p>
           <h4 className="mt-1 text-lg font-semibold text-slate-900">{activity.title}</h4>
           <p className="mt-1 text-sm text-slate-600">{activity.prompt}</p>
         </div>
         <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isSolved ? 'bg-emerald-100 text-emerald-800' : a.pill}`}>
-          {isSolved ? 'Completado' : 'Arrastra y suelta'}
+          {isSolved ? (lang === 'en' ? 'Completed' : 'Completado') : (lang === 'en' ? 'Drag & drop' : 'Arrastrá y soltá')}
         </div>
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
         <div className={`rounded-xl border p-3 ${a.border} ${a.soft}`}>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">Orden</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">{lang === 'en' ? 'Order' : 'Orden'}</p>
           <div className="mt-2 space-y-2">
             {slots.map((value, idx) => {
               const correct = value ? value === activity.solution[idx] : null
@@ -132,7 +133,7 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved }) => {
                         {value}
                       </div>
                     ) : (
-                      <div className="rounded-lg px-3 py-2 text-sm text-slate-400">Suelta aca</div>
+                      <div className="rounded-lg px-3 py-2 text-sm text-slate-400">{lang === 'en' ? 'Drop here' : 'Soltá acá'}</div>
                     )}
                   </div>
                   {value && correct && <span className="text-xs font-semibold text-emerald-700">OK</span>}
@@ -147,7 +148,7 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved }) => {
           onDrop={onDropPool}
           className="rounded-xl border border-slate-200 bg-slate-50 p-3"
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">Piezas</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">{lang === 'en' ? 'Pieces' : 'Piezas'}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {pool.map((item) => (
               <div
@@ -160,7 +161,7 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved }) => {
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-slate-500">Tip: si queres sacar una pieza del orden, arrastrala de vuelta aca.</p>
+          <p className="mt-3 text-xs text-slate-500">{lang === 'en' ? 'Tip: drag a piece back here to remove it from the order.' : 'Tip: arrastrá una pieza de vuelta acá para sacarla del orden.'}</p>
         </div>
       </div>
     </div>
@@ -188,7 +189,7 @@ const useLocalStorageState = (key, initialValue) => {
   return [state, setState]
 }
 
-const MiniQuiz = ({ quiz, accent = 'slate', storageKey, onCorrect }) => {
+const MiniQuiz = ({ quiz, accent = 'slate', storageKey, onCorrect, lang = 'es' }) => {
   const a = ACCENTS[accent] || ACCENTS.slate
   const [picked, setPicked] = useLocalStorageState(storageKey, null)
   const isCorrect = picked != null ? picked === quiz.correctIndex : null
@@ -201,12 +202,12 @@ const MiniQuiz = ({ quiz, accent = 'slate', storageKey, onCorrect }) => {
     <div className={`rounded-[1.25rem] border bg-white p-4 ${a.border}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${a.text}`}>Chequeo rapido</p>
+          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${a.text}`}>{lang === 'en' ? 'Quick check' : 'Chequeo rápido'}</p>
           <h4 className="mt-1 text-lg font-semibold text-slate-900">{quiz.question}</h4>
         </div>
         {isCorrect != null && (
           <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-            {isCorrect ? 'Correcto' : 'Casi'}
+            {isCorrect ? (lang === 'en' ? 'Correct' : 'Correcto') : (lang === 'en' ? 'Almost' : 'Casi')}
           </div>
         )}
       </div>
@@ -241,7 +242,7 @@ const MiniQuiz = ({ quiz, accent = 'slate', storageKey, onCorrect }) => {
 
       {picked != null && quiz.explanation && (
         <div className="mt-3 rounded-[1rem] border border-slate-200 bg-slate-50 px-3 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Por que</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{lang === 'en' ? 'Why' : 'Por qué'}</p>
           <p className="mt-1 text-sm text-slate-700">{quiz.explanation}</p>
         </div>
       )}
@@ -251,7 +252,7 @@ const MiniQuiz = ({ quiz, accent = 'slate', storageKey, onCorrect }) => {
 
 const getCompletionKey = (guideId, part) => `__${guideId}__::${part}`
 
-const ParteBuilder = ({ accent = 'slate' }) => {
+const ParteBuilder = ({ accent = 'slate', lang = 'es' }) => {
   const a = ACCENTS[accent] || ACCENTS.slate
   const [persona, setPersona] = useState('Actua como director/a de fotografia')
   const [aim, setAim] = useState('Generar un prompt para una escena clara y realista')
@@ -276,16 +277,16 @@ const ParteBuilder = ({ accent = 'slate' }) => {
     <div className={`rounded-[1.25rem] border bg-white p-4 ${a.border}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${a.text}`}>Constructor</p>
-          <h4 className="mt-1 text-lg font-semibold text-slate-900">Arma PARTE en 30 segundos</h4>
-          <p className="mt-1 text-sm text-slate-600">Completá campos cortos y te devuelve una versión usable.</p>
+          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${a.text}`}>{lang === 'en' ? 'Builder' : 'Constructor'}</p>
+          <h4 className="mt-1 text-lg font-semibold text-slate-900">{lang === 'en' ? 'Build PARTE in 30 seconds' : 'Armá PARTE en 30 segundos'}</h4>
+          <p className="mt-1 text-sm text-slate-600">{lang === 'en' ? 'Fill in short fields and get a usable prompt.' : 'Completá campos cortos y te devuelve una versión usable.'}</p>
         </div>
         <button
           type="button"
           onClick={copy}
           className={`rounded-full px-4 py-2 text-sm font-semibold transition ${copied ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
         >
-          {copied ? 'Copiado' : 'Copiar'}
+          {copied ? (lang === 'en' ? 'Copied' : 'Copiado') : (lang === 'en' ? 'Copy' : 'Copiar')}
         </button>
       </div>
 
@@ -321,7 +322,46 @@ const ParteBuilder = ({ accent = 'slate' }) => {
 }
 
 const GuidesSection = ({ recommendedGuideIds = [] }) => {
+  const { lang } = useLang()
   const recommendedSet = new Set(recommendedGuideIds)
+
+  // UI strings
+  const ui = {
+    library:        lang === 'en' ? 'Library'          : 'Biblioteca',
+    guides:         lang === 'en' ? 'Guides'           : 'Guías',
+    selected:       lang === 'en' ? 'Selected guide'   : 'Guía seleccionada',
+    progress:       lang === 'en' ? 'Progress'         : 'Progreso',
+    lesson:         lang === 'en' ? 'Lesson'           : 'Lección',
+    readLesson:     lang === 'en' ? 'I read the lesson': 'Leí la lección',
+    card:           lang === 'en' ? 'Card'             : 'Tarjeta',
+    of:             lang === 'en' ? 'of'               : 'de',
+    open:           lang === 'en' ? 'Open'             : 'Abrir',
+    close:          lang === 'en' ? 'Close'            : 'Cerrar',
+    keyIdea:        lang === 'en' ? 'Key idea'         : 'Idea clave',
+    activity:       lang === 'en' ? 'Activity'         : 'Actividad',
+    completed:      lang === 'en' ? 'Completed'        : 'Completado',
+    dragDrop:       lang === 'en' ? 'Drag & drop'      : 'Arrastra y suelta',
+    order:          lang === 'en' ? 'Order'            : 'Orden',
+    pieces:         lang === 'en' ? 'Pieces'           : 'Piezas',
+    dropHere:       lang === 'en' ? 'Drop here'        : 'Suelta acá',
+    dragTip:        lang === 'en' ? 'Tip: drag a piece back here to remove it from the order.' : 'Tip: arrastrá una pieza de vuelta acá para sacarla del orden.',
+    quickCheck:     lang === 'en' ? 'Quick check'      : 'Chequeo rápido',
+    correct:        lang === 'en' ? 'Correct'          : 'Correcto',
+    almost:         lang === 'en' ? 'Almost'           : 'Casi',
+    why:            lang === 'en' ? 'Why'              : 'Por qué',
+    builder:        lang === 'en' ? 'Builder'          : 'Constructor',
+    builderTitle:   lang === 'en' ? 'Build PARTE in 30 seconds' : 'Armá PARTE en 30 segundos',
+    builderDesc:    lang === 'en' ? 'Fill in short fields and get a usable prompt.' : 'Completá campos cortos y te devuelve una versión usable.',
+    copy:           lang === 'en' ? 'Copy'             : 'Copiar',
+    copied:         lang === 'en' ? 'Copied'           : 'Copiado',
+    output:         lang === 'en' ? 'Output'           : 'Salida',
+    steps:          lang === 'en' ? 'Steps'            : 'Pasos',
+    drills:         lang === 'en' ? 'Drills'           : 'Ejercicios',
+    checkpoints:    lang === 'en' ? 'Checklist'        : 'Completar',
+    recommended:    lang === 'en' ? 'Recommended'      : 'Recomendada',
+    locked:         lang === 'en' ? 'Activity locked'  : 'Actividad bloqueada',
+    lockedDesc:     lang === 'en' ? 'Mark "I read the lesson" above first. The idea: understand before practicing.' : 'Marcá "Leí la lección" arriba primero. La idea: entender antes de practicar.',
+  }
   const [selectedId, setSelectedId] = useState(GUIDE_LIBRARY[0]?.id)
   const [doneMap, setDoneMap] = useLocalStorageState('promptool_guides_done', {})
   const [lessonAckMap, setLessonAckMap] = useLocalStorageState('promptool_guides_lesson_ack', {})
@@ -455,8 +495,8 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
         <aside ref={sidebarRef} className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Biblioteca</p>
-              <h2 className="mt-1 text-2xl font-semibold text-slate-900">Guias</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{ui.library}</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-900">{ui.guides}</h2>
             </div>
             <div className="hidden sm:block text-xs font-semibold text-slate-500">{GUIDE_LIBRARY.length}</div>
           </div>
@@ -486,8 +526,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
                       <span className="mt-2 flex items-center gap-2">
                         {isRecommended && (
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${a.pill}`}>
-                            Recomendada
-                          </span>
+                            {ui.recommended}                          </span>
                         )}
                         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                           {guideProgress[guide.id] ?? 0}%
@@ -510,13 +549,13 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
         <section className="flex flex-col rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
           <div ref={rightHeaderRef} className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${accent.text}`}>Guia seleccionada</p>
+              <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${accent.text}`}>{ui.selected}</p>
               <h3 className="mt-1 text-2xl font-semibold text-slate-900">{selectedGuide.title}</h3>
               <p className="mt-1 text-sm text-slate-600">{selectedGuide.summary}</p>
             </div>
             <div className="min-w-[220px] rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Progreso</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{ui.progress}</p>
                 <p className="text-xs font-semibold text-slate-600">{selectedProgress}%</p>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -537,7 +576,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
               <div className={`rounded-[1.25rem] border bg-white p-4 ${accent.border}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${accent.text}`}>Lección</p>
+                    <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${accent.text}`}>{ui.lesson}</p>
                     <h4 className="mt-1 text-lg font-semibold text-slate-900">{selectedGuide.lesson.title}</h4>
                   </div>
                   <label className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white">
@@ -552,7 +591,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
                       }
                       className="h-4 w-4 accent-slate-900"
                     />
-                    Lei la leccion
+                    {ui.readLesson}
                   </label>
                 </div>
 
@@ -569,10 +608,10 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
                         >
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{block.heading}</p>
-                            <p className="mt-1 text-xs text-slate-500">Tarjeta {idx + 1} de {selectedGuide.lesson.blocks.length}</p>
+                            <p className="mt-1 text-xs text-slate-500">{ui.card} {idx + 1} {ui.of} {selectedGuide.lesson.blocks.length}</p>
                           </div>
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isOpen ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}>
-                            {isOpen ? 'Cerrar' : 'Abrir'}
+                            {isOpen ? ui.close : ui.open}
                           </span>
                         </button>
 
@@ -597,7 +636,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
 
                 {selectedGuide.lesson.takeaway && (
                   <div className="mt-3 rounded-[1.1rem] border border-slate-200 bg-white px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Idea clave</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{ui.keyIdea}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-800">{selectedGuide.lesson.takeaway}</p>
                   </div>
                 )}
@@ -606,7 +645,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
 
             {selectedGuide.id === 'estructura-prompt' && (
               <div className="mt-4">
-                <ParteBuilder accent={selectedGuide.accent} />
+                <ParteBuilder accent={selectedGuide.accent} lang={lang} />
               </div>
             )}
 
@@ -617,6 +656,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
                   accent={selectedGuide.accent}
                   storageKey={`promptool_quiz_${selectedGuide.id}`}
                   onCorrect={() => markDone(selectedGuide.id, 'quiz')}
+                  lang={lang}
                 />
               </div>
             )}
@@ -638,6 +678,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
                     guideId={selectedGuide.id}
                     activity={selectedGuide.activity}
                     accent={selectedGuide.accent}
+                    lang={lang}
                     onSolved={() => {
                       markDone(selectedGuide.id, 'activity')
                     }}
@@ -648,7 +689,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
 
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
               <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pasos</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{ui.steps}</p>
                 <ol className="mt-3 space-y-2">
                   {(selectedGuide.steps || []).map((step) => (
                     <li key={step} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-700">
@@ -659,7 +700,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
               </div>
 
               <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Retos</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{ui.drills}</p>
                 <ul className="mt-3 space-y-2">
                   {(selectedGuide.drills || []).map((drill) => (
                     <li key={drill} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-700">
@@ -671,7 +712,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
             </div>
 
             <div className="mt-3 rounded-[1.25rem] border border-slate-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Completar</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{ui.checkpoints}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(selectedGuide.checkpoints || []).map((checkpoint) => {
                   const key = `${selectedGuide.id}::${checkpoint}`

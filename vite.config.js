@@ -19,6 +19,10 @@ module.exports = defineConfig({
             req.url = '/admin.html' + query
           } else if (url === '/guides' || url === '/guides/') {
             req.url = '/guides.html' + query
+          } else if (url === '/terms' || url === '/terms/') {
+            req.url = '/terms.html' + query
+          } else if (url === '/privacy' || url === '/privacy/') {
+            req.url = '/privacy.html' + query
           } else if (url === '/leaderboard' || url === '/leaderboard/') {
             req.url = '/leaderboard.html' + query
           } else if (url === '/perfil' || url === '/perfil/' || url.startsWith('/perfil?')) {
@@ -38,6 +42,8 @@ module.exports = defineConfig({
         admin: resolve(__dirname, 'admin.html'),
         user: resolve(__dirname, 'user.html'),
         leaderboard: resolve(__dirname, 'leaderboard.html'),
+        terms: resolve(__dirname, 'terms.html'),
+        privacy: resolve(__dirname, 'privacy.html'),
       },
     },
   },

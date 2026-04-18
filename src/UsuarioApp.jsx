@@ -11,6 +11,7 @@ import { useAuth } from './hooks/useAuth'
 import { useAdmin } from './hooks/useAdmin'
 import { useLang } from './contexts/LangContext'
 import { supabase } from './supabaseClient'
+import { checkImageSafe } from './services/moderationService'
 
 function getTargetUserId() {
   const params = new URLSearchParams(window.location.search)
@@ -54,6 +55,7 @@ function UsuarioApp() {
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [avatarFile, setAvatarFile] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [checkingNsfw, setCheckingNsfw] = useState(false)
   const hasRedirected = useRef(false)
   const fileInputRef = useRef(null)
 
@@ -234,12 +236,38 @@ function UsuarioApp() {
 
     run()
 }, [authLoading, user?.id, targetId, targetUsername, isAdmin])
-  const handleAvatarFileChange = (e) => {
+  const handleAvatarFileChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) { alert('La imagen debe ser menor a 2MB'); return }
-    setAvatarFile(file)
-    setAvatarPreview(URL.createObjectURL(file))
+    if (file.size > 2 * 1024 * 1024) {
+      alert(lang === 'en' ? 'Image must be under 2MB' : 'La imagen debe ser menor a 2MB')
+      return
+    }
+
+    // Preview inmediato mientras se analiza
+    const previewUrl = URL.createObjectURL(file)
+    setAvatarPreview(previewUrl)
+    setCheckingNsfw(true)
+
+    try {
+      const { safe, reason } = await checkImageSafe(file)
+      if (!safe) {
+        setAvatarPreview(null)
+        setAvatarFile(null)
+        // Reset input
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        alert(lang === 'en'
+          ? `This image was rejected: inappropriate content detected.`
+          : `Esta imagen fue rechazada: se detectó contenido inapropiado.`)
+        return
+      }
+      setAvatarFile(file)
+    } catch {
+      // Si falla la detección, aceptar igual
+      setAvatarFile(file)
+    } finally {
+      setCheckingNsfw(false)
+    }
   }
 
   const uploadAvatar = async () => {
@@ -551,8 +579,8 @@ function UsuarioApp() {
                               key: day.key,
                               count: day.count,
                               dayAttempts: attemptsByDay[day.key] || [],
-                              x: rect.left + window.scrollX,
-                              y: rect.top + window.scrollY,
+                              x: rect.left,
+                              y: rect.top,
                             })
                           }}
                           onMouseLeave={() => setTooltip(null)}
@@ -569,7 +597,10 @@ function UsuarioApp() {
           {tooltip && (
             <div
               className="fixed z-[500] pointer-events-none"
-              style={{ left: tooltip.x + 16, top: tooltip.y - 8 }}
+              style={{
+                left: Math.min(tooltip.x + 12, window.innerWidth - 180),
+                top: tooltip.y > 120 ? tooltip.y - 80 : tooltip.y + 20,
+              }}
             >
               <div className="rounded-xl border border-slate-200 bg-white shadow-xl px-3 py-2.5 min-w-[150px]">
                 <p className="text-xs font-semibold text-slate-700">{tooltip.key}</p>
@@ -664,13 +695,19 @@ function UsuarioApp() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition"
+                    disabled={checkingNsfw}
+                    className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition disabled:opacity-50"
                   >
-                    {avatarFile ? `${t('fileSelected')} ${avatarFile.name}` : t('uploadPhoto')}
+                    {checkingNsfw
+                      ? (lang === 'en' ? 'Checking image...' : 'Verificando imagen...')
+                      : avatarFile
+                        ? `${t('fileSelected')} ${avatarFile.name}`
+                        : t('uploadPhoto')
+                    }
                   </button>
                   {uploadingAvatar && <p className="text-xs text-slate-400 text-center">{t('uploading')}</p>}
                   <div className="flex gap-2">
-                    <button onClick={saveProfile} disabled={saving || uploadingAvatar}
+                    <button onClick={saveProfile} disabled={saving || uploadingAvatar || checkingNsfw}
                       className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
                       {saving ? t('saving') : t('save')}
                     </button>

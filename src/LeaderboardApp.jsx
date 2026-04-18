@@ -1,75 +1,310 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import { supabase } from './supabaseClient'
 import { useLang } from './contexts/LangContext'
+import { useAuth } from './hooks/useAuth'
 
-const MEDALS = ['🥇', '🥈', '🥉']
+const TOP_COLORS = ['#f59e0b', '#94a3b8', '#b45309']
+
+function RankArrow({ current, previous }) {
+  if (!previous || previous === current) return <span className="w-3" />
+  if (current < previous) {
+    // subió (número menor = mejor posición)
+    return (
+      <svg className="h-3 w-3 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+      </svg>
+    )
+  }
+  return (
+    <svg className="h-3 w-3 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
 
 function LeaderboardApp() {
   const { t, lang } = useLang()
+  const { user } = useAuth()
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [sortBy, setSortBy] = useState('promedio_score') // promedio_score | mejor_score | total_intentos
+  const [sortBy, setSortBy] = useState('promedio_score')
+  const [myRank, setMyRank] = useState(null)
+  const [compareA, setCompareA] = useState(null)
+  const [compareB, setCompareB] = useState(null)
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [searchA, setSearchA] = useState('')
+  const [searchB, setSearchB] = useState('')
+  const myRowRef = useRef(null)
+
+  const cols = [
+    { key: 'promedio_score',       label: lang === 'en' ? 'Avg'      : 'Promedio',  suffix: '%' },
+    { key: 'mejor_score',          label: lang === 'en' ? 'Best'     : 'Mejor',     suffix: '%' },
+    { key: 'total_intentos',       label: lang === 'en' ? 'Attempts' : 'Intentos',  suffix: '' },
+    { key: 'porcentaje_aprobacion',label: lang === 'en' ? 'Approval' : 'Aprobación',suffix: '%' },
+    { key: 'racha_actual',         label: lang === 'en' ? 'Streak'   : 'Racha',     suffix: '' },
+  ]
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true)
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('usuarios')
-        .select('id_usuario, nombre, nombre_display, username, avatar_url, promedio_score, mejor_score, total_intentos, porcentaje_aprobacion, racha_actual')
+        .select('id_usuario, nombre, nombre_display, username, avatar_url, promedio_score, mejor_score, total_intentos, porcentaje_aprobacion, racha_actual, rank_anterior')
         .eq('adminstate', false)
         .gt('total_intentos', 0)
         .order(sortBy, { ascending: false })
-        .limit(50)
+        .limit(100)
 
-      if (!error) setPlayers(data || [])
+      const list = data || []
+      setPlayers(list)
+
+      // Guardar rank actual en BD para la próxima vez
+      if (list.length > 0) {
+        const updates = list.map((p, i) => ({ id_usuario: p.id_usuario, rank_anterior: i + 1 }))
+        // Solo actualizar si el rank cambió (batch update)
+        for (const u of updates) {
+          const player = list.find(p => p.id_usuario === u.id_usuario)
+          if (player?.rank_anterior !== u.rank_anterior) {
+            supabase.from('usuarios').update({ rank_anterior: u.rank_anterior }).eq('id_usuario', u.id_usuario)
+          }
+        }
+      }
+
+      if (user) {
+        const idx = list.findIndex(p => p.id_usuario === user.id)
+        setMyRank(idx >= 0 ? idx + 1 : null)
+      }
+
       setLoading(false)
     }
     fetchLeaderboard()
-  }, [sortBy])
+  }, [sortBy, user])
 
-  const getDisplayName = (p) => p.nombre_display || p.nombre || p.username || 'User'
-  const getProfileUrl = (p) => p.username ? `/user/${p.username}` : `/usuario.html?id=${p.id_usuario}`
+  // Scroll al propio usuario
+  useEffect(() => {
+    if (myRowRef.current) {
+      myRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [players])
 
-  const cols = [
-    { key: 'promedio_score', label: t('avgScore'), suffix: '%' },
-    { key: 'mejor_score', label: t('bestScore'), suffix: '%' },
-    { key: 'total_intentos', label: t('attempts2'), suffix: '' },
-    { key: 'porcentaje_aprobacion', label: t('approval'), suffix: '%' },
-  ]
+  const getDisplayName = (p) => p?.nombre_display || p?.nombre || p?.username || 'User'
+  const getProfileUrl = (p) => p?.username ? `/user/${p.username}` : `/usuario.html?id=${p?.id_usuario}`
+  const getAvatar = (p) => p?.avatar_url || null
+
+  const getScoreColor = (val, key) => {
+    if (key === 'total_intentos' || key === 'racha_actual') return 'text-slate-700'
+    return val >= 70 ? 'text-emerald-600' : val >= 50 ? 'text-amber-500' : 'text-rose-500'
+  }
+
+  const filteredForSearch = (query) =>
+    players.filter(p => {
+      const name = getDisplayName(p).toLowerCase()
+      const user = (p.username || '').toLowerCase()
+      return name.includes(query.toLowerCase()) || user.includes(query.toLowerCase())
+    }).slice(0, 8)
+
+  // ── Compare panel ──
+  const ComparePanel = () => {
+    if (!compareA || !compareB) return null
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+          <p className="text-sm font-semibold text-slate-700">
+            {lang === 'en' ? 'Comparison' : 'Comparación'}
+          </p>
+          <button onClick={() => { setCompareA(null); setCompareB(null); setCompareOpen(false) }}
+            className="text-xs text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+
+        <div className="grid grid-cols-[1fr_auto_1fr]">
+          {/* Player A */}
+          <div className="p-5 text-center border-r border-slate-100">
+            <a href={getProfileUrl(compareA)} className="inline-flex flex-col items-center gap-2 hover:opacity-80 transition">
+              <div className="h-14 w-14 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 flex items-center justify-center">
+                {getAvatar(compareA)
+                  ? <img src={getAvatar(compareA)} alt="" className="h-full w-full object-cover" />
+                  : <span className="text-lg font-bold text-slate-500">{getDisplayName(compareA).substring(0,2).toUpperCase()}</span>
+                }
+              </div>
+              <p className="text-sm font-semibold text-slate-800">{getDisplayName(compareA)}</p>
+              {compareA.username && <p className="text-xs text-slate-400">@{compareA.username}</p>}
+            </a>
+          </div>
+
+          {/* VS */}
+          <div className="flex items-center justify-center px-4">
+            <span className="text-xs font-bold text-slate-400">VS</span>
+          </div>
+
+          {/* Player B */}
+          <div className="p-5 text-center border-l border-slate-100">
+            <a href={getProfileUrl(compareB)} className="inline-flex flex-col items-center gap-2 hover:opacity-80 transition">
+              <div className="h-14 w-14 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 flex items-center justify-center">
+                {getAvatar(compareB)
+                  ? <img src={getAvatar(compareB)} alt="" className="h-full w-full object-cover" />
+                  : <span className="text-lg font-bold text-slate-500">{getDisplayName(compareB).substring(0,2).toUpperCase()}</span>
+                }
+              </div>
+              <p className="text-sm font-semibold text-slate-800">{getDisplayName(compareB)}</p>
+              {compareB.username && <p className="text-xs text-slate-400">@{compareB.username}</p>}
+            </a>
+          </div>
+        </div>
+
+        {/* Stats comparison */}
+        <div className="border-t border-slate-100">
+          {cols.map(col => {
+            const a = compareA[col.key] || 0
+            const b = compareB[col.key] || 0
+            const aWins = a > b
+            const bWins = b > a
+            const maxVal = Math.max(a, b, 1)
+            return (
+              <div key={col.key} className="grid grid-cols-[1fr_6rem_1fr] items-center gap-3 px-5 py-3 border-b border-slate-50 last:border-0">
+                {/* A bar */}
+                <div className="flex items-center gap-2 justify-end">
+                  <span className={`text-sm font-bold ${aWins ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    {a}{col.suffix}
+                  </span>
+                  <div className="h-2 w-24 rounded-full bg-slate-100 overflow-hidden">
+                    <div className={`h-full rounded-full ${aWins ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      style={{ width: `${(a / maxVal) * 100}%`, marginLeft: 'auto' }} />
+                  </div>
+                </div>
+
+                {/* Label */}
+                <p className="text-xs font-semibold text-center text-slate-500 uppercase tracking-wide">{col.label}</p>
+
+                {/* B bar */}
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-24 rounded-full bg-slate-100 overflow-hidden">
+                    <div className={`h-full rounded-full ${bWins ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      style={{ width: `${(b / maxVal) * 100}%` }} />
+                  </div>
+                  <span className={`text-sm font-bold ${bWins ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    {b}{col.suffix}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Player picker ──
+  const PlayerPicker = ({ label, value, search, setSearch, onSelect }) => {
+    const results = search.length > 0 ? filteredForSearch(search) : []
+    return (
+      <div className="relative flex-1">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</p>
+        {value ? (
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-slate-200 flex items-center justify-center">
+              {getAvatar(value)
+                ? <img src={getAvatar(value)} alt="" className="h-full w-full object-cover" />
+                : <span className="text-xs font-bold text-slate-500">{getDisplayName(value).substring(0,2).toUpperCase()}</span>
+              }
+            </div>
+            <span className="text-sm font-semibold text-slate-700 flex-1 truncate">{getDisplayName(value)}</span>
+            <button onClick={() => { onSelect(null); setSearch('') }} className="text-slate-400 hover:text-slate-700 text-xs">✕</button>
+          </div>
+        ) : (
+          <div className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={lang === 'en' ? 'Search player...' : 'Buscar jugador...'}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+            {results.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                {results.map(p => (
+                  <button key={p.id_usuario} onClick={() => { onSelect(p); setSearch('') }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">
+                    <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center">
+                      {getAvatar(p)
+                        ? <img src={getAvatar(p)} alt="" className="h-full w-full object-cover" />
+                        : <span className="text-xs font-bold text-slate-500">{getDisplayName(p).substring(0,2).toUpperCase()}</span>
+                      }
+                    </div>
+                    <span className="truncate">{getDisplayName(p)}</span>
+                    {p.username && <span className="text-xs text-slate-400 ml-auto">@{p.username}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <Header />
 
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-10">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">
-            {t('globalLeaderboard')}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {t('leaderboardDesc')}
-          </p>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 space-y-6">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">{t('globalLeaderboard')}</h1>
+            <p className="mt-1 text-sm text-slate-500">{t('leaderboardDesc')}</p>
+            {myRank && (
+              <p className="mt-2 text-sm font-semibold text-indigo-600">
+                {lang === 'en' ? `Your rank: #${myRank}` : `Tu posición: #${myRank}`}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setCompareOpen(o => !o)}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition border ${
+              compareOpen
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {lang === 'en' ? 'Compare players' : 'Comparar jugadores'}
+          </button>
         </div>
 
+        {/* Compare panel */}
+        {compareOpen && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+            <div className="flex gap-4 flex-wrap">
+              <PlayerPicker
+                label={lang === 'en' ? 'Player 1' : 'Jugador 1'}
+                value={compareA} search={searchA} setSearch={setSearchA} onSelect={setCompareA}
+              />
+              <PlayerPicker
+                label={lang === 'en' ? 'Player 2' : 'Jugador 2'}
+                value={compareB} search={searchB} setSearch={setSearchB} onSelect={setCompareB}
+              />
+            </div>
+            {compareA && compareB && <ComparePanel />}
+          </div>
+        )}
+
         {/* Sort tabs */}
-        <div className="flex gap-2 mb-6 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           {cols.map(col => (
-            <button
-              key={col.key}
-              onClick={() => setSortBy(col.key)}
+            <button key={col.key} onClick={() => setSortBy(col.key)}
               className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                 sortBy === col.key
                   ? 'bg-slate-900 text-white'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
+              }`}>
               {col.label}
             </button>
           ))}
         </div>
 
+        {/* Table */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
@@ -80,10 +315,10 @@ function LeaderboardApp() {
           </div>
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-            {/* Table header */}
-            <div className="grid grid-cols-[2.5rem_1fr_repeat(4,5rem)] gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {/* Header */}
+            <div className="grid grid-cols-[3rem_1fr_repeat(5,4.5rem)] gap-2 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
               <span>#</span>
-              <span>{t('player')}</span>
+              <span>{lang === 'en' ? 'Player' : 'Jugador'}</span>
               {cols.map(c => (
                 <span key={c.key} className={`text-right ${sortBy === c.key ? 'text-slate-700' : ''}`}>{c.label}</span>
               ))}
@@ -91,46 +326,56 @@ function LeaderboardApp() {
 
             {players.map((p, i) => {
               const rank = i + 1
+              const isMe = user && p.id_usuario === user.id
               const isTop3 = rank <= 3
+
               return (
-                <a
+                <div
                   key={p.id_usuario}
-                  href={getProfileUrl(p)}
-                  className={`grid grid-cols-[2.5rem_1fr_repeat(4,5rem)] gap-3 items-center px-5 py-3 border-b border-slate-100 last:border-0 transition hover:bg-slate-50 ${isTop3 ? 'bg-gradient-to-r from-amber-50/40 to-transparent' : ''}`}
+                  ref={isMe ? myRowRef : null}
+                  className={`grid grid-cols-[3rem_1fr_repeat(5,4.5rem)] gap-2 items-center px-5 py-3 border-b border-slate-100 last:border-0 transition ${
+                    isMe ? 'bg-indigo-50 border-l-2 border-l-indigo-400' : isTop3 ? 'bg-amber-50/30' : 'hover:bg-slate-50'
+                  }`}
                 >
-                  {/* Rank */}
-                  <span className="text-sm font-bold text-slate-400">
-                    {rank <= 3 ? MEDALS[rank - 1] : rank}
-                  </span>
+                  {/* Rank + arrow */}
+                  <div className="flex items-center gap-1">
+                    {isTop3 ? (
+                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill={TOP_COLORS[rank-1]}>
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    ) : (
+                      <span className="text-sm font-bold text-slate-400 w-5 text-center">{rank}</span>
+                    )}
+                    <RankArrow current={rank} previous={p.rank_anterior} />
+                  </div>
 
                   {/* Player */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 border border-slate-200">
-                      {p.avatar_url
-                        ? <img src={p.avatar_url} alt="" className="h-full w-full object-cover" />
-                        : <span className="text-xs font-bold text-slate-500">{getDisplayName(p).substring(0, 2).toUpperCase()}</span>
+                  <a href={getProfileUrl(p)} className="flex items-center gap-3 min-w-0 hover:opacity-80 transition">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 border border-slate-200">
+                      {getAvatar(p)
+                        ? <img src={getAvatar(p)} alt="" className="h-full w-full object-cover" />
+                        : <span className="text-xs font-bold text-slate-500">{getDisplayName(p).substring(0,2).toUpperCase()}</span>
                       }
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{getDisplayName(p)}</p>
+                      <p className={`text-sm font-semibold truncate ${isMe ? 'text-indigo-700' : 'text-slate-800'}`}>
+                        {getDisplayName(p)} {isMe && <span className="text-xs font-normal text-indigo-400">(tú)</span>}
+                      </p>
                       {p.username && <p className="text-xs text-slate-400">@{p.username}</p>}
                     </div>
-                  </div>
+                  </a>
 
                   {/* Stats */}
                   {cols.map(col => {
                     const val = p[col.key] || 0
                     const isActive = sortBy === col.key
-                    const color = col.key === 'promedio_score' || col.key === 'mejor_score' || col.key === 'porcentaje_aprobacion'
-                      ? val >= 70 ? 'text-emerald-600' : val >= 50 ? 'text-amber-500' : 'text-rose-500'
-                      : 'text-slate-700'
                     return (
-                      <span key={col.key} className={`text-right text-sm font-bold ${isActive ? color : 'text-slate-500'}`}>
+                      <span key={col.key} className={`text-right text-sm font-bold ${isActive ? getScoreColor(val, col.key) : 'text-slate-400'}`}>
                         {val}{col.suffix}
                       </span>
                     )
                   })}
-                </a>
+                </div>
               )
             })}
           </div>
