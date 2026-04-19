@@ -105,7 +105,7 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved, lang = 'es' }
 
       <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
         <div className={`rounded-xl border p-3 ${a.border} ${a.soft}`}>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">{lang === 'en' ? 'Order' : 'Orden'}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600 dark:text-slate-400">{lang === 'en' ? 'Order' : 'Orden'}</p>
           <div className="mt-2 space-y-2">
             {slots.map((value, idx) => {
               const correct = value ? value === activity.solution[idx] : null
@@ -118,8 +118,8 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved, lang = 'es' }
                     value
                       ? correct
                         ? 'border-emerald-200 bg-emerald-50'
-                        : 'border-slate-200 bg-white'
-                      : 'border-dashed border-slate-200 bg-white/60'
+                        : 'border-slate-200 bg-slate-50 dark:bg-[rgb(33_38_45)] dark:border-[rgb(48_54_61)]'
+                      : 'border-dashed border-slate-200 bg-slate-50/60 dark:bg-[rgb(22_27_34)] dark:border-[rgb(48_54_61)]'
                   }`}
                 >
                   <span className="text-xs font-semibold tabular-nums text-slate-400">{String(idx + 1).padStart(2, '0')}</span>
@@ -128,7 +128,7 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved, lang = 'es' }
                       <div
                         draggable
                         onDragStart={() => onDragStart(value, `slot:${idx}`)}
-                        className="cursor-grab rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white active:cursor-grabbing"
+                        className="cursor-grab rounded-lg bg-slate-800 dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-white active:cursor-grabbing"
                       >
                         {value}
                       </div>
@@ -136,7 +136,7 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved, lang = 'es' }
                       <div className="rounded-lg px-3 py-2 text-sm text-slate-400">{lang === 'en' ? 'Drop here' : 'Soltá acá'}</div>
                     )}
                   </div>
-                  {value && correct && <span className="text-xs font-semibold text-emerald-700">OK</span>}
+                  {value && correct && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">OK</span>}
                 </div>
               )
             })}
@@ -146,16 +146,16 @@ const OrderDnD = ({ guideId, activity, accent = 'slate', onSolved, lang = 'es' }
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDropPool}
-          className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+          className="rounded-xl border border-slate-200 dark:border-[rgb(48_54_61)] bg-slate-50 dark:bg-[rgb(22_27_34)] p-3"
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">{lang === 'en' ? 'Pieces' : 'Piezas'}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600 dark:text-slate-400">{lang === 'en' ? 'Pieces' : 'Piezas'}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {pool.map((item) => (
               <div
                 key={`${guideId}-pool-${item}`}
                 draggable
                 onDragStart={() => onDragStart(item, 'pool')}
-                className="cursor-grab rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:-translate-y-px active:cursor-grabbing"
+                className="cursor-grab rounded-full border border-slate-200 dark:border-[rgb(61_68_77)] bg-white dark:bg-[rgb(33_38_45)] px-3 py-2 text-sm font-semibold text-slate-800 dark:text-slate-200 shadow-sm transition hover:-translate-y-px active:cursor-grabbing"
               >
                 {item}
               </div>

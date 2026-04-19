@@ -23,20 +23,36 @@ const formatTime = (seconds = 0) => {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`
 }
 
-const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange }) => {
+const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false }) => {
   const { t } = useLang()
   const [startedAt, setStartedAt] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [pausedElapsed, setPausedElapsed] = useState(0) // segundos acumulados antes de pausar
   const timerConfig = useMemo(() => getTimerConfig(mode, difficulty), [mode, difficulty])
 
   useEffect(() => {
-    if (!startedAt) return
-    const id = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000)
+    if (!startedAt || paused) return
+    const id = window.setInterval(() => {
+      setElapsedSeconds(pausedElapsed + Math.floor((Date.now() - startedAt) / 1000))
+    }, 1000)
     return () => window.clearInterval(id)
-  }, [startedAt])
+  }, [startedAt, paused, pausedElapsed])
+
+  // Al pausar: guardar los segundos acumulados y resetear startedAt
+  useEffect(() => {
+    if (!startedAt) return
+    if (paused) {
+      setPausedElapsed(prev => prev + Math.floor((Date.now() - startedAt) / 1000))
+      setStartedAt(null)
+    } else {
+      // Al reanudar: nuevo startedAt desde ahora
+      setStartedAt(Date.now())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paused])
 
   useEffect(() => {
-    if (!promptUsuario.trim()) { setStartedAt(null); setElapsedSeconds(0) }
+    if (!promptUsuario.trim()) { setStartedAt(null); setElapsedSeconds(0); setPausedElapsed(0) }
   }, [promptUsuario])
 
   const estimatedSeconds = timerConfig.recommendedSeconds
@@ -64,13 +80,13 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
     : 'bg-rose-100 text-rose-700'
 
   return (
-    <form className="space-y-4" onSubmit={onSubmit}>
+    <form className="space-y-3" onSubmit={onSubmit}>
       <label className="block text-sm font-medium text-slate-700">{t('writePrompt')}</label>
       <div className="relative">
         <textarea
           value={promptUsuario}
           onChange={(e) => {
-            if (!startedAt && e.target.value.trim()) setStartedAt(Date.now())
+            if (!startedAt && e.target.value.trim() && !paused) setStartedAt(Date.now())
             setPromptUsuario(e.target.value)
           }}
           onCopy={handleAntiPaste} onPaste={handleAntiPaste} onCut={handleAntiPaste}
@@ -78,44 +94,49 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
           rows="4"
           placeholder={t('promptPlaceholder')}
           disabled={disabled}
-          className="w-full min-h-[130px] resize-none rounded-[1.75rem] border border-slate-200 bg-transparent px-5 py-4 pr-14 text-base text-slate-900 outline-none transition focus:border-slate-400 focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          className="w-full min-h-[130px] resize-none rounded-xl border border-slate-200 bg-transparent px-4 py-3 pr-12 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
         />
-        <div className="pointer-events-none absolute right-4 top-3 rounded-full bg-slate-900/5 px-2.5 py-1 text-xs font-semibold tabular-nums text-slate-700">
+        <div className="pointer-events-none absolute right-3 top-3 rounded-md bg-slate-900/5 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500">
           {wordsCount}
         </div>
       </div>
 
-      <div className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:grid-cols-2 lg:grid-cols-3">
-        <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-3 py-1">
-          {t('mode')}: {mode === 'daily' ? t('daily') : t('random')}
+      <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5">
+          <span className="text-slate-400">{t('mode')}</span>
+          <span className="text-slate-700 font-semibold">{mode === 'daily' ? t('daily') : t('random')}</span>
         </span>
-        <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-3 py-1">
-          {t('difficulty')}: {difficulty}
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5">
+          <span className="text-slate-400">{t('difficulty')}</span>
+          <span className="text-slate-700 font-semibold">{difficulty}</span>
         </span>
-        <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 ${timeBadgeClass}`}>
-          {t('suggestedTime')}: {formatTime(remainingSeconds)}
+        <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${timeBadgeClass}`}>
+          <span className="font-semibold">{formatTime(remainingSeconds)}</span>
         </span>
       </div>
 
       {overtimeSeconds > 0 && penaltyOvertimeSeconds === 0 && (
-        <p className="text-sm font-semibold text-amber-700">
+        <p className="text-xs text-amber-600">
           {t('mode') === 'Modo'
-            ? `Tiempo recomendado superado. Tenés ${formatTime(timerConfig.graceSeconds - overtimeSeconds)} de margen antes de penalización.`
-            : `Recommended time exceeded. You have ${formatTime(timerConfig.graceSeconds - overtimeSeconds)} left before penalty.`}
+            ? `Tiempo superado. ${formatTime(timerConfig.graceSeconds - overtimeSeconds)} antes de penalización.`
+            : `Time exceeded. ${formatTime(timerConfig.graceSeconds - overtimeSeconds)} before penalty.`}
         </p>
       )}
       {penaltyOvertimeSeconds > 0 && (
-        <p className="text-sm font-semibold text-rose-700">
+        <p className="text-xs text-rose-600">
           {t('mode') === 'Modo'
-            ? `Tardaste demasiado: ${formatTime(penaltyOvertimeSeconds)} extra sobre el margen. Se aplicará penalización de score.`
-            : `Too slow: ${formatTime(penaltyOvertimeSeconds)} over the grace period. A score penalty will apply.`}
+            ? `Penalización activa — ${formatTime(penaltyOvertimeSeconds)} extra.`
+            : `Penalty active — ${formatTime(penaltyOvertimeSeconds)} over.`}
         </p>
       )}
 
-      <p className="text-sm text-slate-500">{t('promptRecommendation')}</p>
+      <p className="text-xs text-slate-400">{t('promptRecommendation')}</p>
 
       <button type="submit" disabled={isLoading || disabled}
-        className="inline-flex w-full items-center justify-center rounded-[1.75rem] bg-slate-900 px-6 py-3 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400">
+        className="inline-flex w-full items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+        style={{ backgroundColor: 'rgb(var(--color-accent))' }}
+        onMouseEnter={e => !e.currentTarget.disabled && (e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))')}
+        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))')}>
         {isLoading ? t('analyzing') : disabled ? t('noImageAvailable') : t('analyzeWithAI')}
       </button>
     </form>

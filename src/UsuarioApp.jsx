@@ -12,6 +12,8 @@ import { useAdmin } from './hooks/useAdmin'
 import { useLang } from './contexts/LangContext'
 import { supabase } from './supabaseClient'
 import { checkImageSafe } from './services/moderationService'
+import { getRank, getNextRank, ELO_RANKS } from './services/eloService'
+import { calculateElo } from './services/eloService'
 
 function getTargetUserId() {
   const params = new URLSearchParams(window.location.search)
@@ -61,8 +63,102 @@ function UsuarioApp() {
   const [followingCount, setFollowingCount] = useState(0)
   const [followLoading, setFollowLoading] = useState(false)
   const [isTop1, setIsTop1] = useState(false)
+  const [chartColor, setChartColor] = useState('#6366f1')
   const hasRedirected = useRef(false)
   const fileInputRef = useRef(null)
+  const bannerInputRef = useRef(null)
+  const [bannerFile, setBannerFile] = useState(null)
+  const [bannerPreview, setBannerPreview] = useState(null)
+  const [uploadingBanner, setUploadingBanner] = useState(false)
+  const [showcaseFile, setShowcaseFile] = useState(null)
+  const [uploadingShowcase, setUploadingShowcase] = useState(false)
+
+  // Comparador de stats
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [compareWith, setCompareWith] = useState(null)   // { id, name, avatar, stats }
+  const [compareSearch, setCompareSearch] = useState('')
+  const [compareResults, setCompareResults] = useState([])
+  const [loadingCompare, setLoadingCompare] = useState(false)
+
+  const fetchCompareStats = async (userId) => {
+    const { data } = await supabase
+      .from('usuarios')
+      .select('id_usuario, nombre_display, nombre, username, avatar_url, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, total_intentos, racha_actual')
+      .eq('id_usuario', userId)
+      .maybeSingle()
+    if (!data) return null
+    return {
+      id: data.id_usuario,
+      name: data.nombre_display || data.nombre || data.username || 'Usuario',
+      username: data.username,
+      avatar: data.avatar_url,
+      stats: {
+        promedioScore: data.promedio_score || 0,
+        mejorScore: data.mejor_score || 0,
+        peorScore: data.peor_score || 0,
+        porcentajeAprobacion: data.porcentaje_aprobacion || 0,
+        totalIntentos: data.total_intentos || 0,
+        racha: data.racha_actual || 0,
+      }
+    }
+  }
+
+  const handleCompareSearch = async (q) => {
+    setCompareSearch(q)
+    if (!q.trim()) { setCompareResults([]); return }
+    setLoadingCompare(true)
+    const { data } = await supabase
+      .from('usuarios')
+      .select('id_usuario, nombre_display, nombre, username, avatar_url')
+      .or(`username.ilike.%${q}%,nombre_display.ilike.%${q}%,nombre.ilike.%${q}%`)
+      .limit(5)
+    setCompareResults(data || [])
+    setLoadingCompare(false)
+  }
+
+  const CHART_COLORS = [
+    { hex: '#10b981', name: 'Esmeralda' },
+    { hex: '#f59e0b', name: 'Ámbar' },
+    { hex: '#ef4444', name: 'Rojo' },
+    { hex: '#3b82f6', name: 'Azul' },
+    { hex: '#ec4899', name: 'Rosa' },
+    { hex: '#8b5cf6', name: 'Violeta' },
+    { hex: '#14b8a6', name: 'Teal' },
+  ]
+
+  const handleChartColorChange = (hex) => {
+    setChartColor(hex)
+    localStorage.setItem('profileChartColor', hex)
+    if (user) {
+      supabase.from('usuarios').update({ accent_color: hex }).eq('id_usuario', user.id).then(() => {})
+    }
+  }
+
+  // Convierte hex a filtro CSS para colorear imágenes/GIFs
+  // Usa hue-rotate dinámico calculado desde el color — funciona con cualquier hex
+  const hexToFilter = (hex) => {
+    try {
+      const r = parseInt(hex.slice(1, 3), 16) / 255
+      const g = parseInt(hex.slice(3, 5), 16) / 255
+      const b = parseInt(hex.slice(5, 7), 16) / 255
+      const max = Math.max(r, g, b), min = Math.min(r, g, b)
+      let h = 0
+      if (max !== min) {
+        const d = max - min
+        if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6
+        else if (max === g) h = ((b - r) / d + 2) / 6
+        else h = ((r - g) / d + 4) / 6
+      }
+      const hDeg = Math.round(h * 360)
+      const s = max === 0 ? 0 : Math.round(((max - min) / max) * 100)
+      const l = Math.round(((max + min) / 2) * 100)
+      // El GIF de fuego tiene tonos naranjas (~30°) — ajustamos desde ahí
+      const rotate = ((hDeg - 30) + 360) % 360
+      return `sepia(1) saturate(${Math.max(s * 3, 200)}%) hue-rotate(${rotate}deg) brightness(${l > 50 ? 1.1 : 0.9})`
+    } catch {
+      return 'none'
+    }
+  }
 
   useEffect(() => {
     // Esperar a que auth resuelva
@@ -101,7 +197,7 @@ function UsuarioApp() {
         let prof = null
         const { data: profFull, error: profError } = await supabase
           .from('usuarios')
-          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, adminstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website')
+          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating')
           .eq('id_usuario', idToLoad)
           .maybeSingle()
 
@@ -125,15 +221,40 @@ function UsuarioApp() {
 
         setProfile(prof)
 
+        // Cargar accent_color: si es perfil propio usar localStorage como preferencia,
+        // si es ajeno usar solo el de la BD
+        const ownProfileCheck =
+          (!targetId && !targetUsername && !!user) ||
+          (targetId && user && targetId === user.id) ||
+          (targetUsername && user && prof?.id_usuario === user.id)
+
+        if (ownProfileCheck) {
+          // Propio: localStorage tiene prioridad, luego BD
+          const saved = localStorage.getItem('profileChartColor')
+          setChartColor(saved || prof?.accent_color || '#6366f1')
+        } else {
+          // Ajeno: solo la BD, nunca tocar localStorage
+          setChartColor(prof?.accent_color || '#6366f1')
+        }
+
         const ownProfile =
   (!targetId && !targetUsername && !!user) ||
-  (targetId && user && targetId === user.id)
+  (targetId && user && targetId === user.id) ||
+  (targetUsername && user && prof?.id_usuario === user.id)
+
+        // Si es el propio perfil y tiene username, limpiar la URL a /user/username
+        if (ownProfile && prof?.username) {
+          const cleanUrl = `/user/${prof.username}`
+          if (window.location.pathname !== cleanUrl) {
+            window.history.replaceState(null, '', cleanUrl)
+          }
+        }
 
         // Cargar intentos — RLS permite leer solo los propios, admin puede leer todos
         if (ownProfile || isAdmin) {
           const { data: intentos, error: intentosError } = await supabase
             .from('intentos')
-.select('puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, imagenes_ia(url_image, prompt_original, image_diff)')            .order('fecha_hora', { ascending: false })
+.select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, imagenes_ia(url_image, prompt_original, image_diff)')            .order('fecha_hora', { ascending: false })
 
           console.log('[intentos] data:', intentos?.length, 'error:', intentosError?.message)
 
@@ -206,6 +327,42 @@ function UsuarioApp() {
                 total_intentos: total, promedio_score: promedio, mejor_score: mejor,
                 peor_score: peor, porcentaje_aprobacion: porcentajeAprobacion, racha_actual: racha,
               }).eq('id_usuario', idToLoad)
+
+              // Recalcular ELO retroactivo si no tiene o tiene el default 1000
+              if (!prof.elo_rating || prof.elo_rating === 1000) {
+                try {
+                  // Ordenar intentos cronológicamente (más viejo primero)
+                  const chronological = [...intentos].reverse()
+                  let eloActual = 1000
+                  const updates = []
+
+                  chronological.forEach((intento, idx) => {
+                    const diff = intento.imagenes_ia?.image_diff || 'Medium'
+                    const { newElo, delta } = calculateElo({
+                      userElo: eloActual,
+                      totalAttempts: idx,
+                      score: intento.puntaje_similitud || 0,
+                      difficulty: diff,
+                      timing: {},
+                    })
+                    updates.push({ id: intento.id_intento, delta })
+                    eloActual = newElo
+                  })
+
+                  // Guardar ELO final
+                  await supabase.from('usuarios').update({ elo_rating: eloActual }).eq('id_usuario', idToLoad)
+
+                  // Actualizar elo_delta en cada intento (en batch de 10)
+                  for (let i = 0; i < updates.length; i += 10) {
+                    const batch = updates.slice(i, i + 10)
+                    await Promise.all(batch.map(u =>
+                      supabase.from('intentos').update({ elo_delta: u.delta }).eq('id_intento', u.id)
+                    ))
+                  }
+                } catch (eloErr) {
+                  console.warn('[ELO retroactivo] Error:', eloErr.message)
+                }
+              }
             }
           } else {
             setStats({
@@ -219,24 +376,98 @@ function UsuarioApp() {
             })
           }
         } else {
-          setStats({
-            totalIntentos: prof.total_intentos || 0,
-            promedioScore: prof.promedio_score || 0,
-            mejorScore: prof.mejor_score || 0,
-            peorScore: prof.peor_score || 0,
-            intentosHoy: 0, intentosEstaSemana: 0,
-            porcentajeAprobacion: prof.porcentaje_aprobacion || 0,
-            racha: prof.racha_actual || 0,
-          })
-
-          // Cargar últimos 5 intentos públicos (sin prompts, solo score + imagen + improvements)
+          // Cargar intentos públicos — calcular todo igual que perfil propio
           const { data: publicIntentos } = await supabase
             .from('intentos')
-            .select('puntaje_similitud, fecha_hora, improvements, id_imagen, imagenes_ia(url_image, image_diff)')
+            .select('puntaje_similitud, fecha_hora, prompt_usuario, strengths, improvements, elo_delta, id_imagen, imagenes_ia(url_image, image_diff)')
             .eq('id_usuario', idToLoad)
             .order('fecha_hora', { ascending: false })
-            .limit(5)
-          if (publicIntentos) setRecentAttempts(publicIntentos)
+            .limit(365)
+
+          if (publicIntentos && publicIntentos.length > 0) {
+            const total = publicIntentos.length
+            const scores = publicIntentos.map(i => i.puntaje_similitud || 0)
+            const promedio = Math.round(scores.reduce((s, v) => s + v, 0) / total)
+            const mejor = Math.max(...scores)
+            const peor = Math.min(...scores)
+            const aprobados = publicIntentos.filter(i => (i.puntaje_similitud || 0) >= 60).length
+            const porcentajeAprobacion = Math.round((aprobados / total) * 100)
+
+            const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+            const intentosHoy = publicIntentos.filter(i => new Date(i.fecha_hora) >= hoy).length
+            const inicioSemana = new Date()
+            inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay())
+            inicioSemana.setHours(0, 0, 0, 0)
+            const intentosEstaSemana = publicIntentos.filter(i => new Date(i.fecha_hora) >= inicioSemana).length
+
+            let racha = 0
+            const fechasUnicas = [...new Set(publicIntentos.map(i => {
+              const d = new Date(i.fecha_hora)
+              return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+            }))]
+            const hoyStr = `${hoy.getFullYear()}-${hoy.getMonth()}-${hoy.getDate()}`
+            if (fechasUnicas.includes(hoyStr)) {
+              racha = 1
+              for (let i = 1; i < 365; i++) {
+                const dia = new Date(hoy); dia.setDate(dia.getDate() - i)
+                const diaStr = `${dia.getFullYear()}-${dia.getMonth()}-${dia.getDate()}`
+                if (fechasUnicas.includes(diaStr)) racha++; else break
+              }
+            }
+
+            setStats({
+              totalIntentos: prof.total_intentos || total,
+              promedioScore: promedio,
+              mejorScore: mejor,
+              peorScore: peor,
+              intentosHoy,
+              intentosEstaSemana,
+              porcentajeAprobacion,
+              racha,
+            })
+
+            setRecentAttempts(publicIntentos.slice(0, 10))
+
+            // Top strengths/improvements de los últimos 5
+            const last5 = publicIntentos.slice(0, 5)
+            const allStrengths = last5.flatMap(i => i.strengths || [])
+            const allImprovements = last5.flatMap(i => i.improvements || [])
+            const countMap = (arr) => {
+              const map = {}
+              arr.forEach(s => { map[s] = (map[s] || 0) + 1 })
+              return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([k]) => k)
+            }
+            setTopStrengths(countMap(allStrengths).slice(0, 4))
+            setTopImprovements(countMap(allImprovements).slice(0, 4))
+
+            // Gráfico de evolución (últimos 20, orden cronológico)
+            const last20 = publicIntentos.slice(0, 20).reverse()
+            setChartData(last20.map((i, idx) => ({
+              n: idx + 1,
+              score: i.puntaje_similitud || 0,
+              fecha: new Date(i.fecha_hora).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+            })))
+
+            // Heatmap (todos los intentos del año)
+            const map = {}
+            publicIntentos.forEach(i => {
+              const d = new Date(i.fecha_hora)
+              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+              map[key] = (map[key] || 0) + 1
+            })
+            setHeatmapData(map)
+          } else {
+            // Sin intentos — usar datos cacheados de la BD
+            setStats({
+              totalIntentos: prof.total_intentos || 0,
+              promedioScore: prof.promedio_score || 0,
+              mejorScore: prof.mejor_score || 0,
+              peorScore: prof.peor_score || 0,
+              intentosHoy: 0, intentosEstaSemana: 0,
+              porcentajeAprobacion: prof.porcentaje_aprobacion || 0,
+              racha: prof.racha_actual || 0,
+            })
+          }
         }
       } catch (err) {
         console.error('fetchData error:', err)
@@ -246,32 +477,6 @@ function UsuarioApp() {
     }
 
       fetchData()
-
-      // Load follow data
-      const loadFollowData = async () => {
-        const { data: followersData } = await supabase
-          .from('follows')
-          .select('id', { count: 'exact' })
-          .eq('following_id', idToLoad)
-        setFollowersCount(followersData?.length || 0)
-
-        const { data: followingData } = await supabase
-          .from('follows')
-          .select('id', { count: 'exact' })
-          .eq('follower_id', idToLoad)
-        setFollowingCount(followingData?.length || 0)
-
-        if (user && user.id !== idToLoad) {
-          const { data: myFollow } = await supabase
-            .from('follows')
-            .select('id')
-            .eq('follower_id', user.id)
-            .eq('following_id', idToLoad)
-            .maybeSingle()
-          setIsFollowing(!!myFollow)
-        }
-      }
-      loadFollowData()
 
       // Check if top 1
       const checkTop1 = async () => {
@@ -328,9 +533,7 @@ function UsuarioApp() {
     if (!avatarFile || !user) return null
     setUploadingAvatar(true)
     try {
-      // Asegurarse de que el bucket existe (lo crea si no existe)
       await supabase.storage.createBucket('avatars', { public: true }).catch(() => {})
-
       const ext = avatarFile.name.split('.').pop()
       const path = `${user.id}/avatar.${ext}`
       const { error: uploadError } = await supabase.storage
@@ -347,34 +550,85 @@ function UsuarioApp() {
     }
   }
 
+  const uploadBanner = async () => {
+    if (!bannerFile || !user) return null
+    setUploadingBanner(true)
+    try {
+      await supabase.storage.createBucket('avatars', { public: true }).catch(() => {})
+      const ext = bannerFile.name.split('.').pop()
+      const path = `${user.id}/banner.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, bannerFile, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      return data.publicUrl
+    } catch (err) {
+      alert('Error al subir banner: ' + err.message)
+      return null
+    } finally {
+      setUploadingBanner(false)
+    }
+  }
+
+  const uploadShowcase = async () => {
+    if (!showcaseFile || !user) return null
+    setUploadingShowcase(true)
+    try {
+      await supabase.storage.createBucket('avatars', { public: true }).catch(() => {})
+      const ext = showcaseFile.name.split('.').pop()
+      const path = `${user.id}/showcase.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, showcaseFile, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      return data.publicUrl
+    } catch (err) {
+      alert('Error al subir imagen: ' + err.message)
+      return null
+    } finally {
+      setUploadingShowcase(false)
+    }
+  }
+
   const saveProfile = async () => {
     setSaving(true)
     try {
       const updates = {}
       if (editedProfile.nombre_display !== undefined) updates.nombre_display = editedProfile.nombre_display
-      // Siempre guardar email_publico (tiene valor inicial del perfil)
       updates.email_publico = editedProfile.email_publico ?? profile?.email_publico ?? true
-      // Campos opcionales
       if (editedProfile.pais !== undefined) updates.pais = editedProfile.pais
       if (editedProfile.idioma_display !== undefined) updates.idioma_display = editedProfile.idioma_display
       if (editedProfile.social_github !== undefined) updates.social_github = editedProfile.social_github
       if (editedProfile.social_linkedin !== undefined) updates.social_linkedin = editedProfile.social_linkedin
       if (editedProfile.social_twitter !== undefined) updates.social_twitter = editedProfile.social_twitter
       if (editedProfile.social_website !== undefined) updates.social_website = editedProfile.social_website
+      if (editedProfile.pronouns !== undefined) updates.pronouns = editedProfile.pronouns
+      if (editedProfile.status !== undefined) updates.status = editedProfile.status
+      if (editedProfile.organization !== undefined) updates.organization = editedProfile.organization
 
-      // Si hay archivo nuevo, subirlo primero
       if (avatarFile) {
         const url = await uploadAvatar()
-        if (url) updates.avatar_url = url + '?t=' + Date.now() // cache bust
+        if (url) updates.avatar_url = url + '?t=' + Date.now()
       } else if (editedProfile.avatar_url !== undefined) {
         updates.avatar_url = editedProfile.avatar_url
+      }
+
+      if (bannerFile) {
+        const url = await uploadBanner()
+        if (url) updates.banner_url = url + '?t=' + Date.now()
+      }
+
+      if (showcaseFile) {
+        const url = await uploadShowcase()
+        if (url) updates.showcase_url = url + '?t=' + Date.now()
       }
 
       if (Object.keys(updates).length > 0) {
         const { error } = await supabase.from('usuarios').update(updates).eq('id_usuario', user.id)
         if (error) throw error
 
-        // Sincronizar nombre y avatar al metadata de auth para que el header los muestre
         const metaUpdates = {}
         if (updates.nombre_display) metaUpdates.nombre = updates.nombre_display
         if (updates.avatar_url) metaUpdates.avatar_url = updates.avatar_url
@@ -387,6 +641,9 @@ function UsuarioApp() {
 
       setAvatarFile(null)
       setAvatarPreview(null)
+      setBannerFile(null)
+      setBannerPreview(null)
+      setShowcaseFile(null)
       setEditingProfile(false)
     } catch (err) {
       alert('Error al guardar: ' + err.message)
@@ -564,7 +821,7 @@ function UsuarioApp() {
   }
 
   // ── Heatmap component ──
-  const ActivityHeatmap = ({ data, allAttempts, isOwn }) => {
+  const ActivityHeatmap = ({ data, allAttempts, isOwn, color = '#6366f1' }) => {
     const { t, lang } = useLang()
     const scrollRef = useRef(null)
     const [tooltip, setTooltip] = useState(null)
@@ -592,12 +849,20 @@ function UsuarioApp() {
     const weeks = []
     for (let i = 0; i < paddedDays.length; i += 7) weeks.push(paddedDays.slice(i, i + 7))
 
+    // Genera 4 tonos del color base: 40%, 60%, 80%, 100% opacidad
+    const heatLevels = [
+      color + '66', // ~40%
+      color + '99', // ~60%
+      color + 'cc', // ~80%
+      color,        // 100%
+    ]
+
     const getStyle = (count) => {
       if (count === 0) return { backgroundColor: 'var(--heatmap-empty)' }
-      if (count === 1) return { backgroundColor: '#818cf8' }
-      if (count === 2) return { backgroundColor: '#6366f1' }
-      if (count <= 4) return { backgroundColor: '#4f46e5' }
-      return { backgroundColor: '#3730a3' }
+      if (count === 1) return { backgroundColor: heatLevels[0] }
+      if (count === 2) return { backgroundColor: heatLevels[1] }
+      if (count <= 4) return { backgroundColor: heatLevels[2] }
+      return { backgroundColor: heatLevels[3] }
     }
 
     const totalYear = days.reduce((s, d) => s + d.count, 0)
@@ -619,7 +884,7 @@ function UsuarioApp() {
       ? ['Sun', '', 'Tue', '', 'Thu', '', 'Sat']
       : ['Dom', '', 'Mar', '', 'Jue', '', 'Sáb']
 
-    const legendColors = ['var(--heatmap-empty)', '#818cf8', '#6366f1', '#4f46e5', '#3730a3']
+    const legendColors = ['var(--heatmap-empty)', ...heatLevels]
 
     // Intentos agrupados por día para el tooltip
     const attemptsByDay = {}
@@ -714,7 +979,7 @@ function UsuarioApp() {
                 </p>
                 {tooltip.dayAttempts.length > 0 && (
                   <p className="text-xs font-bold mt-1" style={{ color: getScoreColor(Math.round(tooltip.dayAttempts.reduce((s, a) => s + a.puntaje_similitud, 0) / tooltip.dayAttempts.length)) }}>
-                    {lang === 'en' ? 'Avg' : 'Prom'}: {Math.round(tooltip.dayAttempts.reduce((s, a) => s + a.puntaje_similitud, 0) / tooltip.dayAttempts.length)}%
+                    {lang === 'en' ? 'Avg' : 'Promedio'}: {Math.round(tooltip.dayAttempts.reduce((s, a) => s + a.puntaje_similitud, 0) / tooltip.dayAttempts.length)}%
                   </p>
                 )}
               </div>
@@ -751,54 +1016,132 @@ function UsuarioApp() {
       <Header />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch">
 
           {/* Sidebar */}
-          <aside className="w-full lg:w-72 shrink-0 space-y-4">
-            <div className="flex flex-col items-center lg:items-start gap-3">
-              <div className="relative">
-                <div className={`h-[260px] w-[260px] overflow-hidden rounded-full bg-slate-100 flex items-center justify-center ${
-                  isTop1
-                    ? 'border-[3px] border-amber-400/60'
-                    : 'border-4 border-slate-200'
-                }`}>
-                  {(avatarPreview || getAvatar()) ? (
-                    <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-7xl font-bold text-slate-400">
-                      {getDisplayName().substring(0, 1).toUpperCase()}
+          <aside className="w-full lg:w-72 shrink-0 flex flex-col gap-4">
+
+            {/* Banner + Avatar */}
+            <div className="relative">
+              {/* Banner */}
+              <div
+                className="h-24 w-full rounded-2xl overflow-hidden"
+                style={{
+                  background: profile?.banner_url
+                    ? `url(${profile.banner_url}) center/cover no-repeat`
+                    : `linear-gradient(135deg, ${chartColor}33 0%, ${chartColor}66 100%)`,
+                }}
+              >
+                {canEdit && editingProfile && (
+                  <button
+                    type="button"
+                    onClick={() => bannerInputRef.current?.click()}
+                    className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity rounded-2xl"
+                  >
+                    <span className="text-white text-xs font-semibold">
+                      {lang === 'en' ? 'Change banner' : 'Cambiar banner'}
                     </span>
-                  )}
-                </div>
-                {profile?.adminstate && (
-                  <span className="absolute bottom-3 right-3 rounded-full bg-purple-600 px-2.5 py-0.5 text-xs font-bold text-white shadow">
-                    ADMIN
-                  </span>
+                  </button>
                 )}
-                {isTop1 && (
-                  <span className={`absolute bottom-3 rounded-full bg-yellow-500 px-2.5 py-0.5 text-xs font-bold text-white shadow ${profile?.adminstate ? 'right-20' : 'right-3'}`}>
-                    #1 Liga
-                  </span>
+              </div>
+              <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => {
+                  const f = e.target.files[0]
+                  if (!f) return
+                  setBannerFile(f)
+                  setBannerPreview(URL.createObjectURL(f))
+                  setProfile(p => ({ ...p, banner_url: URL.createObjectURL(f) }))
+                }}
+              />
+
+              {/* Avatar — superpuesto al banner */}
+              <div className="absolute -bottom-10 left-4">
+                {profile?.devstate ? (
+                  // Pentágono para devs
+                  <div className="relative h-20 w-20">
+                    <svg width="0" height="0" className="absolute">
+                      <defs>
+                        <clipPath id="pentagon-clip" clipPathUnits="objectBoundingBox">
+                          <path d="M0.5,0.02 L0.98,0.36 L0.79,0.93 L0.21,0.93 L0.02,0.36 Z" />
+                        </clipPath>
+                      </defs>
+                    </svg>
+                    <div
+                      className="h-20 w-20 bg-slate-100 flex items-center justify-center overflow-hidden"
+                      style={{ clipPath: 'url(#pentagon-clip)' }}
+                    >
+                      {(avatarPreview || getAvatar()) ? (
+                        <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-2xl font-bold text-slate-400">{getDisplayName().substring(0, 1).toUpperCase()}</span>
+                      )}
+                    </div>
+                    {/* Outline SVG superpuesto */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 80 80">
+                      <path
+                        d="M40,1.6 L78.4,28.8 L63.2,74.4 L16.8,74.4 L1.6,28.8 Z"
+                        fill="none"
+                        stroke={chartColor}
+                        strokeWidth="3.5"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {editingProfile && canEdit && (
+                      <button type="button" onClick={() => fileInputRef.current?.click()}
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
+                        style={{ clipPath: 'url(#pentagon-clip)' }}>
+                        <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  // Círculo normal
+                  <div className={`h-20 w-20 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center ring-4`}
+                    style={{ '--tw-ring-color': chartColor, boxShadow: `0 0 0 4px ${chartColor}` }}>
+                    {(avatarPreview || getAvatar()) ? (
+                      <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-2xl font-bold text-slate-400">
+                        {getDisplayName().substring(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                 )}
-                {/* Botón de cambiar foto — solo en modo edición */}
-                {editingProfile && canEdit && (
+                {editingProfile && canEdit && !profile?.devstate && (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
                   >
-                    <span className="text-white text-sm font-semibold">{t('editProfile')}</span>
+                    <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                   </button>
                 )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarFileChange}
-                />
               </div>
 
+              {/* Badges sobre el banner */}
+              <div className="absolute top-2 right-2 flex gap-1.5">
+                {profile?.adminstate && (
+                  <span className="rounded-full backdrop-blur-sm px-2 py-0.5 text-xs font-bold text-white" style={{ backgroundColor: 'rgba(147,51,234,0.85)' }}>ADMIN</span>
+                )}
+                {profile?.devstate && (
+                  <span className="rounded-full backdrop-blur-sm px-2 py-0.5 text-xs font-bold" style={{ backgroundColor: chartColor + 'dd', color: 'white' }}>DEV</span>
+                )}
+                {isTop1 && (
+                  <span className="rounded-full backdrop-blur-sm px-2 py-0.5 text-xs font-bold" style={{ backgroundColor: chartColor + 'dd', color: 'white' }}>#1 Liga</span>
+                )}
+              </div>
+            </div>
+
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFileChange} />
+
+            {/* Nombre + info — con margen para el avatar superpuesto */}
+            <div className="pt-10 flex flex-col items-start gap-3">
               {editingProfile ? (
                 <div className="w-full space-y-2">
                   <input type="text" placeholder={t('visibleName')}
@@ -806,6 +1149,26 @@ function UsuarioApp() {
                     onChange={e => setEditedProfile(p => ({ ...p, nombre_display: e.target.value }))}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="text"
+                      placeholder={lang === 'en' ? 'Pronouns' : 'Pronombres'}
+                      maxLength={20}
+                      value={editedProfile.pronouns ?? ''}
+                      onChange={e => setEditedProfile(p => ({ ...p, pronouns: e.target.value }))}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <select
+                      value={editedProfile.status ?? ''}
+                      onChange={e => setEditedProfile(p => ({ ...p, status: e.target.value }))}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="">{lang === 'en' ? 'Status...' : 'Estado...'}</option>
+                      <option value="open">{lang === 'en' ? 'Open to collab' : 'Abierto a colaborar'}</option>
+                      <option value="learning">{lang === 'en' ? 'Learning' : 'Aprendiendo'}</option>
+                      <option value="busy">{lang === 'en' ? 'Busy' : 'Ocupado'}</option>
+                      <option value="lurking">{lang === 'en' ? 'Just lurking' : 'Solo mirando'}</option>
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -820,6 +1183,7 @@ function UsuarioApp() {
                     }
                   </button>
                   {uploadingAvatar && <p className="text-xs text-slate-400 text-center">{t('uploading')}</p>}
+                  {uploadingBanner && <p className="text-xs text-slate-400 text-center">{lang === 'en' ? 'Uploading banner...' : 'Subiendo banner...'}</p>}
 
                   {/* Toggle email público */}
                   <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer hover:bg-slate-100 transition">
@@ -864,6 +1228,15 @@ function UsuarioApp() {
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   />
 
+                  {/* Organization */}
+                  <input type="text"
+                    placeholder={lang === 'en' ? 'Organization (company, school...)' : 'Organización (empresa, escuela...)'}
+                    maxLength={60}
+                    value={editedProfile.organization ?? ''}
+                    onChange={e => setEditedProfile(p => ({ ...p, organization: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+
                   {/* Redes sociales */}
                   <div className="space-y-2">
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -887,11 +1260,11 @@ function UsuarioApp() {
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={saveProfile} disabled={saving || uploadingAvatar || checkingNsfw}
+                    <button onClick={saveProfile} disabled={saving || uploadingAvatar || uploadingBanner || checkingNsfw}
                       className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
                       {saving ? t('saving') : t('save')}
                     </button>
-                    <button onClick={() => { setEditingProfile(false); setAvatarFile(null); setAvatarPreview(null) }}
+                    <button onClick={() => { setEditingProfile(false); setAvatarFile(null); setAvatarPreview(null); setBannerFile(null); setBannerPreview(null) }}
                       className="flex-1 rounded-lg border border-slate-300 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                       {t('cancel')}
                     </button>
@@ -899,11 +1272,35 @@ function UsuarioApp() {
                 </div>
               ) : (
                 <div className="w-full">
-                  <h1 className="text-2xl font-bold text-slate-900">{getDisplayName()}</h1>
-                  {profile?.username && (
-                    <p className="text-sm font-medium text-slate-400">@{profile.username}</p>
-                  )}
-                  <p className="text-sm text-slate-500">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h1 className="text-xl font-bold text-slate-900">{getDisplayName()}</h1>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        {profile?.username && (
+                          <p className="text-sm text-slate-400">@{profile.username}</p>
+                        )}
+                        {profile?.pronouns && (
+                          <span className="text-xs text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">{profile.pronouns}</span>
+                        )}
+                      </div>
+                      {profile?.status && (() => {
+                        const statusMap = {
+                          open:     { label: lang === 'en' ? 'Open to collab' : 'Abierto a colaborar' },
+                          learning: { label: lang === 'en' ? 'Learning' : 'Aprendiendo' },
+                          busy:     { label: lang === 'en' ? 'Busy' : 'Ocupado' },
+                          lurking:  { label: lang === 'en' ? 'Just lurking' : 'Solo mirando' },
+                        }
+                        const s = statusMap[profile.status]
+                        return s ? (
+                          <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs" style={{ borderColor: chartColor + '50', color: chartColor }}>
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: chartColor }} />
+                            {s.label}
+                          </div>
+                        ) : null
+                      })()}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">
                     {(ownProfile || (profile?.email_publico !== false)) ? profile?.email : null}
                   </p>
                   {canEdit && (
@@ -915,6 +1312,9 @@ function UsuarioApp() {
                       social_linkedin: profile?.social_linkedin || '',
                       social_twitter: profile?.social_twitter || '',
                       social_website: profile?.social_website || '',
+                      pronouns: profile?.pronouns || '',
+                      status: profile?.status || '',
+                      organization: profile?.organization || '',
                     }) }}
                       className="mt-2 w-full rounded-lg border border-slate-300 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
                       {t('editProfile')}
@@ -965,14 +1365,22 @@ function UsuarioApp() {
             {/* Info */}
             <div className="border-t border-slate-100 pt-4 space-y-2 text-sm text-slate-600">
               <div className="flex items-center gap-2">
-                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4 shrink-0" style={{ color: chartColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span>{t('memberSince')} {new Date(profile?.fecha_registro).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { month: 'long', year: 'numeric' })}</span>
               </div>
+              {profile?.organization && (
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 shrink-0" style={{ color: chartColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  <span>{profile.organization}</span>
+                </div>
+              )}
               {profile?.pais && (
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="h-4 w-4 shrink-0" style={{ color: chartColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
@@ -981,7 +1389,7 @@ function UsuarioApp() {
               )}
               {profile?.idioma_display && (
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="h-4 w-4 shrink-0" style={{ color: chartColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
                   </svg>
                   <span>{profile.idioma_display}</span>
@@ -989,7 +1397,7 @@ function UsuarioApp() {
               )}
               {stats.racha > 0 && (
                 <div className="flex items-center gap-2">
-                  <img src="/media/fireicon.png" alt="racha" className="h-4 w-4 object-contain" />
+                  <img src="/media/flame-lit.gif" alt="racha" className="h-4 w-4 object-contain" style={{ filter: hexToFilter(chartColor) }} />
                   <span>{stats.racha} {stats.racha === 1 ? t('streakDay') : t('streak')}</span>
                 </div>
               )}
@@ -1024,32 +1432,73 @@ function UsuarioApp() {
               {t('copyProfileLink')}
             </button>
 
-            {/* Followers / Following */}
-            <div className="flex items-center gap-4 text-sm text-slate-600 border-t border-slate-100 pt-3">
-              <div className="text-center">
-                <p className="text-lg font-bold text-slate-900">{followersCount}</p>
-                <p className="text-xs text-slate-400">{lang === 'en' ? 'followers' : 'seguidores'}</p>
+            {/* Showcase image/gif */}
+            {(profile?.showcase_url || canEdit) && (
+              <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 flex-1 min-h-[200px]">
+                {profile?.showcase_url ? (
+                  <>
+                    <img
+                      src={profile.showcase_url}
+                      alt="showcase"
+                      className="w-full h-full object-cover"
+                      style={{ minHeight: '200px' }}
+                    />
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('showcase-input').click()}
+                        className="absolute bottom-2 right-2 rounded-lg bg-black/50 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm hover:bg-black/70 transition"
+                      >
+                        {lang === 'en' ? 'Change' : 'Cambiar'}
+                      </button>
+                    )}
+                  </>
+                ) : canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('showcase-input').click()}
+                    className="flex w-full h-full min-h-[200px] flex-col items-center justify-center gap-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition"
+                  >
+                    <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="text-xs">{lang === 'en' ? 'Add image or GIF' : 'Agregar imagen o GIF'}</span>
+                  </button>
+                ) : null}
+                <input
+                  id="showcase-input"
+                  type="file"
+                  accept="image/*,.gif"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files[0]
+                    if (!f) return
+                    setShowcaseFile(f)
+                    setProfile(p => ({ ...p, showcase_url: URL.createObjectURL(f) }))
+                    const save = async () => {
+                      setUploadingShowcase(true)
+                      try {
+                        await supabase.storage.createBucket('avatars', { public: true }).catch(() => {})
+                        const ext = f.name.split('.').pop()
+                        const path = `${user.id}/showcase.${ext}`
+                        await supabase.storage.from('avatars').upload(path, f, { upsert: true })
+                        const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+                        const url = data.publicUrl + '?t=' + Date.now()
+                        await supabase.from('usuarios').update({ showcase_url: url }).eq('id_usuario', user.id)
+                        setProfile(p => ({ ...p, showcase_url: url }))
+                      } catch (err) { alert('Error: ' + err.message) }
+                      finally { setUploadingShowcase(false) }
+                    }
+                    save()
+                  }}
+                />
+                {uploadingShowcase && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  </div>
+                )}
               </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-slate-900">{followingCount}</p>
-                <p className="text-xs text-slate-400">{lang === 'en' ? 'following' : 'siguiendo'}</p>
-              </div>
-              {user && !ownProfile && (
-                <button
-                  onClick={handleFollow}
-                  disabled={followLoading}
-                  className={`ml-auto rounded-xl px-4 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
-                    isFollowing
-                      ? 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-600 border border-slate-200'
-                      : 'bg-slate-900 text-white hover:bg-slate-700'
-                  }`}
-                >
-                  {followLoading ? '...' : isFollowing
-                    ? (lang === 'en' ? 'Unfollow' : 'Dejar de seguir')
-                    : (lang === 'en' ? 'Follow' : 'Seguir')}
-                </button>
-              )}
-            </div>
+            )}
           </aside>
 
           {/* Contenido principal */}
@@ -1058,16 +1507,149 @@ function UsuarioApp() {
             {/* Medallas */}
             <MedalsSection userId={profile?.id_usuario} />
 
+            {/* Panel de comparación — solo en perfiles ajenos */}
+            {!ownProfile && user && (
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                <button
+                  onClick={async () => {
+                    if (!compareOpen && !compareWith) {
+                      // Pre-cargar stats propias por default
+                      const own = await fetchCompareStats(user.id)
+                      setCompareWith(own)
+                    }
+                    setCompareOpen(o => !o)
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    {lang === 'en' ? 'Compare stats' : 'Comparar estadísticas'}
+                  </span>
+                  <svg className={`h-4 w-4 text-slate-400 transition-transform ${compareOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {compareOpen && (
+                  <div className="border-t border-slate-100 p-4 space-y-4">
+                    {/* Selector del segundo prompter */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-400 shrink-0">{lang === 'en' ? 'Compare with:' : 'Comparar con:'}</span>
+                      {compareWith ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 flex-1">
+                          <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-slate-200 flex items-center justify-center">
+                            {compareWith.avatar
+                              ? <img src={compareWith.avatar} alt="" className="h-full w-full object-cover" />
+                              : <span className="text-xs font-bold text-slate-500">{compareWith.name.substring(0,2).toUpperCase()}</span>
+                            }
+                          </div>
+                          <span className="text-sm font-medium text-slate-700 flex-1 truncate">{compareWith.name}</span>
+                          <button onClick={() => { setCompareWith(null); setCompareSearch('') }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                        </div>
+                      ) : (
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={compareSearch}
+                            onChange={e => handleCompareSearch(e.target.value)}
+                            placeholder={lang === 'en' ? 'Search prompter...' : 'Buscar prompter...'}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400"
+                          />
+                          {loadingCompare && <div className="absolute right-3 top-2 h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />}
+                          {compareResults.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                              {compareResults.map(u => (
+                                <button key={u.id_usuario}
+                                  onClick={async () => {
+                                    const data = await fetchCompareStats(u.id_usuario)
+                                    setCompareWith(data)
+                                    setCompareSearch('')
+                                    setCompareResults([])
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">
+                                  <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center">
+                                    {u.avatar_url
+                                      ? <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
+                                      : <span className="text-xs font-bold text-slate-500">{(u.nombre_display || u.nombre || 'U').substring(0,2).toUpperCase()}</span>
+                                    }
+                                  </div>
+                                  <span className="truncate">{u.nombre_display || u.nombre || u.username}</span>
+                                  {u.username && <span className="text-xs text-slate-400 ml-auto">@{u.username}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tabla de comparación */}
+                    {compareWith && (() => {
+                      const them = stats
+                      const me = compareWith.stats
+                      const rows = [
+                        { label: lang === 'en' ? 'Average' : 'Promedio',    a: them.promedioScore,       b: me.promedioScore,       suffix: '%' },
+                        { label: lang === 'en' ? 'Best' : 'Mejor',          a: them.mejorScore,          b: me.mejorScore,          suffix: '%' },
+                        { label: lang === 'en' ? 'Approval' : 'Aprobación', a: them.porcentajeAprobacion,b: me.porcentajeAprobacion, suffix: '%' },
+                        { label: lang === 'en' ? 'Attempts' : 'Intentos',   a: them.totalIntentos,       b: me.totalIntentos,       suffix: '' },
+                        { label: lang === 'en' ? 'Streak' : 'Racha',        a: them.racha,               b: me.racha,               suffix: '' },
+                      ]
+                      return (
+                        <div className="rounded-xl border border-slate-100 overflow-hidden">
+                          {/* Headers */}
+                          <div className="grid grid-cols-[1fr_5rem_1fr] text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-2 bg-slate-50 border-b border-slate-100">
+                            <span className="truncate">{profile?.nombre_display || profile?.nombre || '—'}</span>
+                            <span className="text-center"></span>
+                            <span className="text-right truncate">{compareWith.name}</span>
+                          </div>
+                          {rows.map(({ label, a, b, suffix }) => {
+                            const max = Math.max(a, b, 1)
+                            const aWins = a > b, bWins = b > a
+                            return (
+                              <div key={label} className="grid grid-cols-[1fr_5rem_1fr] items-center gap-2 px-4 py-2.5 border-b border-slate-50 last:border-0">
+                                <div className="flex items-center gap-2 justify-end">
+                                  <span className={`text-sm font-bold tabular-nums ${aWins ? '' : 'text-slate-400'}`} style={aWins ? { color: chartColor } : {}}>
+                                    {a}{suffix}
+                                  </span>
+                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 overflow-hidden flex justify-end">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${(a/max)*100}%`, backgroundColor: aWins ? chartColor : '#cbd5e1' }} />
+                                  </div>
+                                </div>
+                                <p className="text-xs font-medium text-center text-slate-400">{label}</p>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 overflow-hidden">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${(b/max)*100}%`, backgroundColor: bWins ? chartColor : '#cbd5e1' }} />
+                                  </div>
+                                  <span className={`text-sm font-bold tabular-nums ${bWins ? '' : 'text-slate-400'}`} style={bWins ? { color: chartColor } : {}}>
+                                    {b}{suffix}
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Header stats */}
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">Estadísticas</h2>
-              {isAdmin && !editingStats && (
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <span className="w-1 h-5 rounded-full inline-block" style={{ backgroundColor: chartColor }} />
+                Estadísticas
+              </h2>
+              {isAdmin && !profile?.devstate && !editingStats && (
                 <button onClick={() => { setEditingStats(true); setEditedStats({ ...stats }) }}
                   className="rounded-lg border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 transition">
                   Editar stats
                 </button>
               )}
-              {isAdmin && editingStats && (
+              {isAdmin && !profile?.devstate && editingStats && (
                 <div className="flex gap-2">
                   <button onClick={saveStats} disabled={saving}
                     className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
@@ -1081,30 +1663,91 @@ function UsuarioApp() {
               )}
             </div>
 
+            {/* ELO Card */}
+            {(() => {
+              const elo = profile?.elo_rating ?? 1000
+              const rank = getRank(elo)
+              const nextRank = getNextRank(elo)
+              const progress = nextRank
+                ? Math.round(((elo - rank.min) / (rank.max - rank.min)) * 100)
+                : 100
+              return (
+                <div className="rounded-xl border p-4 flex items-center gap-4" style={{ borderColor: chartColor + '40', backgroundColor: chartColor + '08' }}>
+                  {/* ELO number */}
+                  <div className="shrink-0 text-center">
+                    <p className="text-3xl font-bold tabular-nums" style={{ color: chartColor }}>{elo}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">ELO</p>
+                  </div>
+                  {/* Rank info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-sm font-semibold" style={{ color: chartColor }}>
+                        {lang === 'en' ? rank.nameEn : rank.name}
+                      </span>
+                      {nextRank && (
+                        <span className="text-xs text-slate-400">
+                          → {lang === 'en' ? nextRank.nameEn : nextRank.name} ({nextRank.min - elo} pts)
+                        </span>
+                      )}
+                    </div>
+                    {/* Progress bar to next rank */}
+                    <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${progress}%`, backgroundColor: chartColor }}
+                      />
+                    </div>
+                    {/* All ranks mini display */}
+                    <div className="mt-2 flex gap-1">
+                      {ELO_RANKS.map((r, i) => (
+                        <div
+                          key={i}
+                          title={lang === 'en' ? r.nameEn : r.name}
+                          className="h-1 flex-1 rounded-full transition-all"
+                          style={{ backgroundColor: elo >= r.min ? chartColor : '#e2e8f0' }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Tarjetas principales con radial */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: t('average'), value: stats.promedioScore, suffix: '%', key: 'promedioScore', isScore: true },
-                { label: t('bestScore'), value: stats.mejorScore, suffix: '%', key: 'mejorScore', isScore: true },
-                { label: t('approval'), value: stats.porcentajeAprobacion, suffix: '%', key: 'porcentajeAprobacion', isScore: true },
-                { label: t('totalAttempts'), value: stats.totalIntentos, suffix: '', key: 'totalIntentos', isScore: false },
-              ].map(({ label, value, suffix, key, isScore }, cardIdx) => {
-                const pct = isScore ? Math.min(100, Math.max(0, value)) : Math.min(100, Math.round((value / Math.max(stats.totalIntentos, 1)) * 100))
+                { label: t('average'), value: stats.promedioScore, suffix: '%', key: 'promedioScore', useScoreColor: true },
+                { label: t('bestScore'), value: stats.mejorScore, suffix: '%', key: 'mejorScore', useScoreColor: true },
+                { label: lang === 'en' ? 'Approval' : 'Aprobación', value: stats.porcentajeAprobacion, suffix: '%', key: 'porcentajeAprobacion', useScoreColor: false, hint: lang === 'en' ? '% of attempts with score ≥ 60%' : '% de intentos con score ≥ 60%' },
+                { label: t('totalAttempts'), value: stats.totalIntentos, suffix: '', key: 'totalIntentos', useScoreColor: false },
+              ].map(({ label, value, suffix, key, useScoreColor, hint }, cardIdx) => {
+                const pct = Math.min(100, Math.max(0, key === 'totalIntentos'
+                  ? Math.round((value / Math.max(stats.totalIntentos, 1)) * 100)
+                  : value))
                 const r = 32, cx = 40, cy = 40
                 const circumference = 2 * Math.PI * r
                 const filled = (pct / 100) * circumference
-                const getColor = (p) => {
-                  if (p >= 70) return '#10b981'
-                  if (p >= 40) return '#f59e0b'
-                  return '#ef4444'
-                }
-                const color = isScore ? getColor(pct) : '#6366f1'
+                const color = useScoreColor
+                  ? (pct >= 70 ? chartColor : pct >= 40 ? '#f59e0b' : '#ef4444')
+                  : chartColor
 
                 return (
                   <div key={key}
                     className="stat-card-animate rounded-xl border border-slate-200 bg-white p-4 flex flex-col items-center gap-1"
                     style={{ animationDelay: `${cardIdx * 80}ms` }}>
-                    <p className="text-xs font-medium text-slate-500 self-start">{label}</p>
+                    <div className="self-start flex items-center gap-1">
+                      <p className="text-xs font-medium text-slate-500">{label}</p>
+                      {hint && (
+                        <div className="relative group/hint">
+                          <svg className="h-3 w-3 text-slate-400 shrink-0 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/hint:block z-10 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] text-white shadow-lg">
+                            {hint}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     {editingStats ? (
                       <input type="number" min="0" max={suffix === '%' ? 100 : undefined}
                         value={editedStats[key] ?? value}
@@ -1114,9 +1757,7 @@ function UsuarioApp() {
                     ) : (
                       <div className="relative" style={{ width: 80, height: 80 }}>
                         <svg width="80" height="80" viewBox="0 0 80 80">
-                          {/* Track */}
                           <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e2e8f0" strokeWidth="8" />
-                          {/* Animated fill */}
                           <circle
                             cx={cx} cy={cy} r={r}
                             fill="none"
@@ -1140,31 +1781,17 @@ function UsuarioApp() {
               })}
             </div>
 
-            {/* Stats secundarias en fila */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
-                <p className="text-xs text-slate-500">Hoy</p>
-                <p className="text-xl font-bold text-slate-800">{stats.intentosHoy}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
-                <p className="text-xs text-slate-500">Esta semana</p>
-                <p className="text-xl font-bold text-slate-800">{stats.intentosEstaSemana}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
-                <p className="text-xs text-slate-500">Peor score</p>
-                <p className={`text-xl font-bold ${getScoreColor(stats.peorScore)}`}>{stats.peorScore}%</p>
-              </div>
-            </div>
+            {/* Stats secundarias en fila — eliminadas */}
 
             {/* Fortalezas y debilidades (últimos 5 intentos) */}
             {(topStrengths.length > 0 || topImprovements.length > 0) && (
               <div className="grid gap-3 sm:grid-cols-2">
                 {topStrengths.length > 0 && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-2">Puntos fuertes recientes</p>
+                  <div className="rounded-xl border p-4" style={{ borderColor: chartColor + '40', backgroundColor: chartColor + '0d' }}>
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: chartColor }}>Puntos fuertes recientes</p>
                     <div className="flex flex-wrap gap-1.5">
                       {topStrengths.map((s, i) => (
-                        <span key={i} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
+                        <span key={i} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium" style={{ color: chartColor, boxShadow: `0 0 0 1px ${chartColor}40` }}>
                           {s}
                         </span>
                       ))}
@@ -1189,28 +1816,54 @@ function UsuarioApp() {
             {/* Gráfico de evolución */}
             {chartData.length > 1 && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-700 mb-3">{t('scoreEvolution')}</p>
+                <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                  <p className="text-sm font-semibold text-slate-700">{t('scoreEvolution')}</p>
+                  {ownProfile && (
+                    <div className="flex items-center gap-1.5">
+                      {CHART_COLORS.map(({ hex, name }) => (
+                        <button
+                          key={hex}
+                          title={name}
+                          onClick={() => handleChartColorChange(hex)}
+                          className="h-5 w-5 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                          style={{
+                            backgroundColor: hex,
+                            boxShadow: chartColor === hex ? `0 0 0 2px white, 0 0 0 3.5px ${hex}` : 'none',
+                            transform: chartColor === hex ? 'scale(1.15)' : undefined,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="chart-animate">
                   <ResponsiveContainer width="100%" height={160}>
                     <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                          <stop offset="5%" stopColor={chartColor} stopOpacity={0.25} />
+                          <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                      <XAxis dataKey="n" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={(v, i) => chartData[i]?.fecha ?? ''} />
                       <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                       <Tooltip
-                        contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
-                        formatter={(v) => [`${v}%`, 'Score']}
-                        labelFormatter={(l) => `${l}`}
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null
+                          const d = payload[0].payload
+                          return (
+                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-xs">
+                              <p className="font-semibold text-slate-600 mb-0.5">{d.fecha}</p>
+                              <p className="font-bold" style={{ color: chartColor }}>{d.score}%</p>
+                            </div>
+                          )
+                        }}
                       />
                       <Area
                         type="monotone" dataKey="score"
-                        stroke="#6366f1" strokeWidth={2}
-                        fill="url(#scoreGrad)" dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }}
+                        stroke={chartColor} strokeWidth={2}
+                        fill="url(#scoreGrad)" dot={{ r: 3, fill: chartColor, strokeWidth: 0 }}
                         activeDot={{ r: 5 }}
                         isAnimationActive={true}
                         animationDuration={1200}
@@ -1223,12 +1876,13 @@ function UsuarioApp() {
             )}
 
             {/* Heatmap de actividad */}
-            <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} isOwn={ownProfile} />
+            <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} isOwn={ownProfile} color={chartColor} />
 
             {recentAttempts.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-semibold text-slate-800">
+                  <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                    <span className="w-1 h-5 rounded-full inline-block" style={{ backgroundColor: chartColor }} />
                     {t('resolutionHistory')}
                   </h2>
                   <span className="text-xs text-slate-400">
@@ -1239,48 +1893,67 @@ function UsuarioApp() {
                 {recentAttempts.length > 0 ? (
                   <div className="rounded-xl border border-slate-200 overflow-hidden">
                     {/* Header */}
-                    <div className="grid grid-cols-[2fr_1fr_auto] gap-3 px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      <span>{ownProfile ? t('yourPrompt') : (lang === 'en' ? 'Image' : 'Imagen')}</span>
-                      <span>{lang === 'en' ? 'Date' : 'Fecha'}</span>
+                    <div className="grid grid-cols-[2fr_5rem_7rem_1.5rem] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      <span>{ownProfile ? t('yourPrompt') : (lang === 'en' ? 'Attempt' : 'Intento')}</span>
+                      <span className="text-center">{lang === 'en' ? 'Date' : 'Fecha'}</span>
                       <span className="text-right">{t('similarity')}</span>
+                      <span />
                     </div>
 
                     {recentAttempts.slice(0, 5).map((attempt, i) => (
                       <div key={i}>
                         <button
                           onClick={() => setSelectedAttempt(selectedAttempt === i ? null : i)}
-                          className={`w-full grid grid-cols-[2fr_1fr_auto] gap-3 items-center px-4 py-2.5 text-left transition border-b border-slate-100 last:border-0 ${
-                            selectedAttempt === i ? 'bg-indigo-50' : 'bg-white hover:bg-slate-50'
-                          }`}
+                          className="w-full grid grid-cols-[2fr_5rem_7rem_1.5rem] gap-2 items-center px-4 py-2.5 text-left transition border-b border-slate-100 last:border-0 bg-white hover:bg-slate-50"
+                          style={selectedAttempt === i ? { backgroundColor: chartColor + '14' } : {}}
                         >
-                          <p className="truncate text-sm text-slate-700">
-                            {ownProfile
-                              ? (attempt.prompt_usuario || '—')
-                              : (attempt.imagenes_ia?.image_diff
-                                  ? `${lang === 'en' ? 'Difficulty' : 'Dificultad'}: ${attempt.imagenes_ia.image_diff}`
-                                  : '—')
-                            }
-                          </p>
-                          <p className="text-xs text-slate-400 whitespace-nowrap">
+                          {ownProfile ? (
+                            <p className="truncate text-sm text-slate-700">
+                              {attempt.puntaje_similitud >= 60
+                                ? <span className="italic text-slate-400">{lang === 'en' ? 'Prompt hidden (score ≥ 60%)' : 'Prompt oculto (score ≥ 60%)'}</span>
+                                : (attempt.prompt_usuario || '—')}
+                            </p>
+                          ) : (
+                            <div className="flex items-center gap-2 min-w-0">
+                              {attempt.imagenes_ia?.url_image && (
+                                <img src={attempt.imagenes_ia.url_image} alt=""
+                                  className="h-8 w-8 shrink-0 rounded-md object-cover border border-slate-200" />
+                              )}
+                              <span className="truncate text-sm text-slate-500">
+                                {attempt.puntaje_similitud < 60 && attempt.prompt_usuario
+                                  ? attempt.prompt_usuario
+                                  : (attempt.imagenes_ia?.image_diff || '—')}
+                              </span>
+                            </div>
+                          )}
+                          <p className="text-xs text-slate-400 whitespace-nowrap text-center">
                             {new Date(attempt.fecha_hora).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric' })}
                           </p>
-                          <div className="flex items-center gap-2 justify-end">
-                            {attempt.imagenes_ia?.image_diff && (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400 hidden sm:inline">
-                                {attempt.imagenes_ia.image_diff}
+                          {/* Score + diff + ELO */}
+                          <div className="flex flex-col items-end gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              {attempt.imagenes_ia?.image_diff && (
+                                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400 hidden sm:inline">
+                                  {attempt.imagenes_ia.image_diff}
+                                </span>
+                              )}
+                              <span className={`text-sm font-bold tabular-nums ${
+                                attempt.puntaje_similitud >= 70 ? 'text-emerald-600' :
+                                attempt.puntaje_similitud >= 50 ? 'text-amber-500' : 'text-rose-500'
+                              }`}>
+                                {attempt.puntaje_similitud}%
+                              </span>
+                            </div>
+                            {attempt.elo_delta != null && (
+                              <span className={`text-[10px] font-semibold tabular-nums ${attempt.elo_delta >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                                {attempt.elo_delta >= 0 ? '+' : ''}{attempt.elo_delta} ELO
                               </span>
                             )}
-                            <span className={`text-sm font-bold w-12 text-right ${
-                              attempt.puntaje_similitud >= 70 ? 'text-emerald-600' :
-                              attempt.puntaje_similitud >= 50 ? 'text-amber-500' : 'text-rose-500'
-                            }`}>
-                              {attempt.puntaje_similitud}%
-                            </span>
-                            <svg className={`h-3.5 w-3.5 text-slate-300 transition-transform ${selectedAttempt === i ? 'rotate-180' : ''}`}
-                              fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
                           </div>
+                          <svg className={`h-3.5 w-3.5 text-slate-300 transition-transform justify-self-center ${selectedAttempt === i ? 'rotate-180' : ''}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
                         </button>
 
                         {/* Detalle expandido — compacto */}
@@ -1295,11 +1968,26 @@ function UsuarioApp() {
                                 {ownProfile ? (
                                   <div>
                                     <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('yourPrompt')}</p>
-                                    <p className="text-xs text-slate-700 bg-white rounded-lg px-3 py-2 border border-slate-200 line-clamp-2">
-                                      {attempt.prompt_usuario}
-                                    </p>
+                                    {attempt.puntaje_similitud >= 60 ? (
+                                      <p className="text-xs italic text-slate-400 bg-white rounded-lg px-3 py-2 border border-slate-200">
+                                        {lang === 'en' ? 'Prompt hidden — score ≥ 60% protects the answer.' : 'Prompt oculto — score ≥ 60% protege la respuesta.'}
+                                      </p>
+                                    ) : (
+                                      <p className="text-xs text-slate-700 bg-white rounded-lg px-3 py-2 border border-slate-200 max-h-24 overflow-y-auto">
+                                        {attempt.prompt_usuario}
+                                      </p>
+                                    )}
                                   </div>
-                                ) : null}
+                                ) : (
+                                  attempt.puntaje_similitud < 60 && attempt.prompt_usuario ? (
+                                    <div>
+                                      <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{lang === 'en' ? 'Their prompt' : 'Su prompt'}</p>
+                                      <p className="text-xs text-slate-700 bg-white rounded-lg px-3 py-2 border border-slate-200 max-h-24 overflow-y-auto">
+                                        {attempt.prompt_usuario}
+                                      </p>
+                                    </div>
+                                  ) : null
+                                )}
                                 {/* Prompt original — never shown */}
                                 {/* Improvements — visible para todos */}
                                 {attempt.improvements?.length > 0 && (
@@ -1315,10 +2003,7 @@ function UsuarioApp() {
                                   </div>
                                 )}
                                 <div className="h-1.5 rounded-full bg-slate-200">
-                                  <div className={`h-full rounded-full ${
-                                    attempt.puntaje_similitud >= 70 ? 'bg-emerald-500' :
-                                    attempt.puntaje_similitud >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-                                  }`} style={{ width: `${attempt.puntaje_similitud}%` }} />
+                                  <div className="h-full rounded-full" style={{ width: `${attempt.puntaje_similitud}%`, backgroundColor: attempt.puntaje_similitud >= 60 ? chartColor : '#ef4444' }} />
                                 </div>
                               </div>
                             </div>

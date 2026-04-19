@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ════════════════════════════════════════════
-   Design tokens — GitHub-inspired dark mode
+   Design tokens
    ════════════════════════════════════════════ */
 :root {
   color-scheme: light;
@@ -17,32 +17,61 @@
   --color-text-2:      51  65  85;
   --color-text-3:      100 116 139;
   --color-text-4:      148 163 184;
+  /* Acento de marca */
+  --color-accent:      108 90 247;   /* #6c5af7 — violeta cálido */
+  --color-accent-2:    91  74  220;  /* hover */
+  --color-accent-text: 255 255 255;
 }
 
 html.dark {
   color-scheme: dark;
-  --color-bg:          13  17  23;
-  --color-canvas:      13  17  23;
-  --color-surface:     22  27  34;
-  --color-surface-2:   33  38  45;
-  --color-border:      48  54  61;
-  --color-border-2:    61  68  77;
-  --color-text-1:      230 237 243;
-  --color-text-2:      173 186 199;
-  --color-text-3:      118 131 144;
-  --color-text-4:      84  93  104;
+  --color-bg:          10  10  12;
+  --color-canvas:      10  10  12;
+  --color-surface:     20  20  24;
+  --color-surface-2:   30  30  36;
+  --color-border:      52  52  62;
+  --color-border-2:    72  72  86;
+  --color-text-1:      242 242 245;
+  --color-text-2:      180 180 195;
+  --color-text-3:      110 110 128;
+  --color-text-4:      68  68  82;
+  --color-accent:      124 106 255;  /* más brillante en dark */
+  --color-accent-2:    108 90  247;
+  --color-accent-text: 255 255 255;
 }
 
 /* ── Base ── */
 html { scroll-behavior: smooth; }
 
 body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background-color: rgb(var(--color-canvas));
   color: rgb(var(--color-text-1));
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── Acento de marca — botones primarios ── */
+.btn-primary {
+  background-color: rgb(var(--color-accent));
+  color: rgb(var(--color-accent-text));
+  transition: background-color 0.15s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: rgb(var(--color-accent-2));
+}
+
+/* bg-slate-900 en dark — solo suavizar ligeramente, no reemplazar */
+html.dark .bg-slate-900 {
+  background-color: rgb(28 28 34) !important;
+}
+html.dark .hover\:bg-slate-800:hover {
+  background-color: rgb(36 36 44) !important;
+}
+html.dark .hover\:bg-slate-700:hover {
+  background-color: rgb(44 44 54) !important;
 }
 
 /* ── Dark mode overrides via CSS variables ── */
@@ -69,11 +98,88 @@ html.dark .text-slate-600    { color: rgb(var(--color-text-3)) !important; }
 html.dark .text-slate-500    { color: rgb(var(--color-text-3)) !important; }
 html.dark .text-slate-400    { color: rgb(var(--color-text-4)) !important; }
 
+/* Colored surface overrides — tinted cards in dark mode */
+html.dark .bg-emerald-50  { background-color: rgb(5 28 18) !important; }
+html.dark .bg-rose-50     { background-color: rgb(28 7 9) !important; }
+html.dark .bg-indigo-50   { background-color: rgb(14 12 32) !important; }
+html.dark .bg-amber-50    { background-color: rgb(26 18 3) !important; }
+html.dark .bg-purple-50   { background-color: rgb(20 9 32) !important; }
+html.dark .bg-cyan-50     { background-color: rgb(3 20 26) !important; }
+html.dark .bg-violet-50   { background-color: rgb(16 9 32) !important; }
+html.dark .bg-fuchsia-50  { background-color: rgb(26 5 26) !important; }
+html.dark .bg-orange-50   { background-color: rgb(28 12 3) !important; }
+html.dark .bg-red-50      { background-color: rgb(28 5 5) !important; }
+html.dark .bg-teal-50     { background-color: rgb(3 22 20) !important; }
+html.dark .bg-blue-50     { background-color: rgb(7 12 30) !important; }
+html.dark .bg-lime-50     { background-color: rgb(10 20 3) !important; }
+
+/* Colored borders */
+html.dark .border-emerald-200 { border-color: rgb(20 83 45 / 0.6) !important; }
+html.dark .border-rose-200    { border-color: rgb(159 18 57 / 0.5) !important; }
+html.dark .border-indigo-200  { border-color: rgb(55 48 163 / 0.5) !important; }
+html.dark .border-amber-200   { border-color: rgb(120 80 10 / 0.5) !important; }
+html.dark .border-cyan-200    { border-color: rgb(8 100 120 / 0.5) !important; }
+html.dark .border-violet-200  { border-color: rgb(80 40 160 / 0.5) !important; }
+html.dark .border-fuchsia-200 { border-color: rgb(120 20 120 / 0.5) !important; }
+html.dark .border-orange-200  { border-color: rgb(140 60 10 / 0.5) !important; }
+html.dark .border-red-200     { border-color: rgb(140 20 20 / 0.5) !important; }
+html.dark .border-teal-200    { border-color: rgb(10 100 90 / 0.5) !important; }
+html.dark .border-blue-200    { border-color: rgb(20 60 140 / 0.5) !important; }
+html.dark .border-lime-200    { border-color: rgb(50 80 10 / 0.5) !important; }
+
+/* Colored text — softer in dark */
+html.dark .text-emerald-700 { color: #6ee7b7 !important; }
+html.dark .text-emerald-800 { color: #a7f3d0 !important; }
+html.dark .text-emerald-600 { color: #34d399 !important; }
+html.dark .text-rose-700    { color: #fca5a5 !important; }
+html.dark .text-rose-800    { color: #fecaca !important; }
+html.dark .text-rose-600    { color: #f87171 !important; }
+html.dark .text-rose-500    { color: #f87171 !important; }
+html.dark .text-indigo-700  { color: #a5b4fc !important; }
+html.dark .text-indigo-800  { color: #c7d2fe !important; }
+html.dark .text-indigo-600  { color: #818cf8 !important; }
+html.dark .text-amber-700   { color: #fcd34d !important; }
+html.dark .text-amber-600   { color: #fbbf24 !important; }
+html.dark .text-amber-500   { color: #f59e0b !important; }
+
+/* Colored rings on tags */
+html.dark .ring-emerald-200 { --tw-ring-color: rgb(20 83 45 / 0.5) !important; }
+html.dark .ring-rose-200    { --tw-ring-color: rgb(159 18 57 / 0.4) !important; }
+html.dark .ring-indigo-200  { --tw-ring-color: rgb(55 48 163 / 0.4) !important; }
+
+/* Colored bg-*-100 pills/badges */
+html.dark .bg-emerald-100  { background-color: rgb(5 36 22) !important; }
+html.dark .bg-rose-100     { background-color: rgb(36 8 10) !important; }
+html.dark .bg-indigo-100   { background-color: rgb(18 16 46) !important; }
+html.dark .bg-amber-100    { background-color: rgb(34 22 3) !important; }
+html.dark .bg-purple-100   { background-color: rgb(26 12 46) !important; }
+html.dark .bg-cyan-100     { background-color: rgb(3 26 34) !important; }
+html.dark .bg-violet-100   { background-color: rgb(20 12 46) !important; }
+html.dark .bg-fuchsia-100  { background-color: rgb(34 6 34) !important; }
+html.dark .bg-orange-100   { background-color: rgb(36 14 3) !important; }
+html.dark .bg-red-100      { background-color: rgb(36 6 6) !important; }
+html.dark .bg-teal-100     { background-color: rgb(3 28 26) !important; }
+html.dark .bg-blue-100     { background-color: rgb(8 14 40) !important; }
+
+/* Tag pills inside colored cards */
+html.dark .bg-emerald-50 .bg-white,
+html.dark .bg-rose-50 .bg-white,
+html.dark .bg-indigo-50 .bg-white {
+  background-color: rgb(var(--color-surface-2)) !important;
+}
+
+/* Leaderboard row highlights */
+html.dark .border-l-indigo-400 { border-left-color: #818cf8 !important; }
+html.dark .bg-amber-50\/30     { background-color: rgb(28 20 4 / 0.3) !important; }
+
 /* Hover */
 html.dark .hover\:bg-slate-50:hover   { background-color: rgb(var(--color-surface-2)) !important; }
 html.dark .hover\:bg-slate-100:hover  { background-color: rgb(var(--color-surface-2)) !important; }
 html.dark .hover\:bg-slate-200:hover  { background-color: rgb(var(--color-border)) !important; }
 html.dark .hover\:bg-white:hover      { background-color: rgb(var(--color-surface)) !important; }
+html.dark .hover\:bg-indigo-100:hover { background-color: rgb(30 27 75 / 0.6) !important; }
+html.dark .hover\:bg-emerald-100:hover { background-color: rgb(6 40 25 / 0.8) !important; }
+html.dark .hover\:bg-amber-200:hover  { background-color: rgb(40 28 4 / 0.8) !important; }
 
 /* Inputs */
 html.dark input,
@@ -82,16 +188,30 @@ html.dark select {
   background-color: rgb(var(--color-surface-2)) !important;
   border-color: rgb(var(--color-border)) !important;
   color: rgb(var(--color-text-1)) !important;
+  caret-color: rgb(var(--color-text-1)) !important;
 }
 html.dark input::placeholder,
-html.dark textarea::placeholder { color: rgb(var(--color-text-4)) !important; }
+html.dark textarea::placeholder { color: rgb(var(--color-text-3)) !important; }
 html.dark input:focus,
-html.dark textarea:focus { border-color: rgb(var(--color-border-2)) !important; }
+html.dark textarea:focus,
+html.dark select:focus { 
+  border-color: rgb(var(--color-border-2)) !important;
+  outline: none !important;
+  background-color: rgb(var(--color-surface)) !important;
+}
 
 /* Header */
 html.dark header {
-  background-color: rgb(var(--color-canvas) / 0.92) !important;
+  background-color: rgb(var(--color-canvas) / 0.95) !important;
   border-color: rgb(var(--color-border)) !important;
+}
+
+/* Search bar en el header — necesita más contraste que el canvas */
+html.dark header .bg-slate-50 {
+  background-color: rgb(var(--color-surface-2)) !important;
+}
+html.dark header .border-slate-200 {
+  border-color: rgb(var(--color-border-2)) !important;
 }
 
 /* Shadows — deeper in dark */

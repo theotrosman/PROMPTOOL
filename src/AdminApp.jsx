@@ -9,8 +9,9 @@ async function checkIsAdmin(userId) {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (user?.user_metadata?.adminstate === true) return true
-    const { data } = await supabase.from('usuarios').select('adminstate').eq('id_usuario', userId).maybeSingle()
-    return data?.adminstate === true
+    if (user?.user_metadata?.devstate === true) return true
+    const { data } = await supabase.from('usuarios').select('adminstate, devstate').eq('id_usuario', userId).maybeSingle()
+    return data?.adminstate === true || data?.devstate === true
   } catch { return false }
 }
 
@@ -527,7 +528,7 @@ function AdminApp() {
                             {renderCell(row[col], col, isEditing, editValues, setEditValues)}
                           </td>
                         ))}
-                        <td className="px-4 py-2.5 sticky right-0 bg-white" onClick={e => e.stopPropagation()}>
+                        <td className="px-4 py-2.5 sticky right-0 bg-white dark:bg-[rgb(22_27_34)]" onClick={e => e.stopPropagation()}>
                           {isEditing ? (
                             <div className="flex gap-1.5">
                               <button onClick={saveEdit}

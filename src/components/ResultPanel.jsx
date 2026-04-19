@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import GUIDE_LIBRARY from '../data/guides'
 import { useLang } from '../contexts/LangContext'
+import { getRank } from '../services/eloService'
 
 const ScoreCircle = ({ value }) => {
   const [animatedValue, setAnimatedValue] = useState(0)
@@ -25,7 +26,7 @@ const ScoreCircle = ({ value }) => {
           transform="rotate(-90 60 60)" />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-3xl font-semibold text-slate-900">{normalizedValue}%</span>
+        <span className="text-3xl font-semibold text-slate-900 dark:text-slate-100">{normalizedValue}%</span>
         <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Score</span>
       </div>
     </div>
@@ -40,7 +41,7 @@ const getDifficultyConfig = (difficulty = 'Medium') => {
   }
 }
 
-const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry }) => {
+const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry, eloDelta = null }) => {
   const { t, lang } = useLang()
   const [sharing, setSharing] = useState(false)
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
@@ -174,80 +175,96 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
   }
 
   return (
-    <div className="rounded-[1.75rem] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6 animate-in fade-in zoom-in duration-500">
-      <div className="grid gap-3">
-        <div className="grid gap-3 md:grid-cols-[120px_1fr]">
-          <div className="flex items-center justify-center rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3">
+    <div className="space-y-3 animate-in fade-in duration-300">
+      {/* Score + análisis */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-start gap-5">
+          <div className="shrink-0 flex flex-col items-center gap-1">
             <ScoreCircle value={safeScore} />
-          </div>
-          <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
-                {difficultyConfig.label}
-              </span>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isPass ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-xs text-slate-400">{difficultyConfig.label}</span>
+              <span className="text-slate-300">·</span>
+              <span className={`text-xs font-medium ${isPass ? 'text-emerald-600' : 'text-rose-500'}`}>
                 {isPass ? t('levelPassed') : t('keepTrying')}
               </span>
-              {!isPass && onRetry && (
-                <button
-                  type="button"
-                  onClick={onRetry}
-                  className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
-                >
-                  {lang === 'en' ? 'Try again' : 'Reintentar'}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleShare}
-                disabled={sharing}
-                className="ml-auto rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-200 disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                {sharing ? '...' : (lang === 'en' ? 'Share' : 'Compartir')}
-              </button>
             </div>
-            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{t('aiAnalysis')}</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-800">
+            {eloDelta !== null && (() => {
+              const rank = getRank(1000) // solo para el color
+              const isPos = eloDelta >= 0
+              return (
+                <div className={`mt-1 flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                  isPos ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'
+                }`}>
+                  <span>{isPos ? '▲' : '▼'}</span>
+                  <span>{isPos ? '+' : ''}{eloDelta} ELO</span>
+                </div>
+              )
+            })()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('aiAnalysis')}</p>
+              <div className="flex items-center gap-2">
+                {!isPass && onRetry && (
+                  <button type="button" onClick={onRetry}
+                    className="text-xs font-medium text-slate-500 hover:text-slate-800 transition underline underline-offset-2">
+                    {lang === 'en' ? 'Try again' : 'Reintentar'}
+                  </button>
+                )}
+                <button type="button" onClick={handleShare} disabled={sharing}
+                  className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-700 transition disabled:opacity-40">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {sharing ? '...' : (lang === 'en' ? 'Save' : 'Guardar')}
+                </button>
+              </div>
+            </div>
+            <p className="text-sm leading-relaxed text-slate-700">
               {explanation || t('analysisUnavailable')}
             </p>
           </div>
         </div>
-
-        <div className="rounded-[1.25rem] border border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">{t('strengths')}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {strengths.length > 0 ? strengths.map((s, i) => (
-              <span key={i} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200">{s}</span>
-            )) : <span className="text-xs text-emerald-600 italic">{t('analyzing2')}</span>}
-          </div>
-        </div>
-
-        <div className="rounded-[1.25rem] border border-rose-200 bg-rose-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">{t('improvements')}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {improvements.length > 0 ? improvements.map((m, i) => (
-              <span key={i} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-800 ring-1 ring-rose-200">{m}</span>
-            )) : <span className="text-xs text-rose-600 italic">{t('noImprovements')}</span>}
-          </div>
-        </div>
-
-        {recommendedGuides.length > 0 && (
-          <div className="rounded-[1.25rem] border border-indigo-200 bg-indigo-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">{t('learnMore')}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {recommendedGuides.map((guide) => (
-                <a key={guide.id} href={`/guides.html#guia-${guide.id}`}
-                  className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800 ring-1 ring-indigo-200 transition hover:bg-indigo-100">
-                  {guide.title}
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Fortalezas */}
+      {strengths.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-2">{t('strengths')}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {strengths.map((s, i) => (
+              <span key={i} className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200/60">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* A mejorar */}
+      {improvements.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-2">{t('improvements')}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {improvements.map((m, i) => (
+              <span key={i} className="rounded-md bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-600 ring-1 ring-rose-200/60">{m}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Guías recomendadas */}
+      {recommendedGuides.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-2">{t('learnMore')}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {recommendedGuides.map((guide) => (
+              <a key={guide.id} href={`/guides.html#guia-${guide.id}`}
+                className="rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 ring-1 ring-indigo-200/60 hover:bg-indigo-100 transition">
+                {guide.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

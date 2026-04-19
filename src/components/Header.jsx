@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useAdmin } from '../hooks/useAdmin'
+import { useDev } from '../hooks/useDev'
 import { useTheme } from '../contexts/ThemeContext'
 import { useLang } from '../contexts/LangContext'
 import { supabase } from '../supabaseClient'
@@ -9,6 +10,7 @@ import AuthModal from './AuthModal'
 const Header = () => {
   const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } = useAuth()
   const { isAdmin } = useAdmin(user?.id)
+  const { isDev } = useDev(user?.id)
   const { theme, setTheme } = useTheme()
   const { lang, changeLang, t } = useLang()
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -21,9 +23,23 @@ const Header = () => {
   const [searchResults, setSearchResults] = useState([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
+  const [profileUsername, setProfileUsername] = useState(null)
   const closeTimer = useRef(null)
   const searchRef = useRef(null)
   const searchTimer = useRef(null)
+
+  // Fetch username del usuario logueado para construir la URL del perfil
+  useEffect(() => {
+    if (!user) { setProfileUsername(null); return }
+    supabase
+      .from('usuarios')
+      .select('username')
+      .eq('id_usuario', user.id)
+      .maybeSingle()
+      .then(({ data }) => setProfileUsername(data?.username || null))
+  }, [user?.id])
+
+  const profileHref = profileUsername ? `/user/${profileUsername}` : '/perfil'
 
   // Close search on outside click
   useEffect(() => {
@@ -101,6 +117,7 @@ const Header = () => {
     { href: '/leaderboard', label: t('leaderboard') },
     { href: '/tournaments', label: t('challenges') },
     ...(isAdmin ? [{ href: '/admin', label: t('tables'), className: 'text-purple-600 font-semibold' }] : []),
+    ...(!isAdmin && isDev ? [{ href: '/admin', label: t('tables'), className: 'text-sky-500 font-semibold' }] : []),
   ]
 
   return (
@@ -108,9 +125,9 @@ const Header = () => {
       <header className="relative z-[100] border-b border-slate-200/90 bg-white/90 backdrop-blur-xl transition-shadow duration-300 ease-out hover:shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
 
-          {/* Logo — izquierda fija */}
-          <a href="/" className="shrink-0 text-xl font-semibold tracking-tight text-slate-900 transition-colors hover:text-slate-700">
-            PrompTool
+          {/* Logo */}
+          <a href="/" className="shrink-0 flex items-center gap-2 transition-opacity hover:opacity-80">
+            <span className="text-lg font-bold tracking-tight text-slate-900">Promp<span style={{ color: 'rgb(var(--color-accent))' }}>Tool</span></span>
           </a>
 
           {/* Spacer */}
@@ -118,8 +135,7 @@ const Header = () => {
 
           {/* Search */}
           <div ref={searchRef} className="relative w-56">
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 transition focus-within:border-slate-400 focus-within:bg-white">
-              <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 transition focus-within:border-slate-400 focus-within:bg-white">              <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -190,7 +206,7 @@ const Header = () => {
               </div>
             ) : user ? (
               <div className="relative z-[201]" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-                <a href="/perfil"
+                <a href={profileHref}
                   className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-slate-100 transition-all hover:shadow-md border-2 ${isAdmin ? 'border-purple-400 hover:border-purple-500' : 'border-slate-200 hover:border-slate-300'}`}>
                   {getUserAvatar()}
                 </a>
@@ -216,7 +232,7 @@ const Header = () => {
                         </div>
 
                         <div className="p-1.5 space-y-0.5">
-                          <a href="/perfil" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50">
+                          <a href={profileHref} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50">
                             <Icon d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             {t('viewProfile')}
                           </a>
@@ -328,7 +344,8 @@ const Header = () => {
               </div>
             ) : (
               <button onClick={() => setAuthModalOpen(true)}
-                className="flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-white">
+                className="flex h-9 items-center justify-center rounded-xl border border-transparent px-4 text-sm font-semibold text-white transition-all"
+                style={{ backgroundColor: 'rgb(var(--color-accent))' }}>
                 {t('signIn')}
               </button>
             )}

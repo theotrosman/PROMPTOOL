@@ -6,6 +6,8 @@ import ImageCard from './components/ImageCard'
 import PromptInput from './components/PromptInput'
 import ResultPanel from './components/ResultPanel'
 import { comparePrompts } from './services/geminiService'
+import { analyzePlagiarism, checkSuspension } from './services/plagiarismService'
+import { calculateElo } from './services/eloService'
 import { getRecommendedGuides } from './data/guides'
 import { supabase } from './supabaseClient'
 import { useAuth } from './hooks/useAuth'
@@ -56,11 +58,21 @@ function App() {
   const [promptUsuario, setPromptUsuario] = useState('')
   const [aiExplanation, setAiExplanation] = useState('')
   const [scorePercent, setScorePercent] = useState(null)
+  const [eloDelta, setEloDelta] = useState(null)
   const [submitted, setSubmitted] = useState(false)
-  const [mode, setMode] = useState('daily')
+  const [mode, setMode] = useState(() => {
+    // Si ya hizo el diario hoy, arrancar directo en random
+    if (typeof window === 'undefined') return 'daily'
+    const stored = localStorage.getItem('dailyDoneDate')
+    return stored === new Date().toDateString() ? 'random' : 'daily'
+  })
+  const [draftMode, setDraftMode] = useState(() => {
+    if (typeof window === 'undefined') return 'daily'
+    const stored = localStorage.getItem('dailyDoneDate')
+    return stored === new Date().toDateString() ? 'random' : 'daily'
+  })
   const [difficulty, setDifficulty] = useState('Medium')
   const [configOpen, setConfigOpen] = useState(false)
-  const [draftMode, setDraftMode] = useState('daily')
   const [draftDifficulty, setDraftDifficulty] = useState('Medium')
   const [imageData, setImageData] = useState(null)
   const [imageStatus, setImageStatus] = useState('loading')
@@ -71,8 +83,39 @@ function App() {
   const [timingData, setTimingData] = useState({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
   const [timePenaltyMessage, setTimePenaltyMessage] = useState('')
   const [availableDiffs, setAvailableDiffs] = useState([])
-  const [dailyDone, setDailyDone] = useState(false) // ya hizo el diario hoy
+  const [dailyDone, setDailyDone] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const stored = localStorage.getItem('dailyDoneDate')
+    return stored === new Date().toDateString()
+  })
+  const [suspensionInfo, setSuspensionInfo] = useState(null)
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false)
+  // Para no logueados: límite de 1 partida diaria (guardada en sessionStorage)
+  const [guestDailyDone, setGuestDailyDone] = useState(() => {
+    const stored = sessionStorage.getItem('guestDailyDate')
+    return stored === new Date().toDateString()
+  })
   const recommendedGuideIds = getRecommendedGuides(improvements, suggestions)
+
+  // Verificar suspensión al cargar
+  useEffect(() => {
+    if (!user) return
+    checkSuspension(user.id).then(result => {
+      if (!result.allowed) setSuspensionInfo(result)
+    })
+  }, [user?.id])
+
+  // Cuando el usuario se loguea, asignar intento pendiente de guest si existe
+  useEffect(() => {
+    if (!user) return
+    const pending = sessionStorage.getItem('pendingAttempt')
+    if (!pending) return
+    try {
+      const attempt = JSON.parse(pending)
+      supabase.from('intentos').insert([{ ...attempt, id_usuario: user.id }])
+        .then(() => sessionStorage.removeItem('pendingAttempt'))
+    } catch { sessionStorage.removeItem('pendingAttempt') }
+  }, [user?.id])
 
   // Fetch inicial: extrae las dificultades disponibles en la BD
   useEffect(() => {
@@ -89,9 +132,9 @@ function App() {
     fetchFilters()
   }, [])
 
-  // Verificar si el usuario ya hizo el modo diario hoy
+  // Verificar si el usuario ya hizo el modo diario hoy (solo al montar o cambiar usuario)
   useEffect(() => {
-    if (!user || mode !== 'daily') { setDailyDone(false); return }
+    if (!user) return
     const checkDaily = async () => {
       const hoy = new Date()
       hoy.setHours(0, 0, 0, 0)
@@ -102,29 +145,36 @@ function App() {
         .eq('modo', 'daily')
         .gte('fecha_hora', hoy.toISOString())
         .limit(1)
-      setDailyDone(!!(data && data.length > 0))
+      const done = !!(data && data.length > 0)
+      setDailyDone(done)
+      if (done) localStorage.setItem('dailyDoneDate', new Date().toDateString())
     }
     checkDaily()
-  }, [user, mode])
+  }, [user?.id])
 
   // Fetch de la imagen activa
   useEffect(() => {
+    let cancelled = false
+
     const fetchImageData = async () => {
       setImageStatus('loading')
-      setImageData(null)
 
       try {
         let query = supabase.from('imagenes_ia').select('*')
 
         if (mode === 'daily') {
-          // Modo diario: imagen más reciente, sin filtros
-          query = query.order('fecha', { ascending: false }).limit(1)
+          const hoy = new Date()
+          hoy.setHours(23, 59, 59, 999)
+          query = query
+            .lte('fecha', hoy.toISOString())
+            .order('fecha', { ascending: false })
+            .limit(1)
         } else {
-          // Modo random: filtra solo por dificultad
           if (difficulty) query = query.eq('image_diff', difficulty)
         }
 
         const { data, error } = await query
+        if (cancelled) return
         if (error) throw error
 
         if (!data || data.length === 0) {
@@ -132,34 +182,41 @@ function App() {
           return
         }
 
-        const rows = data.map(normalizeImageData)
+        let rows = data.map(normalizeImageData)
+
+        if (mode === 'random') {
+          const dailyId = [...rows].sort((a, b) =>
+            new Date(b.fecha) - new Date(a.fecha)
+          )[0]?.id_imagen
+          const withoutDaily = rows.filter(r => r.id_imagen !== dailyId)
+          if (withoutDaily.length > 0) rows = withoutDaily
+        }
+
+        if (cancelled) return
+
         const selected = mode === 'daily'
           ? rows[0]
           : rows[Math.floor(Math.random() * rows.length)]
 
         setImageData(selected)
-        setDifficulty(selected.image_diff ?? 'Medium')
         setImageStatus('ok')
       } catch (err) {
-        console.error('[imagenes_ia] Error:', err)
-        setImageStatus('error')
+        if (!cancelled) {
+          console.error('[imagenes_ia] Error:', err)
+          setImageStatus('error')
+        }
       }
     }
 
     fetchImageData()
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, difficulty])
 
-  // Si el diario ya está hecho al cargar, cambiar a random automáticamente
-  useEffect(() => {
-    if (dailyDone && mode === 'daily') {
-      setMode('random')
-      setDraftMode('random')
-    }
-  }, [dailyDone])
+  // El modo ya se inicializa correctamente desde localStorage en el useState — no hace falta useEffect
 
   const hasImage = imageStatus === 'ok' && imageData !== null
-  const isDisabled = !hasImage || (mode === 'daily' && dailyDone)
+  const isDisabled = !hasImage || (mode === 'daily' && (user ? dailyDone : guestDailyDone))
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -169,12 +226,18 @@ function App() {
     const promptReferencia = imageData?.prompt_original
     if (!promptReferencia) return
 
+    // Verificar suspensión antes de procesar
+    if (user) {
+      const suspension = await checkSuspension(user.id)
+      if (!suspension.allowed) { setSuspensionInfo(suspension); return }
+    }
+
     setAnalyzing(true)
     setSubmitted(true)
 
     try {
-      const result = await comparePrompts(submittedPrompt, promptReferencia, difficulty)
-      const timePenalty = getTimePenalty(timingData, difficulty, mode)
+      const result = await comparePrompts(submittedPrompt, promptReferencia, imageData?.image_diff ?? difficulty)
+      const timePenalty = getTimePenalty(timingData, imageData?.image_diff ?? difficulty, mode)
       const finalScore = Math.max(0, (result.score ?? 0) - timePenalty.penalty)
 
       setScorePercent(finalScore)
@@ -195,10 +258,91 @@ function App() {
           strengths: result.strengths ?? [],
           improvements: result.improvements ?? [],
           modo: mode,
+          elo_delta: null, // se actualiza abajo si hay usuario
         }])
 
       if (dbError) console.error('[intentos] Error al guardar:', dbError.message)
-      else if (mode === 'daily') setDailyDone(true)
+      else {
+        if (mode === 'daily') {
+          if (user) {
+            setDailyDone(true)
+            localStorage.setItem('dailyDoneDate', new Date().toDateString())
+          }
+          else {
+            sessionStorage.setItem('guestDailyDate', new Date().toDateString())
+            setGuestDailyDone(true)
+            sessionStorage.setItem('pendingAttempt', JSON.stringify({
+              prompt_usuario: submittedPrompt,
+              puntaje_similitud: finalScore,
+              id_imagen: imageData.id_imagen,
+              fecha_hora: new Date().toISOString(),
+              strengths: result.strengths ?? [],
+              improvements: result.improvements ?? [],
+              modo: mode,
+            }))
+          }
+        }
+
+        // Actualizar ELO del usuario logueado
+        if (user) {
+          try {
+            const { data: userData } = await supabase
+              .from('usuarios')
+              .select('elo_rating, total_intentos')
+              .eq('id_usuario', user.id)
+              .maybeSingle()
+
+            const currentElo = userData?.elo_rating ?? 1000
+            const totalAttempts = userData?.total_intentos ?? 0
+
+            const { newElo, delta } = calculateElo({
+              userElo: currentElo,
+              totalAttempts,
+              score: finalScore,
+              difficulty: imageData?.image_diff ?? difficulty,
+              timing: {
+                elapsedSeconds: timingData.elapsedSeconds,
+                recommendedSeconds: timingData.recommendedSeconds,
+                penaltyOvertimeSeconds: timingData.penaltyOvertimeSeconds ?? 0,
+              },
+            })
+
+            await supabase
+              .from('usuarios')
+              .update({ elo_rating: newElo })
+              .eq('id_usuario', user.id)
+
+            // Guardar delta en el intento más reciente
+            await supabase
+              .from('intentos')
+              .update({ elo_delta: delta })
+              .eq('id_usuario', user.id)
+              .order('fecha_hora', { ascending: false })
+              .limit(1)
+
+            setEloDelta(delta)
+            console.log(`[ELO] ${currentElo} → ${newElo} (${delta > 0 ? '+' : ''}${delta})`)
+          } catch (eloErr) {
+            console.warn('[ELO] Error actualizando:', eloErr.message)
+          }
+        }
+      }
+
+      // Análisis antiplagio — async, no bloquea la UI
+      if (user) {
+        analyzePlagiarism({
+          userId: user.id,
+          prompt: submittedPrompt,
+          score: finalScore,
+          elapsedSeconds: timingData.elapsedSeconds,
+          difficulty,
+          imageId: imageData.id_imagen,
+        }).then(({ suspicious, severity }) => {
+          if (suspicious && severity === 'high') {
+            console.warn('[antiplagio] Intento sospechoso detectado')
+          }
+        })
+      }
     } catch (err) {
       console.error('[handleSubmit] Error:', err)
       setScorePercent(0)
@@ -228,6 +372,7 @@ function App() {
     setPromptUsuario('')
     setAiExplanation('')
     setScorePercent(null)
+    setEloDelta(null)
     setSubmitted(false)
     setSuggestions('')
     setStrengths([])
@@ -241,6 +386,7 @@ function App() {
   const handleRetry = () => {
     setAiExplanation('')
     setScorePercent(null)
+    setEloDelta(null)
     setSubmitted(false)
     setSuggestions('')
     setStrengths([])
@@ -251,20 +397,78 @@ function App() {
     // promptUsuario se mantiene para que el usuario lo vea y mejore
   }
 
+  // Nueva imagen aleatoria — resetea todo y fuerza refetch en modo random
+  const handleNewRandom = () => {
+    handleReset()
+    if (mode !== 'random') {
+      setMode('random')
+      setDraftMode('random')
+    } else {
+      // Forzar refetch cambiando a un valor temporal y volviendo
+      setImageStatus('loading')
+      setImageData(null)
+      const fetchRandom = async () => {
+        try {
+          let query = supabase.from('imagenes_ia').select('*')
+          if (difficulty) query = query.eq('image_diff', difficulty)
+          const { data } = await query
+          if (!data || data.length === 0) { setImageStatus('empty'); return }
+          let rows = data.map(normalizeImageData)
+
+          // Excluir imagen del día
+          const dailyId = [...rows].sort((a, b) => new Date(b.fecha) - new Date(a.fecha))[0]?.id_imagen
+          const withoutDaily = rows.filter(r => r.id_imagen !== dailyId)
+          if (withoutDaily.length > 0) rows = withoutDaily
+
+          // Excluir dominadas
+          if (user) {
+            try {
+              const { data: mastered } = await supabase
+                .from('intentos').select('id_imagen')
+                .eq('id_usuario', user.id).gt('puntaje_similitud', 93)
+              if (mastered?.length) {
+                const masteredIds = new Set(mastered.map(i => i.id_imagen))
+                const filtered = rows.filter(r => !masteredIds.has(r.id_imagen))
+                if (filtered.length > 0) rows = filtered
+              }
+            } catch { /* fail open */ }
+          }
+
+          const selected = rows[Math.floor(Math.random() * rows.length)]
+          setImageData(selected)
+          setDifficulty(selected.image_diff ?? 'Medium')
+          setImageStatus('ok')
+        } catch { setImageStatus('error') }
+      }
+      fetchRandom()
+    }
+  }
+
   const renderControls = () => (
-    <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+    <div className="flex items-center gap-2 flex-wrap">
       <button type="button" onClick={openConfig}
-        className="rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
+        className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
         {t('configure')}
       </button>
-      <button type="button" onClick={handleReset}
-        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 17a9 9 0 1 0 4-7.5" /><polyline points="3 10 3 17 10 17" />
-        </svg>
-        {t('reset')}
-      </button>
-      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('adjustModeAndDifficulty')}</p>
+      {submitted ? (
+        <>
+          <button type="button" onClick={handleNewRandom}
+            className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
+            {t('newRandom')}
+          </button>
+          <button type="button" onClick={handleReset}
+            className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
+            {t('reset')}
+          </button>
+        </>
+      ) : (
+        mode === 'random' && (
+          <button type="button" onClick={handleNewRandom}
+            className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
+            {t('newRandom')}
+          </button>
+        )
+      )}
     </div>
   )
 
@@ -272,12 +476,19 @@ function App() {
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <Header />
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4">
-        <div className="overflow-hidden rounded-[2.5rem] bg-slate-50">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
+      {suspensionInfo && (
+        <div className="bg-rose-600 px-4 py-3 text-center text-sm font-medium text-white">
+          {suspensionInfo.reason}
+          {suspensionInfo.until && ` Hasta el ${suspensionInfo.until}.`}
+        </div>
+      )}
 
-            <section className="space-y-6 p-6 lg:p-8">
-              <div className="space-y-6">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-2">
+        <div className="overflow-hidden rounded-2xl bg-slate-50">
+          <div className={`grid lg:items-stretch ${submitted && scorePercent > 93 ? 'lg:grid-cols-1 max-w-2xl mx-auto w-full' : 'lg:grid-cols-[1.2fr_1fr]'}`}>
+            <section className="flex flex-col justify-center space-y-4 p-6 lg:p-8">
+              <div className="space-y-4">
+                {renderControls()}
                 {!submitted ? (
                   <>
                     {mode === 'daily' && dailyDone ? (
@@ -297,15 +508,14 @@ function App() {
                         isLoading={imageStatus === 'loading' || analyzing}
                         disabled={isDisabled}
                         mode={mode}
-                        difficulty={difficulty}
+                        difficulty={imageData?.image_diff ?? difficulty}
                         onTimingChange={setTimingData}
+                        paused={imagePreviewOpen}
                       />
                     )}
-                    {renderControls()}
                   </>
                 ) : (
-                  <div className="space-y-6 rounded-[2rem] border border-slate-200/70 bg-white/60 p-4 sm:p-5">
-                    {renderControls()}
+                  <>
                     {analyzing ? (
                       <div className="rounded-[1.75rem] border border-slate-200 bg-white p-8 text-center">
                         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
@@ -316,24 +526,25 @@ function App() {
                         scorePercent={scorePercent}
                         explanation={aiExplanation}
                         suggestions={suggestions}
-                        difficulty={difficulty}
-                        strengths={strengths}
+                        difficulty={imageData?.image_diff ?? difficulty}
                         improvements={improvements}
                         timePenaltyMessage={timePenaltyMessage}
                         recommendedGuideIds={recommendedGuideIds}
+                        eloDelta={eloDelta}
                         onRetry={scorePercent !== null && scorePercent < 60 ? handleRetry : undefined}
                       />
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             </section>
 
-            <aside className="flex flex-col justify-start gap-4 p-6">
+            <aside className={`flex flex-col items-stretch justify-center gap-4 p-4 transition-all duration-500 ${submitted && scorePercent > 93 ? 'hidden' : ''}`}>
               <ImageCard
                 mode={mode}
                 data={imageData ?? {}}
                 imageStatus={imageStatus}
+                onPreviewChange={setImagePreviewOpen}
               />
             </aside>
 

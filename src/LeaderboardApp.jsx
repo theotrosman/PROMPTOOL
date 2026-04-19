@@ -4,6 +4,7 @@ import Footer from './components/Footer'
 import { supabase } from './supabaseClient'
 import { useLang } from './contexts/LangContext'
 import { useAuth } from './hooks/useAuth'
+import { getRank } from './services/eloService'
 
 const TOP_COLORS = ['#f59e0b', '#94a3b8', '#b45309']
 
@@ -29,8 +30,9 @@ function LeaderboardApp() {
   const { user } = useAuth()
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [sortBy, setSortBy] = useState('promedio_score')
+  const [sortBy, setSortBy] = useState('elo_rating')
   const [myRank, setMyRank] = useState(null)
+  const [myAttempts, setMyAttempts] = useState(null) // null = no cargado aún
   const [compareA, setCompareA] = useState(null)
   const [compareB, setCompareB] = useState(null)
   const [compareOpen, setCompareOpen] = useState(false)
@@ -39,21 +41,23 @@ function LeaderboardApp() {
   const myRowRef = useRef(null)
 
   const cols = [
-    { key: 'promedio_score',       label: lang === 'en' ? 'Avg'      : 'Promedio',  suffix: '%' },
-    { key: 'mejor_score',          label: lang === 'en' ? 'Best'     : 'Mejor',     suffix: '%' },
-    { key: 'total_intentos',       label: lang === 'en' ? 'Attempts' : 'Intentos',  suffix: '' },
-    { key: 'porcentaje_aprobacion',label: lang === 'en' ? 'Approval' : 'Aprobación',suffix: '%' },
-    { key: 'racha_actual',         label: lang === 'en' ? 'Streak'   : 'Racha',     suffix: '' },
+    { key: 'elo_rating',           label: 'ELO',                                    suffix: '',  tableOnly: false },
+    { key: 'promedio_score',       label: lang === 'en' ? 'Avg'      : 'Promedio',  suffix: '%', tableOnly: false },
+    { key: 'mejor_score',          label: lang === 'en' ? 'Best'     : 'Mejor',     suffix: '%', tableOnly: false },
+    { key: 'total_intentos',       label: lang === 'en' ? 'Attempts' : 'Intentos',  suffix: '',  tableOnly: false },
+    { key: 'porcentaje_aprobacion',label: lang === 'en' ? 'Approval' : 'Aprobación',suffix: '%', tableOnly: false },
+    { key: 'racha_actual',         label: lang === 'en' ? 'Streak'   : 'Racha',     suffix: '',  tableOnly: true },
   ]
+  const tableCols = cols.filter(c => !c.tableOnly)
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true)
       const { data } = await supabase
         .from('usuarios')
-        .select('id_usuario, nombre, nombre_display, username, avatar_url, promedio_score, mejor_score, total_intentos, porcentaje_aprobacion, racha_actual, rank_anterior')
+        .select('id_usuario, nombre, nombre_display, username, avatar_url, promedio_score, mejor_score, total_intentos, porcentaje_aprobacion, racha_actual, rank_anterior, elo_rating')
         .eq('adminstate', false)
-        .gt('total_intentos', 0)
+        .gte('total_intentos', 10)
         .order(sortBy, { ascending: false })
         .limit(100)
 
@@ -75,6 +79,18 @@ function LeaderboardApp() {
       if (user) {
         const idx = list.findIndex(p => p.id_usuario === user.id)
         setMyRank(idx >= 0 ? idx + 1 : null)
+
+        // Si no aparece en la tabla, buscar cuántos intentos tiene
+        if (idx < 0) {
+          const { data: userData } = await supabase
+            .from('usuarios')
+            .select('total_intentos')
+            .eq('id_usuario', user.id)
+            .maybeSingle()
+          setMyAttempts(userData?.total_intentos ?? 0)
+        } else {
+          setMyAttempts(null) // ya está en la tabla
+        }
       }
 
       setLoading(false)
@@ -218,7 +234,7 @@ function LeaderboardApp() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder={lang === 'en' ? 'Search player...' : 'Buscar jugador...'}
+              placeholder={lang === 'en' ? 'Search prompter...' : 'Buscar prompter...'}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
             />
             {results.length > 0 && (
@@ -268,13 +284,25 @@ function LeaderboardApp() {
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
               {lang === 'en'
-                ? 'The #1 player at the end of the month earns an exclusive badge on their profile.'
-                : 'El jugador #1 al final del mes gana una badge exclusiva en su perfil.'}
+                ? 'The #1 prompter at the end of the month earns an exclusive badge on their profile.'
+                : 'El prompter #1 al final del mes gana una badge exclusiva en su perfil.'}
             </p>
             {myRank && (
               <p className="mt-2 text-sm font-semibold text-indigo-600">
                 {lang === 'en' ? `Your rank: #${myRank}` : `Tu posición: #${myRank}`}
               </p>
+            )}
+            {user && myAttempts !== null && myAttempts < 10 && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-1.5 w-24 rounded-full bg-slate-200 overflow-hidden">
+                  <div className="h-full rounded-full bg-indigo-400 transition-all" style={{ width: `${(myAttempts / 10) * 100}%` }} />
+                </div>
+                <p className="text-xs text-slate-500">
+                  {lang === 'en'
+                    ? `${myAttempts}/10 attempts to appear on the leaderboard`
+                    : `${myAttempts}/10 intentos para aparecer en la liga`}
+                </p>
+              </div>
             )}
             <p className="mt-1 text-xs text-slate-400">
               {lang === 'en'
@@ -291,7 +319,7 @@ function LeaderboardApp() {
                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
             }`}
           >
-            {lang === 'en' ? 'Compare players' : 'Comparar jugadores'}
+            {lang === 'en' ? 'Compare prompters' : 'Comparar prompters'}
           </button>
         </div>
 
@@ -300,11 +328,11 @@ function LeaderboardApp() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
             <div className="flex gap-4 flex-wrap">
               <PlayerPicker
-                label={lang === 'en' ? 'Player 1' : 'Jugador 1'}
+                label={lang === 'en' ? 'Prompter 1' : 'Prompter 1'}
                 value={compareA} search={searchA} setSearch={setSearchA} onSelect={setCompareA}
               />
               <PlayerPicker
-                label={lang === 'en' ? 'Player 2' : 'Jugador 2'}
+                label={lang === 'en' ? 'Prompter 2' : 'Prompter 2'}
                 value={compareB} search={searchB} setSearch={setSearchB} onSelect={setCompareB}
               />
             </div>
@@ -338,10 +366,10 @@ function LeaderboardApp() {
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
             {/* Header */}
-            <div className="grid grid-cols-[3rem_1fr_repeat(5,4.5rem)] gap-2 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <div className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5.5rem_5.5rem] gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-400">
               <span>#</span>
-              <span>{lang === 'en' ? 'Player' : 'Jugador'}</span>
-              {cols.map(c => (
+              <span>{lang === 'en' ? 'Prompter' : 'Prompter'}</span>
+              {tableCols.map(c => (
                 <span key={c.key} className={`text-right ${sortBy === c.key ? 'text-slate-700' : ''}`}>{c.label}</span>
               ))}
             </div>
@@ -355,7 +383,7 @@ function LeaderboardApp() {
                 <div
                   key={p.id_usuario}
                   ref={isMe ? myRowRef : null}
-                  className={`grid grid-cols-[3rem_1fr_repeat(5,4.5rem)] gap-2 items-center px-5 py-3 border-b border-slate-100 last:border-0 transition ${
+                  className={`grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5.5rem_5.5rem] gap-3 items-center px-5 py-3 border-b border-slate-100 last:border-0 transition ${
                     isMe ? 'bg-indigo-50 border-l-2 border-l-indigo-400' : isTop3 ? 'bg-amber-50/30' : 'hover:bg-slate-50'
                   }`}
                 >
@@ -373,7 +401,9 @@ function LeaderboardApp() {
 
                   {/* Player */}
                   <a href={getProfileUrl(p)} className="flex items-center gap-3 min-w-0 hover:opacity-80 transition">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 border border-slate-200">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 ${
+                      rank === 1 ? 'ring-2 ring-amber-400' : rank === 2 ? 'ring-2 ring-slate-400' : rank === 3 ? 'ring-2 ring-amber-700' : 'border border-slate-200'
+                    }`}>
                       {getAvatar(p)
                         ? <img src={getAvatar(p)} alt="" className="h-full w-full object-cover" />
                         : <span className="text-xs font-bold text-slate-500">{getDisplayName(p).substring(0,2).toUpperCase()}</span>
@@ -388,9 +418,17 @@ function LeaderboardApp() {
                   </a>
 
                   {/* Stats */}
-                  {cols.map(col => {
+                  {tableCols.map(col => {
                     const val = p[col.key] || 0
                     const isActive = sortBy === col.key
+                    if (col.key === 'elo_rating') {
+                      const rank = getRank(val || 1000)
+                      return (
+                        <span key={col.key} className="text-right text-sm font-bold tabular-nums" style={{ color: isActive ? rank.color : undefined }}>
+                          <span className={isActive ? '' : 'text-slate-400'}>{val || 1000}</span>
+                        </span>
+                      )
+                    }
                     return (
                       <span key={col.key} className={`text-right text-sm font-bold ${isActive ? getScoreColor(val, col.key) : 'text-slate-400'}`}>
                         {val}{col.suffix}
