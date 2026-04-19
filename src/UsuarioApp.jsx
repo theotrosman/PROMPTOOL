@@ -34,6 +34,25 @@ function UsuarioApp() {
   const targetUsername = getTargetUsername()
 
   const [profile, setProfile] = useState(null)
+  const [enterpriseRequests, setEnterpriseRequests] = useState([])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteMessage, setInviteMessage] = useState('')
+  const [enterpriseLoadingRequests, setEnterpriseLoadingRequests] = useState(false)
+  const [enterpriseActionStatus, setEnterpriseActionStatus] = useState(null)
+  const [enterpriseTab, setEnterpriseTab] = useState('profile')
+  const [enterpriseProfileValues, setEnterpriseProfileValues] = useState({
+    companyName: '',
+    description: '',
+    website: '',
+    publicProfile: true,
+  })
+  const [enterpriseSavingProfile, setEnterpriseSavingProfile] = useState(false)
+
+  const ownProfile =
+    (!targetId && !targetUsername && !!user) ||
+    (targetId && user && targetId === user.id) ||
+    (targetUsername && user && profile?.id_usuario === user.id)
+
   const [stats, setStats] = useState({
     totalIntentos: 0, promedioScore: 0, mejorScore: 0,
     peorScore: 0, intentosHoy: 0, intentosEstaSemana: 0,
@@ -248,7 +267,7 @@ function UsuarioApp() {
         let prof = null
         const { data: profFull, error: profError } = await supabase
           .from('usuarios')
-          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating')
+          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating, user_type, company_name')
           .eq('id_usuario', idToLoad)
           .maybeSingle()
 
@@ -649,6 +668,12 @@ function UsuarioApp() {
     try {
       const updates = {}
       if (editedProfile.nombre_display !== undefined) updates.nombre_display = editedProfile.nombre_display
+      if (editedProfile.company_name !== undefined) {
+        updates.company_name = editedProfile.company_name
+        if (editedProfile.nombre_display === undefined) {
+          updates.nombre_display = editedProfile.company_name
+        }
+      }
       updates.email_publico = editedProfile.email_publico ?? profile?.email_publico ?? true
       if (editedProfile.pais !== undefined) updates.pais = editedProfile.pais
       if (editedProfile.idioma_display !== undefined) updates.idioma_display = editedProfile.idioma_display
@@ -741,6 +766,107 @@ function UsuarioApp() {
     }
   }
 
+  const fetchEnterpriseRequests = async () => {
+    if (!profile?.id_usuario || profile?.user_type !== 'enterprise') return
+    setEnterpriseLoadingRequests(true)
+    try {
+      const { data, error } = await supabase
+        .from('team_invitations')
+        .select('id, user_email, user_id, status, message, created_at')
+        .eq('company_id', profile.id_usuario)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setEnterpriseRequests(data || [])
+    } catch (err) {
+      console.error('Error fetching enterprise requests:', err)
+      setEnterpriseRequests([])
+    } finally {
+      setEnterpriseLoadingRequests(false)
+    }
+  }
+
+  const saveEnterpriseProfile = async () => {
+    if (!user || !profile) return
+    setEnterpriseSavingProfile(true)
+    try {
+      const updates = {
+        company_name: enterpriseProfileValues.companyName,
+        bio: enterpriseProfileValues.description,
+        social_website: enterpriseProfileValues.website,
+        email_publico: enterpriseProfileValues.publicProfile,
+      }
+      const { error } = await supabase.from('usuarios').update(updates).eq('id_usuario', profile.id_usuario)
+      if (error) throw error
+      setProfile(p => ({ ...p, ...updates }))
+      setEnterpriseActionStatus(lang === 'en' ? 'Profile saved' : 'Perfil guardado')
+    } catch (err) {
+      console.error('Error saving enterprise profile:', err)
+      setEnterpriseActionStatus(lang === 'en' ? 'Unable to save profile' : 'No se pudo guardar el perfil')
+    } finally {
+      setEnterpriseSavingProfile(false)
+    }
+  }
+
+  const sendEnterpriseInvite = async (event) => {
+    event.preventDefault()
+    if (!profile?.id_usuario || !inviteEmail.trim()) {
+      setEnterpriseActionStatus(lang === 'en' ? 'Enter an email.' : 'Ingresa un email.')
+      return
+    }
+    setEnterpriseActionStatus(lang === 'en' ? 'Sending invitation...' : 'Enviando invitación...')
+    try {
+      const { error } = await supabase.from('team_invitations').insert([{
+        company_id: profile.id_usuario,
+        user_email: inviteEmail.trim(),
+        status: 'pending',
+        message: inviteMessage.trim(),
+      }])
+      if (error) throw error
+      setInviteEmail('')
+      setInviteMessage('')
+      fetchEnterpriseRequests()
+      setEnterpriseActionStatus(lang === 'en' ? 'Invitation sent.' : 'Invitación enviada.')
+    } catch (err) {
+      console.error('Error sending invite:', err)
+      setEnterpriseActionStatus(lang === 'en' ? 'Could not send invitation.' : 'No se pudo enviar la invitación.')
+    }
+  }
+
+  const updateEnterpriseRequestStatus = async (request, status) => {
+    if (!request?.id) return
+    try {
+      const { error } = await supabase
+        .from('team_invitations')
+        .update({ status })
+        .eq('id', request.id)
+      if (error) throw error
+
+      if (status === 'accepted' && request.user_id) {
+        await supabase.from('usuarios').update({ company_id: profile.id_usuario }).eq('id_usuario', request.user_id)
+      }
+
+      setEnterpriseActionStatus(status === 'accepted'
+        ? (lang === 'en' ? 'Request accepted.' : 'Solicitud aceptada.')
+        : (lang === 'en' ? 'Request rejected.' : 'Solicitud rechazada.'))
+      fetchEnterpriseRequests()
+    } catch (err) {
+      console.error('Error updating request status:', err)
+      setEnterpriseActionStatus(lang === 'en' ? 'Could not update request.' : 'No se pudo actualizar la solicitud.')
+    }
+  }
+
+  useEffect(() => {
+    if (!profile || profile.user_type !== 'enterprise' || !ownProfile) return
+    setEnterpriseProfileValues({
+      companyName: profile.company_name || profile.nombre_display || '',
+      description: profile.bio || '',
+      website: profile.social_website || '',
+      publicProfile: profile.email_publico ?? true,
+    })
+    fetchEnterpriseRequests()
+  }, [profile, ownProfile])
+
   const handleFollow = async () => {
     if (!user) return
     const idToLoad = targetId || (targetUsername ? profile?.id_usuario : user?.id)
@@ -778,10 +904,7 @@ function UsuarioApp() {
   const getScoreBg = (s) => s >= 70 ? 'bg-emerald-50 border-emerald-200' : s >= 50 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
   const formatDate = (d) => new Date(d).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-  // ownProfile: true solo si no hay parámetro en URL, o si el parámetro coincide con el usuario logueado
-  const ownProfile =
-  (!targetId && !targetUsername && !!user) ||
-  (targetId && user && targetId === user.id) // con parámetro → comparar IDs
+  // ownProfile is already computed above near the top of the component
   const canEdit = ownProfile && !!user
 
   // ── Social icon ──
@@ -871,6 +994,351 @@ function UsuarioApp() {
             )
           })}
         </div>
+      </div>
+    )
+  }
+
+  const renderEnterpriseProfile = () => {
+    if (!profile) return null
+
+    const incoming = enterpriseRequests.filter(r => r.status === 'requested')
+    const pending = enterpriseRequests.filter(r => r.status === 'pending')
+    const displayName = profile.company_name || profile.nombre_display || getDisplayName()
+
+    return (
+      <div className="flex min-h-screen flex-col bg-white text-slate-900">
+        <Header />
+        <main className="mx-auto w-full max-w-6xl px-4 py-10">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-900">
+              {lang === 'en' ? 'Company Profile' : 'Perfil de Empresa'}
+            </h1>
+            <p className="mt-2 text-slate-600">{displayName}</p>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr]">
+            <div className="space-y-6">
+              <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div
+                  className="h-48 w-full bg-slate-200"
+                  style={{
+                    background: profile?.banner_url
+                      ? `url(${profile.banner_url}) center/cover no-repeat`
+                      : `linear-gradient(135deg, ${chartColor}33 0%, ${chartColor}66 100%)`,
+                  }}
+                >
+                  {canEdit && editingProfile && (
+                    <button
+                      type="button"
+                      onClick={() => bannerInputRef.current?.click()}
+                      className="absolute right-4 top-4 rounded-full bg-black/60 px-4 py-2 text-xs font-semibold text-white hover:bg-black/70 transition"
+                    >
+                      {lang === 'en' ? 'Change banner' : 'Cambiar banner'}
+                    </button>
+                  )}
+                </div>
+                <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files[0]; if (f) openCropper(f, 'banner') }}
+                />
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
+                  const f = e.target.files[0]; if (f) openCropper(f, 'avatar')
+                }} />
+
+                <div className="px-6 pb-6 pt-16">
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      <div className="h-24 w-24 overflow-hidden rounded-full bg-slate-100 ring-4 ring-white">
+                        {(avatarPreview || getAvatar()) ? (
+                          <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-3xl font-bold text-slate-400">
+                            {displayName?.substring(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      {editingProfile && canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm text-slate-800 hover:bg-slate-100 transition"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h2 className="text-2xl font-bold text-slate-900">{displayName}</h2>
+                        {profile?.username && (
+                          <span className="rounded-full border border-slate-200 px-2 py-1 text-xs text-slate-500">@{profile.username}</span>
+                        )}
+                        {canEdit && !editingProfile && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingProfile(true)
+                              setEditedProfile({
+                                company_name: profile?.company_name || profile?.nombre_display || '',
+                                nombre_display: profile?.nombre_display || profile?.company_name || '',
+                                email_publico: profile?.email_publico ?? true,
+                                pais: profile?.pais || '',
+                                idioma_display: profile?.idioma_display || '',
+                                social_github: profile?.social_github || '',
+                                social_linkedin: profile?.social_linkedin || '',
+                                social_twitter: profile?.social_twitter || '',
+                                social_website: profile?.social_website || '',
+                                pronouns: profile?.pronouns || '',
+                                status: profile?.status || '',
+                                organization: profile?.organization || '',
+                                bio: profile?.bio || '',
+                              })
+                            }}
+                            className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                          >
+                            {lang === 'en' ? 'Edit profile' : 'Editar perfil'}
+                          </button>
+                        )}
+                      </div>
+                      {profile?.status && (
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-slate-500">
+                          {profile.status === 'open' ? (lang === 'en' ? 'Open to collab' : 'Abierto a colaborar') : profile.status === 'learning' ? (lang === 'en' ? 'Learning' : 'Aprendiendo') : profile.status === 'busy' ? (lang === 'en' ? 'Busy' : 'Ocupado') : profile.status === 'lurking' ? (lang === 'en' ? 'Just lurking' : 'Solo mirando') : profile.status}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    {editingProfile ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Company Name' : 'Nombre de la Empresa'}</label>
+                          <input
+                            type="text"
+                            value={editedProfile.company_name ?? profile.company_name ?? ''}
+                            onChange={e => setEditedProfile(p => ({ ...p, company_name: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Website' : 'Sitio web'}</label>
+                          <input
+                            type="url"
+                            value={editedProfile.social_website ?? profile.social_website ?? ''}
+                            onChange={e => setEditedProfile(p => ({ ...p, social_website: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                            placeholder={lang === 'en' ? 'https://company.com' : 'https://empresa.com'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Description' : 'Descripción'}</label>
+                          <textarea
+                            value={editedProfile.bio ?? profile.bio ?? ''}
+                            onChange={e => setEditedProfile(p => ({ ...p, bio: e.target.value }))}
+                            rows={5}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm resize-none"
+                            placeholder={lang === 'en' ? 'Tell users about your company.' : 'Cuenta a los usuarios sobre tu empresa.'}
+                          />
+                        </div>
+                        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={(editedProfile.email_publico ?? profile.email_publico ?? true)}
+                            onChange={(e) => setEditedProfile(p => ({ ...p, email_publico: e.target.checked }))}
+                            className="h-4 w-4 rounded border-slate-300 text-violet-600"
+                          />
+                          <span className="text-sm text-slate-700">
+                            {lang === 'en' ? 'Public company profile' : 'Perfil de empresa público'}
+                          </span>
+                        </label>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <button
+                            onClick={saveProfile}
+                            disabled={saving || uploadingAvatar || uploadingBanner || checkingNsfw}
+                            className="rounded-full bg-violet-600 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-700 transition disabled:opacity-60"
+                          >
+                            {saving ? (lang === 'en' ? 'Saving...' : 'Guardando...') : (lang === 'en' ? 'Save Profile' : 'Guardar Perfil')}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingProfile(false)
+                              setAvatarFile(null)
+                              setAvatarPreview(null)
+                              setBannerFile(null)
+                              setBannerPreview(null)
+                            }}
+                            className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                          >
+                            {lang === 'en' ? 'Cancel' : 'Cancelar'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          {profile?.social_website && (
+                            <a href={profile.social_website} target="_blank" rel="noreferrer" className="text-sm font-semibold text-violet-600 hover:text-violet-700">
+                              {profile.social_website}
+                            </a>
+                          )}
+                          {(ownProfile || profile?.email_publico !== false) && profile?.email && (
+                            <p className="text-sm text-slate-500">{profile.email}</p>
+                          )}
+                        </div>
+                        <div>
+                          {profile?.bio ? (
+                            <BioCollapsible bio={profile.bio} />
+                          ) : (
+                            <p className="text-sm italic text-slate-400">{lang === 'en' ? 'No description yet.' : 'Aún no hay descripción.'}</p>
+                          )}
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {profile?.social_github && (
+                            <a href={`https://github.com/${profile.social_github.replace(/.*github\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
+                              GitHub: {profile.social_github}
+                            </a>
+                          )}
+                          {profile?.social_linkedin && (
+                            <a href={profile.social_linkedin} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
+                              LinkedIn: {profile.social_linkedin}
+                            </a>
+                          )}
+                          {profile?.social_twitter && (
+                            <a href={`https://x.com/${profile.social_twitter.replace(/.*x\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
+                              X: {profile.social_twitter}
+                            </a>
+                          )}
+                        </div>
+                        {canEdit && (
+                          <button
+                            onClick={() => {
+                              setEditingProfile(true)
+                              setEditedProfile({
+                                company_name: profile?.company_name || profile?.nombre_display || '',
+                                nombre_display: profile?.nombre_display || profile?.company_name || '',
+                                email_publico: profile?.email_publico ?? true,
+                                pais: profile?.pais || '',
+                                idioma_display: profile?.idioma_display || '',
+                                social_github: profile?.social_github || '',
+                                social_linkedin: profile?.social_linkedin || '',
+                                social_twitter: profile?.social_twitter || '',
+                                social_website: profile?.social_website || '',
+                                pronouns: profile?.pronouns || '',
+                                status: profile?.status || '',
+                                organization: profile?.organization || '',
+                                bio: profile?.bio || '',
+                              })
+                            }}
+                            className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                          >
+                            {lang === 'en' ? 'Edit profile' : 'Editar perfil'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                    {lang === 'en' ? 'Incoming Requests' : 'Solicitudes Entrantes'}
+                  </h2>
+                  {enterpriseLoadingRequests ? (
+                    <p className="text-slate-600">{lang === 'en' ? 'Loading requests...' : 'Cargando solicitudes...'}</p>
+                  ) : incoming.length > 0 ? (
+                    <div className="space-y-4">
+                      {incoming.map((request) => (
+                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-semibold text-slate-900">{request.user_email}</p>
+                              <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => updateEnterpriseRequestStatus(request, 'accepted')}
+                                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+                              >
+                                {lang === 'en' ? 'Accept' : 'Aceptar'}
+                              </button>
+                              <button
+                                onClick={() => updateEnterpriseRequestStatus(request, 'rejected')}
+                                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                              >
+                                {lang === 'en' ? 'Reject' : 'Rechazar'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-600">{lang === 'en' ? 'No incoming requests yet.' : 'No hay solicitudes entrantes aún.'}</p>
+                  )}
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                    {lang === 'en' ? 'Pending Invitations' : 'Invitaciones Pendientes'}
+                  </h2>
+                  {enterpriseLoadingRequests ? (
+                    <p className="text-slate-600">{lang === 'en' ? 'Loading invitations...' : 'Cargando invitaciones...'}</p>
+                  ) : pending.length > 0 ? (
+                    <div className="space-y-4">
+                      {pending.map((request) => (
+                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <p className="font-semibold text-slate-900">{request.user_email}</p>
+                          <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
+                          <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">{lang === 'en' ? 'Pending' : 'Pendiente'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-600">{lang === 'en' ? 'No pending invitations.' : 'No hay invitaciones pendientes.'}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                  {lang === 'en' ? 'Invite a User' : 'Invitar a un Usuario'}
+                </h2>
+                <form onSubmit={sendEnterpriseInvite} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'User email' : 'Email del usuario'}</label>
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                      placeholder={lang === 'en' ? 'user@example.com' : 'usuario@ejemplo.com'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Message' : 'Mensaje'}</label>
+                    <textarea
+                      value={inviteMessage}
+                      onChange={(e) => setInviteMessage(e.target.value)}
+                      rows={4}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm resize-none"
+                      placeholder={lang === 'en' ? 'Optional note for the invite' : 'Nota opcional para la invitación'}
+                    />
+                  </div>
+                  <button type="submit" className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition">
+                    {lang === 'en' ? 'Send Invitation' : 'Enviar Invitación'}
+                  </button>
+                  {enterpriseActionStatus && <p className="text-sm text-slate-600">{enterpriseActionStatus}</p>}
+                </form>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     )
   }
@@ -1064,6 +1532,10 @@ function UsuarioApp() {
         </main>
       </div>
     )
+  }
+
+  if (ownProfile && profile?.user_type === 'enterprise') {
+    return renderEnterpriseProfile()
   }
 
   return (
@@ -1534,11 +2006,105 @@ function UsuarioApp() {
 
           {/* Contenido principal */}
           <div className="flex-1 min-w-0 space-y-5">
+            {isEnterpriseProfile ? (
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                    {lang === 'en' ? 'Incoming Requests' : 'Solicitudes Entrantes'}
+                  </h2>
+                  {enterpriseLoadingRequests ? (
+                    <p className="text-slate-600">{lang === 'en' ? 'Loading requests...' : 'Cargando solicitudes...'}</p>
+                  ) : enterpriseIncoming.length > 0 ? (
+                    <div className="space-y-4">
+                      {enterpriseIncoming.map((request) => (
+                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-semibold text-slate-900">{request.user_email}</p>
+                              <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => updateEnterpriseRequestStatus(request, 'accepted')}
+                                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+                              >
+                                {lang === 'en' ? 'Accept' : 'Aceptar'}
+                              </button>
+                              <button
+                                onClick={() => updateEnterpriseRequestStatus(request, 'rejected')}
+                                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                              >
+                                {lang === 'en' ? 'Reject' : 'Rechazar'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-600">{lang === 'en' ? 'No incoming requests yet.' : 'No hay solicitudes entrantes aún.'}</p>
+                  )}
+                </div>
 
-            {/* Medallas */}
-            <MedalsSection userId={profile?.id_usuario} />
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                    {lang === 'en' ? 'Pending Invitations' : 'Invitaciones Pendientes'}
+                  </h2>
+                  {enterpriseLoadingRequests ? (
+                    <p className="text-slate-600">{lang === 'en' ? 'Loading invitations...' : 'Cargando invitaciones...'}</p>
+                  ) : enterprisePending.length > 0 ? (
+                    <div className="space-y-4">
+                      {enterprisePending.map((request) => (
+                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <p className="font-semibold text-slate-900">{request.user_email}</p>
+                          <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
+                          <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">{lang === 'en' ? 'Pending' : 'Pendiente'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-600">{lang === 'en' ? 'No pending invitations.' : 'No hay invitaciones pendientes.'}</p>
+                  )}
+                </div>
 
-            {/* Panel de comparación — solo en perfiles ajenos */}
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                    {lang === 'en' ? 'Invite a User' : 'Invitar a un Usuario'}
+                  </h2>
+                  <form onSubmit={sendEnterpriseInvite} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'User email' : 'Email del usuario'}</label>
+                      <input
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                        placeholder={lang === 'en' ? 'user@example.com' : 'usuario@ejemplo.com'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Message' : 'Mensaje'}</label>
+                      <textarea
+                        value={inviteMessage}
+                        onChange={(e) => setInviteMessage(e.target.value)}
+                        rows={4}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm resize-none"
+                        placeholder={lang === 'en' ? 'Optional note for the invite' : 'Nota opcional para la invitación'}
+                      />
+                    </div>
+                    <button type="submit" className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition">
+                      {lang === 'en' ? 'Send Invitation' : 'Enviar Invitación'}
+                    </button>
+                    {enterpriseActionStatus && <p className="text-sm text-slate-600">{enterpriseActionStatus}</p>}
+                  </form>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {/* Medallas */}
+                <MedalsSection userId={profile?.id_usuario} />
+
+                {/* Panel de comparación — solo en perfiles ajenos */}
             {!ownProfile && user && (
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
                 <button
@@ -2075,7 +2641,7 @@ function UsuarioApp() {
                   </div>
                 )}
               </div>
-            )}
+          )}
           </div>
         </div>
       </main>

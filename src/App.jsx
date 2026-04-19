@@ -5,6 +5,7 @@ import ConfigModal from './components/ConfigModal'
 import ImageCard from './components/ImageCard'
 import LandingPage from './components/LandingPage'
 import AuthModal from './components/AuthModal'
+import EnterprisePanel from './components/EnterprisePanel'
 import PromptInput from './components/PromptInput'
 import ResultPanel from './components/ResultPanel'
 import { comparePrompts } from './services/geminiService'
@@ -59,6 +60,8 @@ function App() {
   const { t } = useLang()
   const [showLanding, setShowLanding] = useState(true)
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [userType, setUserType] = useState(null)
+  const [userTypeLoading, setUserTypeLoading] = useState(false)
   const [promptUsuario, setPromptUsuario] = useState('')
   const [aiExplanation, setAiExplanation] = useState('')
   const [scorePercent, setScorePercent] = useState(null)
@@ -94,6 +97,26 @@ function App() {
     checkSuspension(user.id).then(result => {
       if (!result.allowed) setSuspensionInfo(result)
     })
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user) {
+      setUserType(null)
+      setUserTypeLoading(false)
+      return
+    }
+
+    const fetchUserType = async () => {
+      setUserTypeLoading(true)
+      const { data } = await supabase
+        .from('usuarios')
+        .select('user_type')
+        .eq('id_usuario', user.id)
+        .maybeSingle()
+      setUserType(data?.user_type || 'individual')
+      setUserTypeLoading(false)
+    }
+    fetchUserType()
   }, [user?.id])
 
   useEffect(() => {
@@ -531,6 +554,20 @@ function App() {
     )
   }
 
+  // Si el usuario es empresa, esperar a cargar el tipo de usuario
+  if (user && userTypeLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
+        <div className="text-center text-slate-600">{t('loading') || 'Loading...'}</div>
+      </div>
+    )
+  }
+
+  if (user && userType === 'enterprise') {
+    return <EnterprisePanel user={user} />
+  }
+
+  // Si es individual, mostrar juego
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <Header />

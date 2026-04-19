@@ -72,7 +72,7 @@ export const useAuth = () => {
     if (error) throw error
   }
 
-  const signUpWithEmail = async (email, password, nombre, username) => {
+  const signUpWithEmail = async (email, password, nombre, username, userType = 'individual', companyName = null) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -91,6 +91,8 @@ export const useAuth = () => {
         email,
         idioma_preferido: 'es',
         adminstate: false,
+        user_type: userType,
+        company_name: userType === 'enterprise' ? companyName : null,
       }])
       if (dbError) console.error('Error creating user profile:', dbError)
     }
