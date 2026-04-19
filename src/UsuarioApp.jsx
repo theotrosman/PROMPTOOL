@@ -898,14 +898,49 @@ function UsuarioApp() {
   }
 
   const getDisplayName = () => profile?.nombre_display || profile?.nombre || profile?.email?.split('@')[0] || 'Usuario'
+  // Soporta tanto URLs completas como rutas guardadas en storage (ej: "user-id/avatar.jpg")
+  const resolveProfileMediaUrl = (value) => {
+    if (!value) return null
+    const raw = String(value).trim()
+    if (!raw) return null
+    if (raw.startsWith('blob:')) return raw
+
+    const [pathPart, query = ''] = raw.split('?')
+    const cleanPathPart = pathPart.replace(/^\/+/, '')
+
+    // Soporta:
+    // - user-id/avatar.jpg
+    // - avatars/user-id/avatar.jpg
+    // - /storage/v1/object/public/avatars/user-id/avatar.jpg
+    // - https://.../storage/v1/object/public/avatars/user-id/avatar.jpg?token=...
+    let objectPath = cleanPathPart
+    const storageMatch = cleanPathPart.match(/\/storage\/v1\/object\/(?:public|sign)\/avatars\/(.+)$/)
+      || cleanPathPart.match(/^storage\/v1\/object\/(?:public|sign)\/avatars\/(.+)$/)
+    if (storageMatch?.[1]) {
+      objectPath = storageMatch[1]
+    }
+    objectPath = objectPath.replace(/^avatars\//, '')
+
+    // Si quedó una URL externa no-Supabase, mantenerla tal cual.
+    if ((raw.startsWith('http://') || raw.startsWith('https://')) && !storageMatch) return raw
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(objectPath)
+    return query ? `${data.publicUrl}?${query}` : data.publicUrl
+  }
+
   // Solo usar el avatar del perfil cargado — nunca el del usuario logueado
-  const getAvatar = () => profile?.avatar_url || null
+  const getAvatar = () => resolveProfileMediaUrl(profile?.avatar_url)
+  const bannerUrl = resolveProfileMediaUrl(profile?.banner_url)
+  const showcaseUrl = resolveProfileMediaUrl(profile?.showcase_url)
   const getScoreColor = (s) => s >= 70 ? 'text-emerald-600' : s >= 50 ? 'text-amber-500' : 'text-rose-500'
   const getScoreBg = (s) => s >= 70 ? 'bg-emerald-50 border-emerald-200' : s >= 50 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
   const formatDate = (d) => new Date(d).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   // ownProfile is already computed above near the top of the component
   const canEdit = ownProfile && !!user
+  const isEnterpriseProfile = ownProfile && profile?.user_type === 'enterprise'
+  const enterpriseIncoming = enterpriseRequests.filter(r => r.status === 'requested')
+  const enterprisePending = enterpriseRequests.filter(r => r.status === 'pending')
 
   // ── Social icon ──
   const SocialIcon = ({ type, className = 'h-4 w-4' }) => {
@@ -1016,14 +1051,14 @@ function UsuarioApp() {
             <p className="mt-2 text-slate-600">{displayName}</p>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr]">
+          <div className="grid gap-6 lg:grid-cols-1">
             <div className="space-y-6">
               <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <div
                   className="h-48 w-full bg-slate-200"
                   style={{
-                    background: profile?.banner_url
-                      ? `url(${profile.banner_url}) center/cover no-repeat`
+                    background: bannerUrl
+                      ? `url(${bannerUrl}) center/cover no-repeat`
                       : `linear-gradient(135deg, ${chartColor}33 0%, ${chartColor}66 100%)`,
                   }}
                 >
@@ -1242,103 +1277,19 @@ function UsuarioApp() {
                 </div>
               </div>
             </div>
-
-            <div className="space-y-6">
-              <div className="space-y-6">
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                    {lang === 'en' ? 'Incoming Requests' : 'Solicitudes Entrantes'}
-                  </h2>
-                  {enterpriseLoadingRequests ? (
-                    <p className="text-slate-600">{lang === 'en' ? 'Loading requests...' : 'Cargando solicitudes...'}</p>
-                  ) : incoming.length > 0 ? (
-                    <div className="space-y-4">
-                      {incoming.map((request) => (
-                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="font-semibold text-slate-900">{request.user_email}</p>
-                              <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => updateEnterpriseRequestStatus(request, 'accepted')}
-                                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
-                              >
-                                {lang === 'en' ? 'Accept' : 'Aceptar'}
-                              </button>
-                              <button
-                                onClick={() => updateEnterpriseRequestStatus(request, 'rejected')}
-                                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
-                              >
-                                {lang === 'en' ? 'Reject' : 'Rechazar'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-600">{lang === 'en' ? 'No incoming requests yet.' : 'No hay solicitudes entrantes aún.'}</p>
-                  )}
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                    {lang === 'en' ? 'Pending Invitations' : 'Invitaciones Pendientes'}
-                  </h2>
-                  {enterpriseLoadingRequests ? (
-                    <p className="text-slate-600">{lang === 'en' ? 'Loading invitations...' : 'Cargando invitaciones...'}</p>
-                  ) : pending.length > 0 ? (
-                    <div className="space-y-4">
-                      {pending.map((request) => (
-                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <p className="font-semibold text-slate-900">{request.user_email}</p>
-                          <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
-                          <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">{lang === 'en' ? 'Pending' : 'Pendiente'}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-600">{lang === 'en' ? 'No pending invitations.' : 'No hay invitaciones pendientes.'}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                  {lang === 'en' ? 'Invite a User' : 'Invitar a un Usuario'}
-                </h2>
-                <form onSubmit={sendEnterpriseInvite} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'User email' : 'Email del usuario'}</label>
-                    <input
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
-                      placeholder={lang === 'en' ? 'user@example.com' : 'usuario@ejemplo.com'}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Message' : 'Mensaje'}</label>
-                    <textarea
-                      value={inviteMessage}
-                      onChange={(e) => setInviteMessage(e.target.value)}
-                      rows={4}
-                      className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm resize-none"
-                      placeholder={lang === 'en' ? 'Optional note for the invite' : 'Nota opcional para la invitación'}
-                    />
-                  </div>
-                  <button type="submit" className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition">
-                    {lang === 'en' ? 'Send Invitation' : 'Enviar Invitación'}
-                  </button>
-                  {enterpriseActionStatus && <p className="text-sm text-slate-600">{enterpriseActionStatus}</p>}
-                </form>
-              </div>
-            </div>
           </div>
         </main>
+        <Footer />
+
+        {cropperSrc && (
+          <ImageCropper
+            src={cropperSrc}
+            aspect={cropperAspect}
+            shape={cropperShape}
+            onCrop={(blob) => handleCropDone(blob)}
+            onCancel={() => { setCropperSrc(null); setCropperType(null) }}
+          />
+        )}
       </div>
     )
   }
@@ -1554,8 +1505,8 @@ function UsuarioApp() {
               <div
                 className="h-24 w-full rounded-2xl overflow-hidden"
                 style={{
-                  background: profile?.banner_url
-                    ? `url(${profile.banner_url}) center/cover no-repeat`
+                    background: bannerUrl
+                    ? `url(${bannerUrl}) center/cover no-repeat`
                     : `linear-gradient(135deg, ${chartColor}33 0%, ${chartColor}66 100%)`,
                 }}
               >
@@ -1956,12 +1907,12 @@ function UsuarioApp() {
             </button>
 
             {/* Showcase image/gif */}
-            {(profile?.showcase_url || canEdit) && (
+            {(showcaseUrl || canEdit) && (
               <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 flex-1 min-h-[200px]">
-                {profile?.showcase_url ? (
+                {showcaseUrl ? (
                   <>
                     <img
-                      src={profile.showcase_url}
+                      src={showcaseUrl}
                       alt="showcase"
                       className="w-full h-full object-cover"
                       style={{ minHeight: '200px' }}
@@ -2010,93 +1961,19 @@ function UsuarioApp() {
               <div className="space-y-6">
                 <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                   <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                    {lang === 'en' ? 'Incoming Requests' : 'Solicitudes Entrantes'}
+                    {lang === 'en' ? 'Requests moved to dashboard' : 'Solicitudes movidas al dashboard'}
                   </h2>
-                  {enterpriseLoadingRequests ? (
-                    <p className="text-slate-600">{lang === 'en' ? 'Loading requests...' : 'Cargando solicitudes...'}</p>
-                  ) : enterpriseIncoming.length > 0 ? (
-                    <div className="space-y-4">
-                      {enterpriseIncoming.map((request) => (
-                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="font-semibold text-slate-900">{request.user_email}</p>
-                              <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => updateEnterpriseRequestStatus(request, 'accepted')}
-                                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
-                              >
-                                {lang === 'en' ? 'Accept' : 'Aceptar'}
-                              </button>
-                              <button
-                                onClick={() => updateEnterpriseRequestStatus(request, 'rejected')}
-                                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
-                              >
-                                {lang === 'en' ? 'Reject' : 'Rechazar'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-600">{lang === 'en' ? 'No incoming requests yet.' : 'No hay solicitudes entrantes aún.'}</p>
-                  )}
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                    {lang === 'en' ? 'Pending Invitations' : 'Invitaciones Pendientes'}
-                  </h2>
-                  {enterpriseLoadingRequests ? (
-                    <p className="text-slate-600">{lang === 'en' ? 'Loading invitations...' : 'Cargando invitaciones...'}</p>
-                  ) : enterprisePending.length > 0 ? (
-                    <div className="space-y-4">
-                      {enterprisePending.map((request) => (
-                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <p className="font-semibold text-slate-900">{request.user_email}</p>
-                          <p className="text-sm text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
-                          <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">{lang === 'en' ? 'Pending' : 'Pendiente'}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-600">{lang === 'en' ? 'No pending invitations.' : 'No hay invitaciones pendientes.'}</p>
-                  )}
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                    {lang === 'en' ? 'Invite a User' : 'Invitar a un Usuario'}
-                  </h2>
-                  <form onSubmit={sendEnterpriseInvite} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'User email' : 'Email del usuario'}</label>
-                      <input
-                        type="email"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
-                        placeholder={lang === 'en' ? 'user@example.com' : 'usuario@ejemplo.com'}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Message' : 'Mensaje'}</label>
-                      <textarea
-                        value={inviteMessage}
-                        onChange={(e) => setInviteMessage(e.target.value)}
-                        rows={4}
-                        className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm resize-none"
-                        placeholder={lang === 'en' ? 'Optional note for the invite' : 'Nota opcional para la invitación'}
-                      />
-                    </div>
-                    <button type="submit" className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition">
-                      {lang === 'en' ? 'Send Invitation' : 'Enviar Invitación'}
-                    </button>
-                    {enterpriseActionStatus && <p className="text-sm text-slate-600">{enterpriseActionStatus}</p>}
-                  </form>
+                  <p className="text-sm text-slate-600">
+                    {lang === 'en'
+                      ? 'Manage incoming requests, pending invitations and send new invites from your enterprise dashboard.'
+                      : 'Gestiona solicitudes entrantes, invitaciones pendientes y nuevos envíos desde tu dashboard de empresa.'}
+                  </p>
+                  <a
+                    href="/"
+                    className="mt-4 inline-flex rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition"
+                  >
+                    {lang === 'en' ? 'Go to dashboard' : 'Ir al dashboard'}
+                  </a>
                 </div>
               </div>
             ) : (
@@ -2496,8 +2373,7 @@ function UsuarioApp() {
             {/* Heatmap de actividad */}
             <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} isOwn={ownProfile} color={chartColor} />
 
-            {recentAttempts.length > 0 && (
-              <div>
+            <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                     <span className="w-1 h-5 rounded-full inline-block" style={{ backgroundColor: chartColor }} />
@@ -2641,8 +2517,9 @@ function UsuarioApp() {
                   </div>
                 )}
               </div>
-          )}
           </div>
+        )}
+        </div>
         </div>
       </main>
 

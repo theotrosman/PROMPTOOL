@@ -1,4 +1,4 @@
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const AI_EVAL_ENDPOINT = import.meta.env.VITE_AI_EVAL_ENDPOINT || "/api/compare-prompts";
 
 const clamp = (value, min = 0, max = 100) => Math.min(max, Math.max(min, Number(value) || 0));
 
@@ -119,21 +119,16 @@ Devuelve SOLO un JSON válido así:
 
     // console.log("🚀 Enviando request a Groq...");
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch(AI_EVAL_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.3,
+        prompt,
+        userPrompt,
+        originalPrompt,
+        difficulty,
       }),
     });
 
@@ -144,19 +139,23 @@ Devuelve SOLO un JSON válido así:
       throw new Error(data.error?.message || "Error en la API");
     }
 
-    const textResponse = data.choices[0].message.content;
-
-    // console.log("📝 RAW:", textResponse);
-
     let parsed;
 
-    try {
-      parsed = JSON.parse(textResponse);
-    } catch {
-      // fallback por si mete texto extra
-      const match = textResponse.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("No vino JSON válido");
-      parsed = JSON.parse(match[0]);
+    // Soporte para backend que ya devuelve JSON final
+    if (data?.criteria && typeof data === "object") {
+      parsed = data;
+    } else {
+      const textResponse = data?.choices?.[0]?.message?.content;
+      if (!textResponse) throw new Error("Respuesta inválida del proveedor de IA");
+
+      try {
+        parsed = JSON.parse(textResponse);
+      } catch {
+        // fallback por si mete texto extra
+        const match = textResponse.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error("No vino JSON válido");
+        parsed = JSON.parse(match[0]);
+      }
     }
 
     const criteria = {

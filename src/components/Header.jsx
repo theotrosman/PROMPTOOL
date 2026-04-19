@@ -27,6 +27,11 @@ const Header = () => {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [profileUsername, setProfileUsername] = useState(null)
+  const [notificationOpen, setNotificationOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [loadingNotifications, setLoadingNotifications] = useState(false)
+  const [notificationActionLoading, setNotificationActionLoading] = useState(null)
+  const notificationRef = useRef(null)
   const closeTimer = useRef(null)
   const searchRef = useRef(null)
   const searchTimer = useRef(null)
@@ -48,10 +53,216 @@ const Header = () => {
   useEffect(() => {
     const handler = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false)
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) setNotificationOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  const getNotificationStatusLabel = (status) => {
+    if (status === 'pending') return lang === 'en' ? 'Pending' : 'Pendiente'
+    if (status === 'requested') return lang === 'en' ? 'Requested' : 'Solicitada'
+    if (status === 'accepted') return lang === 'en' ? 'Accepted' : 'Aceptada'
+    if (status === 'rejected') return lang === 'en' ? 'Rejected' : 'Rechazada'
+    return status || (lang === 'en' ? 'Update' : 'Actualización')
+  }
+
+  const getInvitationNotificationText = (invitation, isCompany, isReceiver) => {
+    const companyName = invitation.company_name || (lang === 'en' ? 'Company' : 'Empresa')
+    if (isCompany) {
+      return {
+        title: lang === 'en' ? 'Company request' : 'Solicitud de empresa',
+        body: lang === 'en'
+          ? `${invitation.user_email || 'User'} status: ${getNotificationStatusLabel(invitation.status)}`
+          : `${invitation.user_email || 'Usuario'} estado: ${getNotificationStatusLabel(invitation.status)}`,
+      }
+    }
+    if (isReceiver) {
+      return {
+        title: lang === 'en' ? 'Invitation received' : 'Invitación recibida',
+        body: lang === 'en'
+          ? `${companyName} sent you an invitation (${getNotificationStatusLabel(invitation.status)})`
+          : `${companyName} te envió una invitación (${getNotificationStatusLabel(invitation.status)})`,
+      }
+    }
+    return {
+      title: lang === 'en' ? 'Invitation update' : 'Actualización de invitación',
+      body: lang === 'en'
+        ? `${companyName} invitation is ${getNotificationStatusLabel(invitation.status)}`
+        : `La invitación de ${companyName} está ${getNotificationStatusLabel(invitation.status)}`,
+    }
+  }
+
+  const fetchNotifications = async () => {
+    if (!user) { setNotifications([]); return }
+    setLoadingNotifications(true)
+    try {
+      const { data: myProfile } = await supabase
+        .from('usuarios')
+        .select('id_usuario, user_type, company_name')
+        .eq('id_usuario', user.id)
+        .maybeSingle()
+
+      const { data: invitationRows } = await supabase
+        .from('team_invitations')
+        .select('id, company_id, user_id, user_email, status, message, created_at')
+        .or(`company_id.eq.${user.id},user_id.eq.${user.id},user_email.eq.${user.email}`)
+        .order('created_at', { ascending: false })
+        .limit(30)
+
+      const { data: readRows } = await supabase
+        .from('notification_reads')
+        .select('source_type, source_id')
+        .eq('user_id', user.id)
+
+      let guideRows = []
+      try {
+        const { data } = await supabase
+          .from('guide_suggestions')
+          .select('id, target_user_id, target_email, title, message, guide_slug, guide_url, created_at')
+          .or(`target_user_id.eq.${user.id},target_email.eq.${user.email}`)
+          .order('created_at', { ascending: false })
+          .limit(30)
+        guideRows = data || []
+      } catch (_) {
+        guideRows = []
+      }
+
+      const readSet = new Set((readRows || []).map(r => `${r.source_type}:${r.source_id}`))
+      const items = []
+
+      ;(invitationRows || []).forEach((inv) => {
+        const isCompany = inv.company_id === user.id
+        const isReceiver = inv.user_id === user.id || (!!user.email && inv.user_email === user.email)
+        const copy = getInvitationNotificationText({
+          ...inv,
+          company_name: myProfile?.company_name,
+        }, isCompany, isReceiver)
+        const sourceType = 'team_invitation'
+        const sourceId = String(inv.id)
+        const sourceKey = `${sourceType}:${sourceId}`
+        const canRespond =
+          (isCompany && inv.status === 'requested') ||
+          (isReceiver && inv.status === 'pending')
+        items.push({
+          id: `inv-${inv.id}`,
+          sourceType,
+          sourceId,
+          read: readSet.has(sourceKey),
+          createdAt: inv.created_at,
+          title: copy.title,
+          body: copy.body,
+          invitation: inv,
+          actionUrl: isCompany ? `/perfil` : `/perfil?id=${inv.company_id}`,
+          canRespond,
+        })
+      })
+
+      ;(guideRows || []).forEach((g) => {
+        const sourceType = 'guide_suggestion'
+        const sourceId = String(g.id)
+        const sourceKey = `${sourceType}:${sourceId}`
+        items.push({
+          id: `guide-${g.id}`,
+          sourceType,
+          sourceId,
+          read: readSet.has(sourceKey),
+          createdAt: g.created_at,
+          title: g.title || (lang === 'en' ? 'Guide suggestion' : 'Sugerencia de guía'),
+          body: g.message || (lang === 'en' ? 'You have a recommended guide.' : 'Tienes una guía recomendada.'),
+          actionUrl: g.guide_url || (g.guide_slug ? `/guides#${g.guide_slug}` : '/guides'),
+          guide: g,
+        })
+      })
+
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setNotifications(items)
+    } catch (err) {
+      console.error('Error loading notifications:', err)
+      setNotifications([])
+    } finally {
+      setLoadingNotifications(false)
+    }
+  }
+
+  const markNotificationRead = async (item) => {
+    if (!user || !item || item.read) return
+    try {
+      await supabase.from('notification_reads').upsert([{
+        user_id: user.id,
+        source_type: item.sourceType,
+        source_id: item.sourceId,
+      }], { onConflict: 'user_id,source_type,source_id' })
+      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n))
+    } catch (err) {
+      console.error('Error marking notification read:', err)
+    }
+  }
+
+  const markAllNotificationsRead = async () => {
+    if (!user) return
+    const unread = notifications.filter(n => !n.read)
+    if (!unread.length) return
+    try {
+      await supabase.from('notification_reads').upsert(
+        unread.map(n => ({ user_id: user.id, source_type: n.sourceType, source_id: n.sourceId })),
+        { onConflict: 'user_id,source_type,source_id' },
+      )
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    } catch (err) {
+      console.error('Error marking all as read:', err)
+    }
+  }
+
+  const handleInvitationAction = async (item, status) => {
+    if (!item?.invitation || !user) return
+    setNotificationActionLoading(item.id + status)
+    try {
+      const invitation = item.invitation
+      const { error } = await supabase
+        .from('team_invitations')
+        .update({ status })
+        .eq('id', invitation.id)
+      if (error) throw error
+
+      if (status === 'accepted') {
+        const targetUserId = invitation.user_id || (invitation.user_email === user.email ? user.id : null)
+        if (targetUserId) {
+          await supabase.from('usuarios').update({ company_id: invitation.company_id }).eq('id_usuario', targetUserId)
+        }
+      }
+
+      setNotifications(prev => prev.map(n => n.id === item.id
+        ? { ...n, read: true, invitation: { ...n.invitation, status }, body: getInvitationNotificationText(
+            { ...n.invitation, status, company_name: n.invitation.company?.company_name },
+            n.invitation.company_id === user.id,
+            n.invitation.user_id === user.id || (!!user.email && n.invitation.user_email === user.email),
+          ).body }
+        : n))
+      await markNotificationRead(item)
+    } catch (err) {
+      console.error('Error updating invitation:', err)
+    } finally {
+      setNotificationActionLoading(null)
+    }
+  }
+
+  const formatNotificationDate = (iso) => {
+    if (!iso) return ''
+    return new Date(iso).toLocaleString(lang === 'en' ? 'en-US' : 'es-ES', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  useEffect(() => {
+    if (!user) return
+    fetchNotifications()
+  }, [user?.id, user?.email, lang])
 
   const handleSearch = async (q) => {
     setSearchQuery(q)
@@ -214,13 +425,124 @@ const Header = () => {
           </nav>
 
           {/* Avatar o login */}
-          <div className="flex shrink-0 items-center">
+          <div className="flex shrink-0 items-center gap-2">
             {loading ? (
               <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-100">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
               </div>
             ) : user ? (
-              <div className="relative z-[201]" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+              <>
+                <div ref={notificationRef} className="relative z-[205] mr-1">
+                  <button
+                    onClick={() => {
+                      const next = !notificationOpen
+                      setNotificationOpen(next)
+                      if (next) fetchNotifications()
+                    }}
+                    className="relative flex h-9 w-9 items-center justify-center text-slate-500 transition hover:text-slate-700"
+                    title={lang === 'en' ? 'Inbox' : 'Bandeja'}
+                  >
+                    <img
+                      src="https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/all-icons/inbox-8udb3q03g0n3xc5o64l00d.png/inbox-j8o515ikjwcv92wlvjffl.png?_a=DATAiZAAZAA0"
+                      alt={lang === 'en' ? 'Inbox' : 'Bandeja'}
+                      className="h-5 w-5 object-contain"
+                      style={{ filter: theme === 'dark' ? 'invert(1) brightness(1.7)' : 'none', opacity: theme === 'dark' ? 0.92 : 0.82 }}
+                    />
+                    {unreadCount > 0 && (
+                      <span className="absolute right-0 top-0 inline-flex min-w-[14px] translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-semibold leading-3 text-white">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationOpen && (
+                    <div className="absolute right-0 top-11 z-[206] w-[24rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{lang === 'en' ? 'Inbox' : 'Bandeja'}</p>
+                          <p className="text-xs text-slate-400">
+                            {lang === 'en'
+                              ? `${unreadCount} unread`
+                              : `${unreadCount} sin leer`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={markAllNotificationsRead}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          {lang === 'en' ? 'Mark all read' : 'Marcar todo leído'}
+                        </button>
+                      </div>
+
+                      <div className="max-h-[28rem] overflow-y-auto">
+                        {loadingNotifications ? (
+                          <div className="px-4 py-8 text-center text-sm text-slate-500">
+                            {lang === 'en' ? 'Loading notifications...' : 'Cargando notificaciones...'}
+                          </div>
+                        ) : notifications.length === 0 ? (
+                          <div className="px-4 py-8 text-center text-sm text-slate-500">
+                            {lang === 'en' ? 'No notifications yet.' : 'Aún no tienes notificaciones.'}
+                          </div>
+                        ) : notifications.map((item) => (
+                          <div key={item.id} className={`border-b border-slate-100 px-4 py-3 last:border-b-0 ${item.read ? 'bg-white' : 'bg-indigo-50/40'}`}>
+                            <div className="mb-1 flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
+                                <p className="mt-0.5 text-xs text-slate-500">{item.body}</p>
+                              </div>
+                              {!item.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />}
+                            </div>
+                            <p className="text-[11px] text-slate-400">{formatNotificationDate(item.createdAt)}</p>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {item.actionUrl && (
+                                <a
+                                  href={item.actionUrl}
+                                  onClick={() => markNotificationRead(item)}
+                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                >
+                                  {item.sourceType === 'guide_suggestion'
+                                    ? (lang === 'en' ? 'Open guide' : 'Abrir guía')
+                                    : (lang === 'en' ? 'Open' : 'Abrir')}
+                                </a>
+                              )}
+
+                              {!item.read && (
+                                <button
+                                  onClick={() => markNotificationRead(item)}
+                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                >
+                                  {lang === 'en' ? 'Mark read' : 'Marcar leído'}
+                                </button>
+                              )}
+
+                              {item.canRespond && (
+                                <>
+                                  <button
+                                    onClick={() => handleInvitationAction(item, 'accepted')}
+                                    disabled={notificationActionLoading === item.id + 'accepted'}
+                                    className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                  >
+                                    {lang === 'en' ? 'Accept' : 'Aceptar'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleInvitationAction(item, 'rejected')}
+                                    disabled={notificationActionLoading === item.id + 'rejected'}
+                                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                  >
+                                    {lang === 'en' ? 'Reject' : 'Rechazar'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative z-[201]" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
                 <a href={profileHref}
                   className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-slate-100 transition-all hover:shadow-md border-2 ${isAdmin ? 'border-purple-400 hover:border-purple-500' : 'border-slate-200 hover:border-slate-300'}`}>
                   {getUserAvatar()}
@@ -379,7 +701,8 @@ const Header = () => {
                     )}
                   </div>
                 )}
-              </div>
+                </div>
+              </>
             ) : (
               <button onClick={() => setAuthModalOpen(true)}
                 className="flex h-9 items-center justify-center rounded-xl border border-transparent px-4 text-sm font-semibold text-white transition-all"

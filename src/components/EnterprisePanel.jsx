@@ -9,6 +9,11 @@ const EnterprisePanel = ({ user }) => {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [companyData, setCompanyData] = useState(null)
   const [teamUsers, setTeamUsers] = useState([])
+  const [enterpriseRequests, setEnterpriseRequests] = useState([])
+  const [enterpriseLoadingRequests, setEnterpriseLoadingRequests] = useState(false)
+  const [enterpriseActionStatus, setEnterpriseActionStatus] = useState(null)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteMessage, setInviteMessage] = useState('')
   const [loading, setLoading] = useState(true)
 
   // Fetch company data
@@ -44,11 +49,99 @@ const EnterprisePanel = ({ user }) => {
     fetchCompanyData()
   }, [user?.id])
 
+  const fetchEnterpriseRequests = async () => {
+    if (!user?.id) return
+    setEnterpriseLoadingRequests(true)
+    try {
+      const { data, error } = await supabase
+        .from('team_invitations')
+        .select('id, user_email, user_id, status, message, created_at')
+        .eq('company_id', user.id)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setEnterpriseRequests(data || [])
+    } catch (err) {
+      console.error('Error fetching enterprise requests:', err)
+      setEnterpriseRequests([])
+    } finally {
+      setEnterpriseLoadingRequests(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!user?.id) return
+    fetchEnterpriseRequests()
+  }, [user?.id])
+
+  const sendEnterpriseInvite = async (event) => {
+    event.preventDefault()
+    if (!inviteEmail.trim()) {
+      setEnterpriseActionStatus(lang === 'en' ? 'Enter an email.' : 'Ingresa un email.')
+      return
+    }
+    setEnterpriseActionStatus(lang === 'en' ? 'Sending invitation...' : 'Enviando invitación...')
+    try {
+      const { data: existingUser } = await supabase
+        .from('usuarios')
+        .select('id_usuario')
+        .eq('email', inviteEmail.trim())
+        .maybeSingle()
+
+      const payload = {
+        company_id: user.id,
+        user_email: inviteEmail.trim(),
+        user_id: existingUser?.id_usuario || null,
+        status: 'pending',
+        message: inviteMessage.trim(),
+      }
+
+      const { error } = await supabase.from('team_invitations').insert([payload])
+      if (error) throw error
+
+      setInviteEmail('')
+      setInviteMessage('')
+      setEnterpriseActionStatus(lang === 'en' ? 'Invitation sent.' : 'Invitación enviada.')
+      fetchEnterpriseRequests()
+    } catch (err) {
+      console.error('Error sending invite:', err)
+      setEnterpriseActionStatus(lang === 'en' ? 'Could not send invitation.' : 'No se pudo enviar la invitación.')
+    }
+  }
+
+  const updateEnterpriseRequestStatus = async (request, status) => {
+    if (!request?.id) return
+    try {
+      const { error } = await supabase
+        .from('team_invitations')
+        .update({ status })
+        .eq('id', request.id)
+      if (error) throw error
+
+      if (status === 'accepted' && request.user_id) {
+        await supabase
+          .from('usuarios')
+          .update({ company_id: user.id })
+          .eq('id_usuario', request.user_id)
+      }
+
+      setEnterpriseActionStatus(
+        status === 'accepted'
+          ? (lang === 'en' ? 'Request accepted.' : 'Solicitud aceptada.')
+          : (lang === 'en' ? 'Request rejected.' : 'Solicitud rechazada.'),
+      )
+      fetchEnterpriseRequests()
+    } catch (err) {
+      console.error('Error updating request status:', err)
+      setEnterpriseActionStatus(lang === 'en' ? 'Could not update request.' : 'No se pudo actualizar la solicitud.')
+    }
+  }
+
   const tabs = [
     { id: 'dashboard', label: lang === 'en' ? 'Dashboard' : 'Dashboard', icon: '📊' },
     { id: 'users', label: lang === 'en' ? 'Team' : 'Equipo', icon: '👥' },
-    { id: 'challenges', label: lang === 'en' ? 'Challenges' : 'Desafíos', icon: '🎯' },
     { id: 'settings', label: lang === 'en' ? 'Settings' : 'Configuración', icon: '⚙️' },
+    { id: 'requests', label: lang === 'en' ? 'Requests' : 'Solicitudes', icon: '📥' },
+    { id: 'challenges', label: lang === 'en' ? 'Challenges' : 'Desafíos', icon: '🎯' },
   ]
 
   const renderDashboard = () => (
@@ -100,6 +193,7 @@ const EnterprisePanel = ({ user }) => {
             ))}
         </div>
       </div>
+
     </div>
   )
 
@@ -235,6 +329,97 @@ const EnterprisePanel = ({ user }) => {
     </div>
   )
 
+  const renderRequests = () => (
+    <div className="grid gap-4 lg:grid-cols-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          {lang === 'en' ? 'Incoming Requests' : 'Solicitudes Entrantes'}
+        </h3>
+        {enterpriseLoadingRequests ? (
+          <p className="text-slate-600">{lang === 'en' ? 'Loading requests...' : 'Cargando solicitudes...'}</p>
+        ) : enterpriseRequests.filter(r => r.status === 'requested').length > 0 ? (
+          <div className="space-y-3">
+            {enterpriseRequests.filter(r => r.status === 'requested').map((request) => (
+              <div key={request.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="font-semibold text-slate-900">{request.user_email}</p>
+                <p className="text-xs text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => updateEnterpriseRequestStatus(request, 'accepted')}
+                    className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition"
+                  >
+                    {lang === 'en' ? 'Accept' : 'Aceptar'}
+                  </button>
+                  <button
+                    onClick={() => updateEnterpriseRequestStatus(request, 'rejected')}
+                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    {lang === 'en' ? 'Reject' : 'Rechazar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-slate-600">{lang === 'en' ? 'No incoming requests yet.' : 'No hay solicitudes entrantes aún.'}</p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          {lang === 'en' ? 'Pending Invitations' : 'Invitaciones Pendientes'}
+        </h3>
+        {enterpriseLoadingRequests ? (
+          <p className="text-slate-600">{lang === 'en' ? 'Loading invitations...' : 'Cargando invitaciones...'}</p>
+        ) : enterpriseRequests.filter(r => r.status === 'pending').length > 0 ? (
+          <div className="space-y-3">
+            {enterpriseRequests.filter(r => r.status === 'pending').map((request) => (
+              <div key={request.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="font-semibold text-slate-900">{request.user_email}</p>
+                <p className="text-xs text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
+                <p className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">{lang === 'en' ? 'Pending' : 'Pendiente'}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-slate-600">{lang === 'en' ? 'No pending invitations.' : 'No hay invitaciones pendientes.'}</p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          {lang === 'en' ? 'Invite a User' : 'Invitar a un Usuario'}
+        </h3>
+        <form onSubmit={sendEnterpriseInvite} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'User email' : 'Email del usuario'}</label>
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+              placeholder={lang === 'en' ? 'user@example.com' : 'usuario@ejemplo.com'}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Message' : 'Mensaje'}</label>
+            <textarea
+              value={inviteMessage}
+              onChange={(e) => setInviteMessage(e.target.value)}
+              rows={4}
+              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm resize-none"
+              placeholder={lang === 'en' ? 'Optional note for the invite' : 'Nota opcional para la invitación'}
+            />
+          </div>
+          <button type="submit" className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition">
+            {lang === 'en' ? 'Send Invitation' : 'Enviar Invitación'}
+          </button>
+          {enterpriseActionStatus && <p className="text-sm text-slate-600">{enterpriseActionStatus}</p>}
+        </form>
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -279,8 +464,9 @@ const EnterprisePanel = ({ user }) => {
         <div>
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'users' && renderUsers()}
-          {activeTab === 'challenges' && renderChallenges()}
           {activeTab === 'settings' && renderSettings()}
+          {activeTab === 'requests' && renderRequests()}
+          {activeTab === 'challenges' && renderChallenges()}
         </div>
       </main>
 
