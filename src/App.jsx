@@ -57,7 +57,7 @@ const getTimePenalty = ({ elapsedSeconds = 0, recommendedSeconds = 0 }, difficul
 
 function App() {
   const { user, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth()
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [showLanding, setShowLanding] = useState(true)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [userType, setUserType] = useState(null)
@@ -92,6 +92,10 @@ function App() {
   // Modo desafío de empresa
   const [challengeCompany, setChallengeCompany] = useState(null) // { company_name, avatar_url, verified }
   const challengeId = new URLSearchParams(window.location.search).get('challenge')
+  const inviteCompanyId = new URLSearchParams(window.location.search).get('invite')
+  const [inviteState, setInviteState] = useState(null) // null | 'loading' | 'joined' | 'error' | 'already' | 'prompt_login'
+  const [inviteCompany, setInviteCompany] = useState(null) // { company_name, avatar_url }
+  const [isRanked, setIsRanked] = useState(true) // toggle modo rankeado
   const recommendedGuideIds = getRecommendedGuides(improvements, suggestions)
 
   // Cargar desafío de empresa si viene con ?challenge=ID
@@ -127,6 +131,54 @@ function App() {
     }
     loadChallenge()
   }, [challengeId])
+
+  // Manejar link de invitación ?invite=COMPANY_ID
+  useEffect(() => {
+    if (!inviteCompanyId) return
+
+    // Cargar datos de la empresa para mostrar en el banner
+    const loadInviteCompany = async () => {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('company_name, nombre_display, avatar_url')
+        .eq('id_usuario', inviteCompanyId)
+        .eq('user_type', 'enterprise')
+        .maybeSingle()
+      setInviteCompany(data || null)
+    }
+    loadInviteCompany()
+
+    if (!user) {
+      // No logueado — mostrar banner + modal de login
+      setInviteState('prompt_login')
+      setAuthModalOpen(true)
+      return
+    }
+
+    // Logueado — unirse automáticamente
+    const joinCompany = async () => {
+      setInviteState('loading')
+      try {
+        const { error } = await supabase.rpc('join_company_by_link', { p_company_id: inviteCompanyId })
+        if (error) {
+          if (error.message?.includes('Already member')) {
+            setInviteState('already')
+          } else {
+            console.error('[invite] join error:', error.message)
+            setInviteState('error')
+          }
+        } else {
+          setInviteState('joined')
+          // Limpiar URL sin recargar
+          window.history.replaceState({}, '', '/')
+        }
+      } catch (e) {
+        console.error('[invite] exception:', e)
+        setInviteState('error')
+      }
+    }
+    joinCompany()
+  }, [inviteCompanyId, user?.id])
 
   // Verificar suspensión al cargar
   useEffect(() => {
@@ -335,6 +387,7 @@ function App() {
           improvements: result.improvements ?? [],
           modo: mode === 'challenge' ? 'challenge' : mode,
           elo_delta: null, // se actualiza abajo si hay usuario
+          is_ranked: !challengeId && isRanked,
         }])
 
       if (dbError) console.error('[intentos] Error al guardar:', dbError.message)
@@ -372,8 +425,8 @@ function App() {
           }
         }
 
-        // Actualizar ELO del usuario logueado
-        if (user) {
+        // Actualizar ELO del usuario logueado — no aplica en desafíos de empresa ni en modo no rankeado
+        if (user && !challengeId && isRanked) {
           try {
             const { data: userData } = await supabase
               .from('usuarios')
@@ -382,11 +435,19 @@ function App() {
               .maybeSingle()
 
             const currentElo = userData?.elo_rating ?? 1000
-            const totalAttempts = userData?.total_intentos ?? 0
 
-            // No calcular ELO hasta tener 5 intentos
+            // Contar solo intentos rankeados para el threshold de 5
+            const { count: rankedCount } = await supabase
+              .from('intentos')
+              .select('id_intento', { count: 'exact', head: true })
+              .eq('id_usuario', user.id)
+              .eq('is_ranked', true)
+
+            const totalAttempts = rankedCount ?? 0
+
+            // No calcular ELO hasta tener 5 intentos rankeados
             if (totalAttempts < 5) {
-              console.log(`[ELO] Awaiting rank (${totalAttempts}/5)`)
+              console.log(`[ELO] Awaiting rank (${totalAttempts}/5 ranked)`)
             } else {
               const { newElo, delta } = calculateElo({
                 userElo: currentElo,
@@ -488,6 +549,7 @@ function App() {
     setTimingData({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
     setTimePenaltyMessage('')
     setAnalyzing(false)
+    if (!challengeId) setIsRanked(true) // reset a rankeado por defecto
   }
 
   // Retry: vuelve al input con el mismo prompt y misma imagen, sin guardar nuevo intento
@@ -594,6 +656,7 @@ function App() {
           onSignInWithGoogle={signInWithGoogle}
           onSignInWithEmail={signInWithEmail}
           onSignUpWithEmail={signUpWithEmail}
+          inviteCompany={inviteState === 'prompt_login' ? inviteCompany : null}
         />
       </div>
     )
@@ -629,6 +692,31 @@ function App() {
           <div className={`grid lg:items-stretch ${submitted && scorePercent > 93 ? 'lg:grid-cols-1 max-w-2xl mx-auto w-full' : 'lg:grid-cols-[1.2fr_1fr]'}`}>
             <section className="flex flex-col justify-center space-y-4 p-6 lg:p-8">
               <div className="space-y-4">
+                {/* Banner de invitación a empresa */}
+                {inviteCompanyId && inviteState && inviteState !== 'prompt_login' && (
+                  <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+                    inviteState === 'joined' ? 'border-emerald-200 bg-emerald-50' :
+                    inviteState === 'already' ? 'border-slate-200 bg-slate-50' :
+                    inviteState === 'error' ? 'border-rose-200 bg-rose-50' :
+                    'border-violet-200 bg-violet-50'
+                  }`}>
+                    {inviteCompany?.avatar_url && (
+                      <img src={inviteCompany.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover shrink-0" />
+                    )}
+                    <p className={`text-sm font-medium ${
+                      inviteState === 'joined' ? 'text-emerald-800' :
+                      inviteState === 'already' ? 'text-slate-600' :
+                      inviteState === 'error' ? 'text-rose-700' :
+                      'text-violet-800'
+                    }`}>
+                      {inviteState === 'loading' && (lang === 'en' ? 'Joining company...' : 'Uniéndote a la empresa...')}
+                      {inviteState === 'joined' && `✓ ${lang === 'en' ? `You joined ${inviteCompany?.company_name || 'the company'}!` : `¡Te uniste a ${inviteCompany?.company_name || 'la empresa'}!`}`}
+                      {inviteState === 'already' && (lang === 'en' ? 'You are already a member of a company.' : 'Ya sos miembro de una empresa.')}
+                      {inviteState === 'error' && (lang === 'en' ? 'Could not join. Try again.' : 'No se pudo unir. Intentá de nuevo.')}
+                    </p>
+                  </div>
+                )}
+
                 {/* Banner de desafío de empresa */}
                 {mode === 'challenge' && challengeCompany && (
                   <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
@@ -651,7 +739,7 @@ function App() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-violet-800">
-                        {t('challengeFrom') || 'Desafío de empresa'}
+                        {lang === 'en' ? 'Company challenge' : 'Desafío de empresa'}
                       </p>
                       <p className="text-sm font-bold text-violet-900 truncate">
                         {challengeCompany.company_name || challengeCompany.nombre_display}
@@ -695,6 +783,8 @@ function App() {
                         difficulty={imageData?.image_diff ?? difficulty}
                         onTimingChange={setTimingData}
                         paused={imagePreviewOpen}
+                        isRanked={isRanked}
+                        onToggleRanked={challengeId ? null : setIsRanked}
                       />
                     )}
                   </>

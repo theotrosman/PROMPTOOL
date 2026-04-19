@@ -105,12 +105,13 @@ function LeaderboardApp() {
         const idx = list.findIndex(p => p.id_usuario === user.id)
         setMyRank(idx >= 0 ? idx + 1 : null)
 
-        // Si no aparece en la tabla, contar intentos reales directamente
+        // Si no aparece en la tabla, contar intentos rankeados directamente
         if (idx < 0) {
           const { count } = await supabase
             .from('intentos')
             .select('id_intento', { count: 'exact', head: true })
             .eq('id_usuario', user.id)
+            .eq('is_ranked', true)
           setMyAttempts(count ?? 0)
         } else {
           setMyAttempts(null)
@@ -341,8 +342,13 @@ function LeaderboardApp() {
                 <p className="text-4xl font-bold tabular-nums text-slate-900 leading-none">
                   {myAttempts}<span className="text-slate-300">/5</span>
                 </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  {lang === 'en' ? 'attempts to join the league' : 'intentos para entrar a la liga'}
+                <p className="mt-1 text-xs text-slate-500 font-medium">
+                  {lang === 'en' ? 'ranked games to join the league' : 'partidas rankeadas para entrar a la liga'}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {lang === 'en'
+                    ? 'Play with the ⚡ Ranked toggle on'
+                    : 'Jugá con el toggle ⚡ Rankeado activado'}
                 </p>
               </div>
             )}

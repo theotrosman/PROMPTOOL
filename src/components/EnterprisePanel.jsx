@@ -44,6 +44,7 @@ const EnterprisePanel = ({ user }) => {
   const [settingsStatus, setSettingsStatus] = useState(null)
   // Cancelar invitación
   const [cancellingId, setCancellingId] = useState(null)
+  const [copyLinkStatus, setCopyLinkStatus] = useState(null) // null | 'copied'
   // Desafíos
   const [challenges, setChallenges] = useState([])
   const [loadingChallenges, setLoadingChallenges] = useState(false)
@@ -712,37 +713,37 @@ const EnterprisePanel = ({ user }) => {
                                     </div>
 
                                     {intento.prompt_usuario && (
-                                      <div className="rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 dark:border-slate-800 px-3 py-2">
-                                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prompt</p>
-                                        <p className="text-xs text-slate-700 italic">"{intento.prompt_usuario}"</p>
+                                      <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 px-3 py-2.5">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Prompt</p>
+                                        <p className="text-xs text-slate-700 dark:text-slate-300 italic leading-relaxed">"{intento.prompt_usuario}"</p>
                                       </div>
                                     )}
 
                                     {(intento.strengths?.length > 0 || intento.improvements?.length > 0) && (
                                       <div className="grid grid-cols-2 gap-2">
                                         {intento.strengths?.length > 0 && (
-                                          <div>
-                                            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide mb-1">
-                                              ✓ {lang === 'en' ? 'Strengths' : 'Fortalezas'}
+                                          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 px-3 py-2">
+                                            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-widest mb-1.5">
+                                              {lang === 'en' ? 'Strengths' : 'Fortalezas'}
                                             </p>
-                                            <ul className="space-y-0.5">
+                                            <ul className="space-y-1">
                                               {intento.strengths.slice(0, 3).map((s, i) => (
-                                                <li key={i} className="text-[11px] text-slate-600 flex gap-1">
-                                                  <span className="text-emerald-500 shrink-0">·</span>{s}
+                                                <li key={i} className="text-[11px] text-emerald-800 dark:text-emerald-300 flex gap-1.5 leading-snug">
+                                                  <span className="text-emerald-500 shrink-0 mt-px">✓</span>{s}
                                                 </li>
                                               ))}
                                             </ul>
                                           </div>
                                         )}
                                         {intento.improvements?.length > 0 && (
-                                          <div>
-                                            <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1">
-                                              ↑ {lang === 'en' ? 'To improve' : 'A mejorar'}
+                                          <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-3 py-2">
+                                            <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-widest mb-1.5">
+                                              {lang === 'en' ? 'To improve' : 'A mejorar'}
                                             </p>
-                                            <ul className="space-y-0.5">
+                                            <ul className="space-y-1">
                                               {intento.improvements.slice(0, 3).map((s, i) => (
-                                                <li key={i} className="text-[11px] text-slate-600 flex gap-1">
-                                                  <span className="text-amber-500 shrink-0">·</span>{s}
+                                                <li key={i} className="text-[11px] text-amber-800 dark:text-amber-300 flex gap-1.5 leading-snug">
+                                                  <span className="text-amber-500 shrink-0 mt-px">↑</span>{s}
                                                 </li>
                                               ))}
                                             </ul>
@@ -1019,83 +1020,70 @@ const EnterprisePanel = ({ user }) => {
   )
 
   const renderSettings = () => (
-    <div className="space-y-6 max-w-2xl">
-      {/* Información de la empresa */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
-          {lang === 'en' ? 'Company Information' : 'Información de la Empresa'}
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              {lang === 'en' ? 'Company Name' : 'Nombre de la Empresa'}
-            </label>
-            <input
-              type="text"
-              value={settingsForm.company_name}
-              onChange={e => setSettingsForm(f => ({ ...f, company_name: e.target.value }))}
-              className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-              placeholder={lang === 'en' ? 'Your company name' : 'Nombre de tu empresa'}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              {lang === 'en' ? 'Description' : 'Descripción'}
-            </label>
-            <textarea
-              value={settingsForm.bio}
-              onChange={e => setSettingsForm(f => ({ ...f, bio: e.target.value }))}
-              rows={4}
-              className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-400"
-              placeholder={lang === 'en' ? 'Tell users about your company...' : 'Contá sobre tu empresa...'}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              {lang === 'en' ? 'Website' : 'Sitio web'}
-            </label>
-            <input
-              type="url"
-              value={settingsForm.website}
-              onChange={e => setSettingsForm(f => ({ ...f, website: e.target.value }))}
-              className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-              placeholder="https://empresa.com"
-            />
-          </div>
+    <div className="space-y-5 max-w-2xl">
+      {/* Nombre + web */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+        <div className="px-5 py-4">
+          <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">
+            {lang === 'en' ? 'Company name' : 'Nombre de la empresa'}
+          </label>
+          <input
+            type="text"
+            value={settingsForm.company_name}
+            onChange={e => setSettingsForm(f => ({ ...f, company_name: e.target.value }))}
+            className="w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none placeholder:text-slate-400"
+            placeholder={lang === 'en' ? 'Your company name' : 'Nombre de tu empresa'}
+          />
+        </div>
+        <div className="px-5 py-4">
+          <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">
+            {lang === 'en' ? 'Website' : 'Sitio web'}
+          </label>
+          <input
+            type="url"
+            value={settingsForm.website}
+            onChange={e => setSettingsForm(f => ({ ...f, website: e.target.value }))}
+            className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 outline-none placeholder:text-slate-400"
+            placeholder="https://empresa.com"
+          />
+        </div>
+        <div className="px-5 py-4">
+          <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">
+            {lang === 'en' ? 'Description' : 'Descripción'}
+          </label>
+          <textarea
+            value={settingsForm.bio}
+            onChange={e => setSettingsForm(f => ({ ...f, bio: e.target.value }))}
+            rows={3}
+            className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 outline-none resize-none placeholder:text-slate-400"
+            placeholder={lang === 'en' ? 'What does your company do?' : '¿A qué se dedica tu empresa?'}
+          />
         </div>
       </div>
 
-      {/* Dificultades permitidas */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">
-          {lang === 'en' ? 'Allowed Difficulties' : 'Dificultades Permitidas'}
-        </h3>
-        <p className="text-sm text-slate-500 mb-4">
-          {lang === 'en'
-            ? 'Select which difficulty levels your team can access'
-            : 'Elegí qué niveles de dificultad puede usar tu equipo'}
+      {/* Dificultades */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">
+          {lang === 'en' ? 'Allowed difficulties' : 'Dificultades permitidas'}
         </p>
-        <div className="flex gap-3">
-          {['Easy', 'Medium', 'Hard'].map(diff => {
-            const active = settingsForm.allowed_diffs.includes(diff)
-            const colors = {
-              Easy: active ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-300 dark:border-slate-600 text-slate-500',
-              Medium: active ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-300 dark:border-slate-600 text-slate-500',
-              Hard: active ? 'bg-rose-600 text-white border-rose-600' : 'border-slate-300 dark:border-slate-600 text-slate-500',
-            }
+        <div className="flex gap-2">
+          {[
+            { key: 'Easy',   label: lang === 'en' ? 'Easy' : 'Fácil',   on: 'bg-emerald-500 text-white border-emerald-500', off: 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400' },
+            { key: 'Medium', label: lang === 'en' ? 'Medium' : 'Medio',  on: 'bg-amber-500 text-white border-amber-500',    off: 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400' },
+            { key: 'Hard',   label: lang === 'en' ? 'Hard' : 'Difícil',  on: 'bg-rose-500 text-white border-rose-500',      off: 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400' },
+          ].map(({ key, label, on, off }) => {
+            const active = settingsForm.allowed_diffs.includes(key)
             return (
               <button
-                key={diff}
+                key={key}
                 type="button"
                 onClick={() => setSettingsForm(f => ({
                   ...f,
-                  allowed_diffs: active
-                    ? f.allowed_diffs.filter(d => d !== diff)
-                    : [...f.allowed_diffs, diff],
+                  allowed_diffs: active ? f.allowed_diffs.filter(d => d !== key) : [...f.allowed_diffs, key],
                 }))}
-                className={`rounded-xl border-2 px-5 py-2 text-sm font-semibold transition ${colors[diff]}`}
+                className={`rounded-xl border px-4 py-1.5 text-xs font-semibold transition ${active ? on : off}`}
               >
-                {diff}
+                {label}
               </button>
             )
           })}
@@ -1107,29 +1095,84 @@ const EnterprisePanel = ({ user }) => {
         <button
           onClick={saveSettings}
           disabled={savingSettings}
-          className="rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 transition disabled:opacity-60 flex items-center gap-2"
+          className="rounded-xl bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition disabled:opacity-60 flex items-center gap-2"
         >
           {savingSettings && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-          {savingSettings
-            ? (lang === 'en' ? 'Saving...' : 'Guardando...')
-            : (lang === 'en' ? 'Save Changes' : 'Guardar Cambios')}
+          {savingSettings ? (lang === 'en' ? 'Saving...' : 'Guardando...') : (lang === 'en' ? 'Save' : 'Guardar')}
         </button>
-        {settingsStatus === 'ok' && (
-          <span className="text-sm font-medium text-emerald-600">
-            ✓ {lang === 'en' ? 'Saved' : 'Guardado'}
-          </span>
-        )}
-        {settingsStatus === 'error' && (
-          <span className="text-sm font-medium text-rose-600">
-            {lang === 'en' ? 'Could not save. Try again.' : 'No se pudo guardar. Intentá de nuevo.'}
-          </span>
-        )}
+        {settingsStatus === 'ok' && <span className="text-sm text-emerald-600">✓ {lang === 'en' ? 'Saved' : 'Guardado'}</span>}
+        {settingsStatus === 'error' && <span className="text-sm text-rose-600">{lang === 'en' ? 'Could not save' : 'No se pudo guardar'}</span>}
       </div>
     </div>
   )
 
-  const renderRequests = () => (
-    <div className="grid gap-4 lg:grid-cols-3">
+  const renderRequests = () => {
+    const inviteLink = `${window.location.origin}/?invite=${companyData?.id_usuario}`
+
+    const copyInviteLink = async () => {
+      try {
+        await navigator.clipboard.writeText(inviteLink)
+        setCopyLinkStatus('copied')
+        setTimeout(() => setCopyLinkStatus(null), 2000)
+      } catch {
+        // fallback
+        const el = document.createElement('textarea')
+        el.value = inviteLink
+        document.body.appendChild(el)
+        el.select()
+        document.execCommand('copy')
+        document.body.removeChild(el)
+        setCopyLinkStatus('copied')
+        setTimeout(() => setCopyLinkStatus(null), 2000)
+      }
+    }
+
+    return (
+    <div className="space-y-5">
+      {/* Link de invitación */}
+      <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-sm font-semibold text-violet-900 dark:text-violet-200 mb-1">
+              {lang === 'en' ? 'Invite link' : 'Link de invitación'}
+            </p>
+            <p className="text-xs text-violet-600 dark:text-violet-400">
+              {lang === 'en'
+                ? 'Anyone with this link who is logged in will join your company automatically.'
+                : 'Cualquier persona logueada que abra este link se une a tu empresa automáticamente.'}
+            </p>
+          </div>
+          <button
+            onClick={copyInviteLink}
+            className={`shrink-0 flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              copyLinkStatus === 'copied'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-violet-600 text-white hover:bg-violet-700'
+            }`}
+          >
+            {copyLinkStatus === 'copied' ? (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                {lang === 'en' ? 'Copied!' : '¡Copiado!'}
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                {lang === 'en' ? 'Copy link' : 'Copiar link'}
+              </>
+            )}
+          </button>
+        </div>
+        <div className="mt-3 rounded-lg bg-white dark:bg-slate-900 border border-violet-200 dark:border-violet-700 px-3 py-2">
+          <p className="text-xs text-slate-500 font-mono truncate">{inviteLink}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
           {lang === 'en' ? 'Incoming Requests' : 'Solicitudes Entrantes'}
@@ -1268,7 +1311,9 @@ const EnterprisePanel = ({ user }) => {
         </form>
       </div>
     </div>
-  )
+    </div>
+    )
+  }
 
   if (loading) {
     return (

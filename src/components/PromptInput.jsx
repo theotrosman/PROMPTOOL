@@ -23,8 +23,8 @@ const formatTime = (seconds = 0) => {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`
 }
 
-const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false }) => {
-  const { t } = useLang()
+const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null }) => {
+  const { t, lang } = useLang()
   const [startedAt, setStartedAt] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [pausedElapsed, setPausedElapsed] = useState(0) // segundos acumulados antes de pausar
@@ -113,6 +113,56 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
         <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${timeBadgeClass}`}>
           <span className="font-semibold">{formatTime(remainingSeconds)}</span>
         </span>
+        {/* Toggle rankeado — solo si no es challenge */}
+        {onToggleRanked && (
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={() => onToggleRanked(!isRanked)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                isRanked
+                  ? 'bg-violet-100 text-violet-700'
+                  : 'bg-slate-100 text-slate-400'
+              }`}
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="font-semibold">
+                {isRanked
+                  ? (lang === 'en' ? 'Ranked' : 'Rankeado')
+                  : (lang === 'en' ? 'Unranked' : 'Sin rankeo')}
+              </span>
+            </button>
+            {/* Tooltip explicativo */}
+            <div className="pointer-events-none absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-56">
+              <div className="rounded-xl bg-slate-900 px-3 py-2.5 text-xs text-white shadow-xl space-y-1.5">
+                {isRanked ? (
+                  <>
+                    <p className="font-semibold text-violet-300">{lang === 'en' ? 'Ranked mode ON' : 'Modo rankeado ACTIVADO'}</p>
+                    <p className="text-slate-300 leading-relaxed">
+                      {lang === 'en'
+                        ? 'This game counts toward your ELO and the leaderboard. You need 5 ranked games to appear in the league.'
+                        : 'Esta partida cuenta para tu ELO y la leaderboard. Necesitás 5 partidas rankeadas para aparecer en la liga.'}
+                    </p>
+                    <p className="text-slate-400">{lang === 'en' ? 'Click to play without affecting your rank.' : 'Click para jugar sin afectar tu ranking.'}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-slate-400">{lang === 'en' ? 'Unranked mode' : 'Modo sin rankeo'}</p>
+                    <p className="text-slate-300 leading-relaxed">
+                      {lang === 'en'
+                        ? 'This game won\'t affect your ELO or leaderboard position. Good for practicing without pressure.'
+                        : 'Esta partida no afecta tu ELO ni tu posición en la liga. Ideal para practicar sin presión.'}
+                    </p>
+                    <p className="text-slate-400">{lang === 'en' ? 'Click to play ranked.' : 'Click para jugar rankeado.'}</p>
+                  </>
+                )}
+              </div>
+              <div className="ml-3 h-2 w-2 rotate-45 bg-slate-900 -mt-1" />
+            </div>
+          </div>
+        )}
       </div>
 
       {overtimeSeconds > 0 && penaltyOvertimeSeconds === 0 && (

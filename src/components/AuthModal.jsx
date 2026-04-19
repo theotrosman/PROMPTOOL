@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useLang } from '../contexts/LangContext'
 
-const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSignUpWithEmail }) => {
+const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSignUpWithEmail, inviteCompany = null }) => {
   const { t, lang } = useLang()
   const [mode, setMode] = useState('signin')
   const [signupStep, setSignupStep] = useState('type') // 'type' | 'info'
@@ -127,6 +127,23 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
           </div>
         </div>
 
+        {/* Banner de invitación a empresa */}
+          {inviteCompany && (
+            <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5">
+              {inviteCompany.avatar_url && (
+                <img src={inviteCompany.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-violet-800">
+                  {lang === 'en' ? 'You were invited to join' : 'Fuiste invitado a unirte a'}
+                </p>
+                <p className="text-sm font-bold text-violet-900 truncate">
+                  {inviteCompany.company_name || inviteCompany.nombre_display || 'una empresa'}
+                </p>
+              </div>
+            </div>
+          )}
+
         <div className="px-6 py-5 space-y-3">
           {/* Mostrar selección de tipo de usuario en signup */}
           {mode === 'signup' && signupStep === 'type' ? (
@@ -155,7 +172,7 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
                 </div>
               </button>
 
-              <button
+              {!inviteCompany && <button
                 type="button"
                 onClick={() => selectUserType('enterprise')}
                 className="w-full rounded-xl border-2 border-violet-400 bg-violet-50 p-4 text-left transition hover:border-violet-500 hover:bg-violet-100 relative overflow-hidden shadow-lg shadow-violet-200/50"
@@ -168,7 +185,7 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
                       <p className="text-xs text-slate-600 mt-1">{lang === 'en' ? 'For teams and organizations' : 'Para equipos y organizaciones'}</p>
                     </div>
                     <span className="inline-flex rounded-full bg-violet-500 px-3 py-1 text-xs font-bold text-white shadow-lg">
-                      {lang === 'en' ? 'PAID' : 'PAGO'}
+                      {lang === 'en' ? 'FREE TRIAL' : 'PRUEBA GRATIS'}
                     </span>
                   </div>
                   <div className="mt-4 space-y-2 text-xs text-slate-700 font-medium">
@@ -178,7 +195,7 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
                     <p>✓ Configuraciones avanzadas</p>
                   </div>
                 </div>
-              </button>
+              </button>}
             </div>
           ) : null}
 

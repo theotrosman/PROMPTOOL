@@ -66,6 +66,7 @@ function UsuarioApp() {
   const [recentAttempts, setRecentAttempts] = useState([])
   const [chartData, setChartData] = useState([])
   const [heatmapData, setHeatmapData] = useState({})
+  const [chartCompanyNames, setChartCompanyNames] = useState({}) // { company_id: company_name }
   const [topStrengths, setTopStrengths] = useState([])
   const [topImprovements, setTopImprovements] = useState([])
   const [selectedAttempt, setSelectedAttempt] = useState(null)
@@ -339,7 +340,7 @@ function UsuarioApp() {
         if (ownProfile || isAdmin) {
           const { data: intentos, error: intentosError } = await supabase
             .from('intentos')
-.select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, imagenes_ia(url_image, prompt_original, image_diff)')            .eq('id_usuario', idToLoad)
+.select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, is_ranked, imagenes_ia(url_image, prompt_original, image_diff, company_id)')            .eq('id_usuario', idToLoad)
             .order('fecha_hora', { ascending: false })
 
           console.log('[intentos] data:', intentos?.length, 'error:', intentosError?.message)
@@ -376,7 +377,24 @@ function UsuarioApp() {
             }
 
             setStats({ totalIntentos: total, promedioScore: promedio, mejorScore: mejor, peorScore: peor, intentosHoy, intentosEstaSemana, porcentajeAprobacion, racha })
-            setRecentAttempts(intentos.slice(0, 10))
+
+            // Filtrar del historial los intentos de desafíos de empresas no verificadas
+            const companyIds = [...new Set(intentos.map(i => i.imagenes_ia?.company_id).filter(Boolean))]
+            let verifiedCompanyIds = new Set()
+            if (companyIds.length > 0) {
+              const { data: verifiedCos } = await supabase
+                .from('usuarios')
+                .select('id_usuario')
+                .in('id_usuario', companyIds)
+                .eq('verified', true)
+              verifiedCos?.forEach(c => verifiedCompanyIds.add(c.id_usuario))
+            }
+            const intentosVisibles = intentos.filter(i => {
+              const cid = i.imagenes_ia?.company_id
+              if (!cid) return true // desafío normal, siempre visible
+              return verifiedCompanyIds.has(cid) // solo si la empresa está verificada
+            })
+            setRecentAttempts(intentosVisibles.slice(0, 10))
 
             // Top strengths/improvements de los últimos 5 intentos
             const last5 = intentos.slice(0, 5)
@@ -397,7 +415,19 @@ function UsuarioApp() {
               n: idx + 1,
               score: i.puntaje_similitud || 0,
               fecha: new Date(i.fecha_hora).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+              diff: i.imagenes_ia?.image_diff || null,
+              company_id: i.imagenes_ia?.company_id || null,
+              is_ranked: i.is_ranked !== false, // default true si no está seteado
             })))
+
+            // Nombres de empresas para el tooltip del gráfico
+            const chartCids = [...new Set(last20.map(i => i.imagenes_ia?.company_id).filter(Boolean))]
+            if (chartCids.length > 0) {
+              const { data: cos } = await supabase.from('usuarios').select('id_usuario, company_name, nombre_display').in('id_usuario', chartCids)
+              const map = {}
+              cos?.forEach(c => { map[c.id_usuario] = c.company_name || c.nombre_display || 'Empresa' })
+              setChartCompanyNames(map)
+            }
 
             // Heatmap: contar intentos por día (últimos 365 días)
             const map = {}
@@ -465,7 +495,7 @@ function UsuarioApp() {
           // Cargar intentos públicos — calcular todo igual que perfil propio
           const { data: publicIntentos } = await supabase
             .from('intentos')
-            .select('puntaje_similitud, fecha_hora, prompt_usuario, strengths, improvements, elo_delta, id_imagen, imagenes_ia(url_image, image_diff)')
+            .select('puntaje_similitud, fecha_hora, prompt_usuario, strengths, improvements, elo_delta, is_ranked, id_imagen, imagenes_ia(url_image, image_diff, company_id)')
             .eq('id_usuario', idToLoad)
             .order('fecha_hora', { ascending: false })
             .limit(365)
@@ -512,7 +542,23 @@ function UsuarioApp() {
               racha,
             })
 
-            setRecentAttempts(publicIntentos.slice(0, 10))
+            // Filtrar del historial los intentos de desafíos de empresas no verificadas
+            const pubCompanyIds = [...new Set(publicIntentos.map(i => i.imagenes_ia?.company_id).filter(Boolean))]
+            let pubVerifiedIds = new Set()
+            if (pubCompanyIds.length > 0) {
+              const { data: verifiedCos } = await supabase
+                .from('usuarios')
+                .select('id_usuario')
+                .in('id_usuario', pubCompanyIds)
+                .eq('verified', true)
+              verifiedCos?.forEach(c => pubVerifiedIds.add(c.id_usuario))
+            }
+            const pubVisibles = publicIntentos.filter(i => {
+              const cid = i.imagenes_ia?.company_id
+              if (!cid) return true
+              return pubVerifiedIds.has(cid)
+            })
+            setRecentAttempts(pubVisibles.slice(0, 10))
 
             // Top strengths/improvements de los últimos 5
             const last5 = publicIntentos.slice(0, 5)
@@ -532,7 +578,19 @@ function UsuarioApp() {
               n: idx + 1,
               score: i.puntaje_similitud || 0,
               fecha: new Date(i.fecha_hora).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+              diff: i.imagenes_ia?.image_diff || null,
+              company_id: i.imagenes_ia?.company_id || null,
+              is_ranked: i.is_ranked !== false,
             })))
+
+            // Nombres de empresas para el tooltip del gráfico
+            const chartCids = [...new Set(last20.map(i => i.imagenes_ia?.company_id).filter(Boolean))]
+            if (chartCids.length > 0) {
+              const { data: cos } = await supabase.from('usuarios').select('id_usuario, company_name, nombre_display').in('id_usuario', chartCids)
+              const map = {}
+              cos?.forEach(c => { map[c.id_usuario] = c.company_name || c.nombre_display || 'Empresa' })
+              setChartCompanyNames(map)
+            }
 
             // Heatmap (todos los intentos del año)
             const map = {}
@@ -1284,124 +1342,214 @@ function UsuarioApp() {
 
                   <div className="mt-6 space-y-4">
                     {editingProfile ? (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Company Name' : 'Nombre de la Empresa'}</label>
-                          <input
-                            type="text"
-                            value={editedProfile.company_name ?? profile.company_name ?? ''}
-                            onChange={e => setEditedProfile(p => ({ ...p, company_name: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Website' : 'Sitio web'}</label>
-                          <input
-                            type="url"
-                            value={editedProfile.social_website ?? profile.social_website ?? ''}
-                            onChange={e => setEditedProfile(p => ({ ...p, social_website: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
-                            placeholder={lang === 'en' ? 'https://company.com' : 'https://empresa.com'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Description' : 'Descripción'}</label>
-                          <textarea
-                            value={editedProfile.bio ?? profile.bio ?? ''}
-                            onChange={e => setEditedProfile(p => ({ ...p, bio: e.target.value }))}
-                            rows={5}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm resize-none"
-                            placeholder={lang === 'en' ? 'Tell users about your company.' : 'Cuenta a los usuarios sobre tu empresa.'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Tagline' : 'Eslogan'}</label>
-                          <input
-                            type="text"
-                            value={editedProfile.company_tagline ?? profile.company_tagline ?? ''}
-                            onChange={e => setEditedProfile(p => ({ ...p, company_tagline: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
-                            placeholder={lang === 'en' ? 'Short catchy phrase...' : 'Frase corta y memorable...'}
-                            maxLength={80}
-                          />
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-5">
+                        {/* Identidad */}
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{lang === 'en' ? 'Identity' : 'Identidad'}</p>
                           <div>
-                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Industry' : 'Industria'}</label>
-                            <select
-                              value={editedProfile.company_industry ?? profile.company_industry ?? ''}
-                              onChange={e => setEditedProfile(p => ({ ...p, company_industry: e.target.value }))}
-                              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm"
-                            >
-                              <option value="">{lang === 'en' ? 'Select...' : 'Seleccionar...'}</option>
-                              {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Team size' : 'Tamaño'}</label>
-                            <select
-                              value={editedProfile.company_size ?? profile.company_size ?? ''}
-                              onChange={e => setEditedProfile(p => ({ ...p, company_size: e.target.value }))}
-                              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm"
-                            >
-                              <option value="">{lang === 'en' ? 'Select...' : 'Seleccionar...'}</option>
-                              {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Founded' : 'Fundada'}</label>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Company Name' : 'Nombre de la Empresa'}</label>
                             <input
                               type="text"
-                              value={editedProfile.company_founded ?? profile.company_founded ?? ''}
-                              onChange={e => setEditedProfile(p => ({ ...p, company_founded: e.target.value }))}
+                              value={editedProfile.company_name ?? profile.company_name ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, company_name: e.target.value }))}
                               className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
-                              placeholder="2020"
-                              maxLength={4}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Tagline' : 'Eslogan'}</label>
+                            <input
+                              type="text"
+                              value={editedProfile.company_tagline ?? profile.company_tagline ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, company_tagline: e.target.value }))}
+                              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                              placeholder={lang === 'en' ? 'Short catchy phrase...' : 'Frase corta y memorable...'}
+                              maxLength={80}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Description' : 'Descripción'}</label>
+                            <textarea
+                              value={editedProfile.bio ?? profile.bio ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, bio: e.target.value }))}
+                              rows={4}
+                              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm resize-none"
+                              placeholder={lang === 'en' ? 'Tell users about your company.' : 'Contá a los usuarios sobre tu empresa.'}
                             />
                           </div>
                         </div>
-                        {/* Color del perfil */}
-                        <div>
-                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Brand color' : 'Color de marca'}</label>
-                          <div className="flex flex-wrap gap-2">
-                            {CHART_COLORS.map(({ hex, name }) => (
-                              <button
-                                key={hex}
-                                type="button"
-                                title={name}
-                                onClick={() => handleChartColorChange(hex)}
-                                className="h-7 w-7 rounded-full transition-transform hover:scale-110 focus:outline-none"
-                                style={{
-                                  backgroundColor: hex,
-                                  boxShadow: chartColor === hex ? `0 0 0 2px white, 0 0 0 4px ${hex}` : 'none',
-                                  transform: chartColor === hex ? 'scale(1.2)' : undefined,
-                                }}
+
+                        {/* Detalles */}
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{lang === 'en' ? 'Details' : 'Detalles'}</p>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Industry' : 'Industria'}</label>
+                              <select
+                                value={editedProfile.company_industry ?? profile.company_industry ?? ''}
+                                onChange={e => setEditedProfile(p => ({ ...p, company_industry: e.target.value }))}
+                                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm"
+                              >
+                                <option value="">{lang === 'en' ? 'Select...' : 'Seleccionar...'}</option>
+                                {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Team size' : 'Tamaño'}</label>
+                              <select
+                                value={editedProfile.company_size ?? profile.company_size ?? ''}
+                                onChange={e => setEditedProfile(p => ({ ...p, company_size: e.target.value }))}
+                                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm"
+                              >
+                                <option value="">{lang === 'en' ? 'Select...' : 'Seleccionar...'}</option>
+                                {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Founded' : 'Fundada'}</label>
+                              <input
+                                type="text"
+                                value={editedProfile.company_founded ?? profile.company_founded ?? ''}
+                                onChange={e => setEditedProfile(p => ({ ...p, company_founded: e.target.value }))}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                                placeholder="2020"
+                                maxLength={4}
                               />
-                            ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Country' : 'País'}</label>
+                            <input
+                              type="text"
+                              value={editedProfile.pais ?? profile.pais ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, pais: e.target.value }))}
+                              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                              placeholder={lang === 'en' ? 'e.g. Argentina' : 'ej. Argentina'}
+                            />
                           </div>
                         </div>
-                        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={(editedProfile.email_publico ?? profile.email_publico ?? true)}
-                            onChange={(e) => setEditedProfile(p => ({ ...p, email_publico: e.target.checked }))}
-                            className="h-4 w-4 rounded border-slate-300 text-violet-600"
-                          />
-                          <span className="text-sm text-slate-700">
-                            {lang === 'en' ? 'Public company profile' : 'Perfil de empresa público'}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={(editedProfile.show_stats ?? profile.show_stats ?? true)}
-                            onChange={(e) => setEditedProfile(p => ({ ...p, show_stats: e.target.checked }))}
-                            className="h-4 w-4 rounded border-slate-300 text-violet-600"
-                          />
-                          <span className="text-sm text-slate-700">
-                            {lang === 'en' ? 'Show team statistics publicly' : 'Mostrar estadísticas del equipo públicamente'}
-                          </span>
-                        </label>
+
+                        {/* Links */}
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Links</p>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Website' : 'Sitio web'}</label>
+                            <input
+                              type="url"
+                              value={editedProfile.social_website ?? profile.social_website ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, social_website: e.target.value }))}
+                              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                              placeholder="https://empresa.com"
+                            />
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-900 mb-2">LinkedIn</label>
+                              <input
+                                type="text"
+                                value={editedProfile.social_linkedin ?? profile.social_linkedin ?? ''}
+                                onChange={e => setEditedProfile(p => ({ ...p, social_linkedin: e.target.value }))}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                                placeholder="linkedin.com/company/..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-900 mb-2">GitHub</label>
+                              <input
+                                type="text"
+                                value={editedProfile.social_github ?? profile.social_github ?? ''}
+                                onChange={e => setEditedProfile(p => ({ ...p, social_github: e.target.value }))}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                                placeholder="github.com/org"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-900 mb-2">X / Twitter</label>
+                              <input
+                                type="text"
+                                value={editedProfile.social_twitter ?? profile.social_twitter ?? ''}
+                                onChange={e => setEditedProfile(p => ({ ...p, social_twitter: e.target.value }))}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                                placeholder="@empresa"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Apariencia */}
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{lang === 'en' ? 'Appearance' : 'Apariencia'}</p>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-1">{lang === 'en' ? 'Brand color' : 'Color de marca'}</label>
+                            <p className="text-xs text-slate-400 mb-3">{lang === 'en' ? 'Used for banner gradient, badges and accents.' : 'Se usa en el gradiente del banner, badges y acentos.'}</p>
+                            <div className="flex flex-wrap gap-2">
+                              {CHART_COLORS.map(({ hex, name }) => (
+                                <button
+                                  key={hex}
+                                  type="button"
+                                  title={name}
+                                  onClick={() => handleChartColorChange(hex)}
+                                  className="h-8 w-8 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                                  style={{
+                                    backgroundColor: hex,
+                                    boxShadow: chartColor === hex ? `0 0 0 2px white, 0 0 0 4px ${hex}` : 'none',
+                                    transform: chartColor === hex ? 'scale(1.2)' : undefined,
+                                  }}
+                                />
+                              ))}
+                            </div>
+                            {/* Preview del banner */}
+                            <div
+                              className="mt-3 h-12 w-full rounded-xl"
+                              style={{ background: `linear-gradient(135deg, ${accentHex}55 0%, ${accentHex}99 50%, ${accentHex}cc 100%)` }}
+                            />
+                            <p className="mt-1 text-[11px] text-slate-400">{lang === 'en' ? 'Banner preview (without custom image)' : 'Preview del banner (sin imagen personalizada)'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-1">{lang === 'en' ? 'Banner image' : 'Imagen de banner'}</label>
+                            <p className="text-xs text-slate-400 mb-2">{lang === 'en' ? 'Overrides the color gradient.' : 'Reemplaza el gradiente de color.'}</p>
+                            <button
+                              type="button"
+                              onClick={() => bannerInputRef.current?.click()}
+                              className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition"
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              {bannerPreview ? (lang === 'en' ? 'Change banner' : 'Cambiar banner') : (lang === 'en' ? 'Upload banner' : 'Subir banner')}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Privacidad */}
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{lang === 'en' ? 'Privacy' : 'Privacidad'}</p>
+                          <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(editedProfile.email_publico ?? profile.email_publico ?? true)}
+                              onChange={(e) => setEditedProfile(p => ({ ...p, email_publico: e.target.checked }))}
+                              className="h-4 w-4 rounded border-slate-300 text-violet-600"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-slate-700">{lang === 'en' ? 'Public company profile' : 'Perfil de empresa público'}</span>
+                              <p className="text-xs text-slate-400">{lang === 'en' ? 'Anyone can view your company page.' : 'Cualquiera puede ver tu página de empresa.'}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(editedProfile.show_stats ?? profile.show_stats ?? true)}
+                              onChange={(e) => setEditedProfile(p => ({ ...p, show_stats: e.target.checked }))}
+                              className="h-4 w-4 rounded border-slate-300 text-violet-600"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-slate-700">{lang === 'en' ? 'Show team statistics publicly' : 'Mostrar estadísticas del equipo públicamente'}</span>
+                              <p className="text-xs text-slate-400">{lang === 'en' ? 'Members count, avg ELO and scores.' : 'Cantidad de miembros, ELO promedio y scores.'}</p>
+                            </div>
+                          </label>
+                        </div>
+
                         <div className="grid gap-3 sm:grid-cols-2">
                           <button
                             onClick={saveProfile}
@@ -2811,10 +2959,27 @@ function UsuarioApp() {
                         content={({ active, payload }) => {
                           if (!active || !payload?.length) return null
                           const d = payload[0].payload
+                          const diffColor = d.diff === 'Hard' ? '#ef4444' : d.diff === 'Easy' ? '#10b981' : '#f59e0b'
+                          const companyName = d.company_id ? chartCompanyNames[d.company_id] : null
                           return (
-                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-xs">
-                              <p className="font-semibold text-slate-600 mb-0.5">{d.fecha}</p>
-                              <p className="font-bold" style={{ color: chartColor }}>{d.score}%</p>
+                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-xs space-y-1 min-w-[110px]">
+                              <p className="font-semibold text-slate-500">{d.fecha}</p>
+                              <p className="text-base font-bold" style={{ color: chartColor }}>{d.score}%</p>
+                              {d.diff && (
+                                <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: diffColor + '20', color: diffColor }}>
+                                  {d.diff}
+                                </span>
+                              )}
+                              {d.is_ranked === false && (
+                                <p className="text-[10px] text-slate-400">
+                                  {lang === 'en' ? 'Unranked' : 'Sin rankeo'}
+                                </p>
+                              )}
+                              {companyName && (
+                                <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                  <span>🏢</span>{companyName}
+                                </p>
+                              )}
                             </div>
                           )
                         }}
@@ -2837,6 +3002,7 @@ function UsuarioApp() {
             {/* Heatmap de actividad */}
             <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} isOwn={ownProfile} color={chartColor} />
 
+            {/* Historial */}
             <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
@@ -2905,6 +3071,11 @@ function UsuarioApp() {
                             {attempt.elo_delta != null && (
                               <span className={`text-[10px] font-semibold tabular-nums ${attempt.elo_delta >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
                                 {attempt.elo_delta >= 0 ? '+' : ''}{attempt.elo_delta} ELO
+                              </span>
+                            )}
+                            {attempt.is_ranked === false && (
+                              <span className="text-[10px] text-slate-400">
+                                {lang === 'en' ? 'Unranked' : 'Sin rankeo'}
                               </span>
                             )}
                           </div>
@@ -2981,8 +3152,8 @@ function UsuarioApp() {
                   </div>
                 )}
               </div>
+            </div>
           </div>
-        </div>
         </div>
       </main>
 
