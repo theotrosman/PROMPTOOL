@@ -3,6 +3,8 @@ import Header from './components/Header'
 import Footer from './components/Footer'
 import ConfigModal from './components/ConfigModal'
 import ImageCard from './components/ImageCard'
+import LandingPage from './components/LandingPage'
+import AuthModal from './components/AuthModal'
 import PromptInput from './components/PromptInput'
 import ResultPanel from './components/ResultPanel'
 import { comparePrompts } from './services/geminiService'
@@ -53,8 +55,10 @@ const getTimePenalty = ({ elapsedSeconds = 0, recommendedSeconds = 0 }, difficul
 }
 
 function App() {
-  const { user } = useAuth()
+  const { user, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth()
   const { t } = useLang()
+  const [showLanding, setShowLanding] = useState(true)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const [promptUsuario, setPromptUsuario] = useState('')
   const [aiExplanation, setAiExplanation] = useState('')
   const [scorePercent, setScorePercent] = useState(null)
@@ -91,6 +95,10 @@ function App() {
       if (!result.allowed) setSuspensionInfo(result)
     })
   }, [user?.id])
+
+  useEffect(() => {
+    if (user) setShowLanding(false)
+  }, [user])
 
   // Cuando el usuario se loguea, asignar intento pendiente de guest si existe
   useEffect(() => {
@@ -384,6 +392,20 @@ function App() {
     setConfigOpen(true)
   }
 
+  const handleTryApp = () => {
+    setShowLanding(false)
+    setMode('random')
+    setDraftMode('random')
+  }
+
+  const handleOpenAuth = () => {
+    setAuthModalOpen(true)
+  }
+
+  const handleCloseAuth = () => {
+    setAuthModalOpen(false)
+  }
+
   const saveConfig = () => {
     setMode(draftMode)
     setDifficulty(draftDifficulty)
@@ -493,6 +515,21 @@ function App() {
       )}
     </div>
   )
+
+  if (!user && showLanding) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white">
+        <LandingPage onOpenAuth={handleOpenAuth} onTryApp={handleTryApp} />
+        <AuthModal
+          open={authModalOpen}
+          onClose={handleCloseAuth}
+          onSignInWithGoogle={signInWithGoogle}
+          onSignInWithEmail={signInWithEmail}
+          onSignUpWithEmail={signUpWithEmail}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
