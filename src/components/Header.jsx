@@ -6,6 +6,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useLang } from '../contexts/LangContext'
 import { supabase } from '../supabaseClient'
 import AuthModal from './AuthModal'
+import CompanyPanel from './CompanyPanel'
 
 const Header = () => {
   const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } = useAuth()
@@ -31,6 +32,8 @@ const Header = () => {
   const [notifications, setNotifications] = useState([])
   const [loadingNotifications, setLoadingNotifications] = useState(false)
   const [notificationActionLoading, setNotificationActionLoading] = useState(null)
+  const [companyData, setCompanyData] = useState(null)   // empresa a la que pertenece el usuario
+  const [companyPanelOpen, setCompanyPanelOpen] = useState(false)
   const notificationRef = useRef(null)
   const closeTimer = useRef(null)
   const searchRef = useRef(null)
@@ -38,13 +41,25 @@ const Header = () => {
 
   // Fetch username del usuario logueado para construir la URL del perfil
   useEffect(() => {
-    if (!user) { setProfileUsername(null); return }
+    if (!user) { setProfileUsername(null); setCompanyData(null); return }
     supabase
       .from('usuarios')
-      .select('username')
+      .select('username, company_id')
       .eq('id_usuario', user.id)
       .maybeSingle()
-      .then(({ data }) => setProfileUsername(data?.username || null))
+      .then(({ data }) => {
+        setProfileUsername(data?.username || null)
+        if (data?.company_id) {
+          supabase
+            .from('usuarios')
+            .select('id_usuario, company_name, nombre_display, avatar_url, verified')
+            .eq('id_usuario', data.company_id)
+            .maybeSingle()
+            .then(({ data: co }) => setCompanyData(co || null))
+        } else {
+          setCompanyData(null)
+        }
+      })
   }, [user?.id])
 
   const profileHref = profileUsername ? `/user/${profileUsername}` : '/perfil'
@@ -458,6 +473,32 @@ const Header = () => {
               </div>
             ) : user ? (
               <>
+                {/* Botón de empresa — solo si el usuario pertenece a una */}
+                {companyData && (
+                  <button
+                    onClick={() => setCompanyPanelOpen(true)}
+                    className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700 transition group"
+                    title={companyData.company_name || companyData.nombre_display}
+                  >
+                    <div className="relative h-5 w-5 rounded-md overflow-hidden bg-violet-100 shrink-0 flex items-center justify-center">
+                      {companyData.avatar_url
+                        ? <img src={companyData.avatar_url} alt="" className="h-full w-full object-cover" />
+                        : <span className="text-[9px] font-bold text-violet-600">
+                            {(companyData.company_name || companyData.nombre_display || 'E').substring(0, 2).toUpperCase()}
+                          </span>
+                      }
+                    </div>
+                    <span className="max-w-[100px] truncate">
+                      {companyData.company_name || companyData.nombre_display}
+                    </span>
+                    {companyData.verified && (
+                      <svg className="h-3.5 w-3.5 text-violet-500 shrink-0" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
+
                 <div ref={notificationRef} className="relative z-[205] mr-1">
                   <button
                     onClick={() => {
@@ -482,11 +523,11 @@ const Header = () => {
                   </button>
 
                   {notificationOpen && (
-                    <div className="absolute right-0 top-11 z-[206] w-[24rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <div className="absolute right-0 top-11 z-[206] w-[24rem] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-800">{lang === 'en' ? 'Inbox' : 'Bandeja'}</p>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{lang === 'en' ? 'Inbox' : 'Bandeja'}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
                             {lang === 'en'
                               ? `${unreadCount} unread`
                               : `${unreadCount} sin leer`}
@@ -494,7 +535,7 @@ const Header = () => {
                         </div>
                         <button
                           onClick={markAllNotificationsRead}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                           {lang === 'en' ? 'Mark all read' : 'Marcar todo leído'}
                         </button>
@@ -502,22 +543,21 @@ const Header = () => {
 
                       <div className="max-h-[28rem] overflow-y-auto">
                         {loadingNotifications ? (
-                          <div className="px-4 py-8 text-center text-sm text-slate-500">
+                          <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                             {lang === 'en' ? 'Loading notifications...' : 'Cargando notificaciones...'}
                           </div>
                         ) : notifications.length === 0 ? (
-                          <div className="px-4 py-8 text-center text-sm text-slate-500">
+                          <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                             {lang === 'en' ? 'No notifications yet.' : 'Aún no tienes notificaciones.'}
                           </div>
                         ) : notifications.map((item) => (
-                          <div key={item.id} className={`border-b border-slate-100 px-4 py-3 last:border-b-0 ${item.read ? 'bg-white' : 'bg-indigo-50/40'}`}>
+                          <div key={item.id} className={`border-b border-slate-100 dark:border-slate-800 px-4 py-3 last:border-b-0 ${item.read ? 'bg-white dark:bg-slate-900' : 'bg-indigo-50/40 dark:bg-indigo-950/30'}`}>
                             <div className="mb-1 flex items-start gap-2.5">
-                              {/* Avatar de empresa/sender */}
                               {item.senderAvatar ? (
                                 <div className="relative shrink-0 mt-0.5">
-                                  <img src={item.senderAvatar} alt="" className="h-8 w-8 rounded-full object-cover border border-slate-200" />
+                                  <img src={item.senderAvatar} alt="" className="h-8 w-8 rounded-full object-cover border border-slate-200 dark:border-slate-700" />
                                   {item.senderVerified && (
-                                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-violet-600 ring-1 ring-white" title="Verificado">
+                                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-violet-600 ring-1 ring-white dark:ring-slate-900" title="Verificado">
                                       <svg className="h-2 w-2 text-white" viewBox="0 0 12 12" fill="currentColor"><path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/></svg>
                                     </span>
                                   )}
@@ -526,12 +566,12 @@ const Header = () => {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
-                                    <p className="mt-0.5 text-xs text-slate-500">{item.body}</p>
+                                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{item.title}</p>
+                                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{item.body}</p>
                                   </div>
                                   {!item.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />}
                                 </div>
-                                <p className="text-[11px] text-slate-400 mt-0.5">{formatNotificationDate(item.createdAt)}</p>
+                                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{formatNotificationDate(item.createdAt)}</p>
                               </div>
                             </div>
 
@@ -540,7 +580,7 @@ const Header = () => {
                                 <a
                                   href={item.actionUrl}
                                   onClick={() => markNotificationRead(item)}
-                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                  className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                                 >
                                   {item.sourceType === 'guide_suggestion'
                                     ? (lang === 'en' ? 'Open guide' : 'Abrir guía')
@@ -551,7 +591,7 @@ const Header = () => {
                               {!item.read && (
                                 <button
                                   onClick={() => markNotificationRead(item)}
-                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                  className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                                 >
                                   {lang === 'en' ? 'Mark read' : 'Marcar leído'}
                                 </button>
@@ -569,7 +609,7 @@ const Header = () => {
                                   <button
                                     onClick={() => handleInvitationAction(item, 'rejected')}
                                     disabled={notificationActionLoading === item.id + 'rejected'}
-                                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                    className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60"
                                   >
                                     {lang === 'en' ? 'Reject' : 'Rechazar'}
                                   </button>
@@ -762,6 +802,14 @@ const Header = () => {
         onSignInWithEmail={signInWithEmail}
         onSignUpWithEmail={signUpWithEmail}
       />
+
+      {companyPanelOpen && companyData && (
+        <CompanyPanel
+          user={user}
+          companyData={companyData}
+          onClose={() => setCompanyPanelOpen(false)}
+        />
+      )}
     </>
   )
 }

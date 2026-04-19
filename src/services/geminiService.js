@@ -1,4 +1,6 @@
-const AI_EVAL_ENDPOINT = import.meta.env.VITE_AI_EVAL_ENDPOINT || "/api/compare-prompts";
+const AI_EVAL_ENDPOINT = import.meta.env.VITE_AI_EVAL_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const IS_GROQ = AI_EVAL_ENDPOINT.includes('groq.com') || AI_EVAL_ENDPOINT.includes('openai.com');
 
 const clamp = (value, min = 0, max = 100) => Math.min(max, Math.max(min, Number(value) || 0));
 
@@ -119,17 +121,25 @@ Devuelve SOLO un JSON válido así:
 
     // console.log("🚀 Enviando request a Groq...");
 
+    const headers = {
+      "Content-Type": "application/json",
+      ...(IS_GROQ && GROQ_API_KEY ? { "Authorization": `Bearer ${GROQ_API_KEY}` } : {}),
+    };
+
+    const body = IS_GROQ
+      ? JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.3,
+          max_tokens: 800,
+          response_format: { type: "json_object" },
+        })
+      : JSON.stringify({ prompt, userPrompt, originalPrompt, difficulty });
+
     const response = await fetch(AI_EVAL_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt,
-        userPrompt,
-        originalPrompt,
-        difficulty,
-      }),
+      headers,
+      body,
     });
 
     const data = await response.json();

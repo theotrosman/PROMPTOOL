@@ -272,7 +272,7 @@ function UsuarioApp() {
         let prof = null
         const { data: profFull, error: profError } = await supabase
           .from('usuarios')
-          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating, user_type, company_name, company_id, company_role, company_joined_at, show_stats, show_company_badge, verified')
+          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating, user_type, company_name, company_id, company_role, company_joined_at, show_stats, show_company_badge, verified, company_tagline, company_industry, company_size, company_founded')
           .eq('id_usuario', idToLoad)
           .maybeSingle()
 
@@ -701,6 +701,10 @@ function UsuarioApp() {
       if (editedProfile.pronouns !== undefined) updates.pronouns = editedProfile.pronouns
       if (editedProfile.status !== undefined) updates.status = editedProfile.status
       if (editedProfile.organization !== undefined) updates.organization = editedProfile.organization
+      if (editedProfile.company_tagline !== undefined) updates.company_tagline = editedProfile.company_tagline
+      if (editedProfile.company_industry !== undefined) updates.company_industry = editedProfile.company_industry
+      if (editedProfile.company_size !== undefined) updates.company_size = editedProfile.company_size
+      if (editedProfile.company_founded !== undefined) updates.company_founded = editedProfile.company_founded
 
       if (avatarFile) {
         const url = await uploadAvatar()
@@ -1138,36 +1142,45 @@ function UsuarioApp() {
 
     const displayName = profile.company_name || profile.nombre_display || getDisplayName()
     const isPublicProfile = profile?.email_publico !== false
+    const accentHex = chartColor || '#6366f1'
+    const accentLight = accentHex + '18'
+    const accentMid = accentHex + '40'
+
+    // Industrias disponibles
+    const INDUSTRIES = lang === 'en'
+      ? ['Technology', 'Education', 'Finance', 'Healthcare', 'Marketing', 'Design', 'Consulting', 'Other']
+      : ['Tecnología', 'Educación', 'Finanzas', 'Salud', 'Marketing', 'Diseño', 'Consultoría', 'Otro']
+    const SIZES = lang === 'en'
+      ? ['1-10', '11-50', '51-200', '201-500', '500+']
+      : ['1-10', '11-50', '51-200', '201-500', '500+']
 
     return (
-      <div className="flex min-h-screen flex-col bg-white text-slate-900">
+      <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
         <Header />
-        <main className="mx-auto w-full max-w-6xl px-4 py-10">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-900">
-              {lang === 'en' ? 'Company Profile' : 'Perfil de Empresa'}
-            </h1>
-            <p className="mt-2 text-slate-600">{displayName}</p>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-1">
-            <div className="space-y-6">
-              <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <main className="mx-auto w-full max-w-6xl px-4 py-8">
+          <div className="space-y-6">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
                 <div
-                  className="h-48 w-full bg-slate-200"
+                  className="h-56 w-full bg-slate-200"
                   style={{
                     background: bannerUrl
                       ? `url(${bannerUrl}) center/cover no-repeat`
-                      : `linear-gradient(135deg, ${chartColor}33 0%, ${chartColor}66 100%)`,
+                      : `linear-gradient(135deg, ${accentHex}55 0%, ${accentHex}99 50%, ${accentHex}cc 100%)`,
                   }}
                 >
-                  {canEdit && editingProfile && (
+                  {/* Overlay gradiente para legibilidad */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                  {canEdit && (
                     <button
                       type="button"
                       onClick={() => bannerInputRef.current?.click()}
-                      className="absolute right-4 top-4 rounded-full bg-black/60 px-4 py-2 text-xs font-semibold text-white hover:bg-black/70 transition"
+                      className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-black/50 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-white hover:bg-black/70 transition"
                     >
-                      {lang === 'en' ? 'Change banner' : 'Cambiar banner'}
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {lang === 'en' ? 'Banner' : 'Banner'}
                     </button>
                   )}
                 </div>
@@ -1178,14 +1191,15 @@ function UsuarioApp() {
                   const f = e.target.files[0]; if (f) openCropper(f, 'avatar')
                 }} />
 
-                <div className="px-6 pb-6 pt-16">
+                <div className="px-6 pb-8 pt-24">
                   <div className="flex items-start gap-4">
                     <div className="relative">
-                      <div className="h-24 w-24 overflow-hidden rounded-full bg-slate-100 ring-4 ring-white">
+                      <div className="h-36 w-36 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800 ring-4 ring-white dark:ring-slate-900 shadow-lg"
+                        style={{ boxShadow: `0 0 0 4px white, 0 0 0 6px ${chartColor}40` }}>
                         {(avatarPreview || getAvatar()) ? (
                           <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
                         ) : (
-                          <span className="flex h-full w-full items-center justify-center text-3xl font-bold text-slate-400">
+                          <span className="flex h-full w-full items-center justify-center text-5xl font-bold text-slate-400">
                             {displayName?.substring(0, 1).toUpperCase()}
                           </span>
                         )}
@@ -1194,7 +1208,7 @@ function UsuarioApp() {
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm text-slate-800 hover:bg-slate-100 transition"
+                          className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md text-slate-800 hover:bg-slate-100 transition border border-slate-200"
                         >
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -1300,6 +1314,72 @@ function UsuarioApp() {
                             placeholder={lang === 'en' ? 'Tell users about your company.' : 'Cuenta a los usuarios sobre tu empresa.'}
                           />
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Tagline' : 'Eslogan'}</label>
+                          <input
+                            type="text"
+                            value={editedProfile.company_tagline ?? profile.company_tagline ?? ''}
+                            onChange={e => setEditedProfile(p => ({ ...p, company_tagline: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                            placeholder={lang === 'en' ? 'Short catchy phrase...' : 'Frase corta y memorable...'}
+                            maxLength={80}
+                          />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Industry' : 'Industria'}</label>
+                            <select
+                              value={editedProfile.company_industry ?? profile.company_industry ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, company_industry: e.target.value }))}
+                              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm"
+                            >
+                              <option value="">{lang === 'en' ? 'Select...' : 'Seleccionar...'}</option>
+                              {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Team size' : 'Tamaño'}</label>
+                            <select
+                              value={editedProfile.company_size ?? profile.company_size ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, company_size: e.target.value }))}
+                              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm"
+                            >
+                              <option value="">{lang === 'en' ? 'Select...' : 'Seleccionar...'}</option>
+                              {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Founded' : 'Fundada'}</label>
+                            <input
+                              type="text"
+                              value={editedProfile.company_founded ?? profile.company_founded ?? ''}
+                              onChange={e => setEditedProfile(p => ({ ...p, company_founded: e.target.value }))}
+                              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm"
+                              placeholder="2020"
+                              maxLength={4}
+                            />
+                          </div>
+                        </div>
+                        {/* Color del perfil */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-900 mb-2">{lang === 'en' ? 'Brand color' : 'Color de marca'}</label>
+                          <div className="flex flex-wrap gap-2">
+                            {CHART_COLORS.map(({ hex, name }) => (
+                              <button
+                                key={hex}
+                                type="button"
+                                title={name}
+                                onClick={() => handleChartColorChange(hex)}
+                                className="h-7 w-7 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                                style={{
+                                  backgroundColor: hex,
+                                  boxShadow: chartColor === hex ? `0 0 0 2px white, 0 0 0 4px ${hex}` : 'none',
+                                  transform: chartColor === hex ? 'scale(1.2)' : undefined,
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
                         <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                           <input
                             type="checkbox"
@@ -1345,48 +1425,80 @@ function UsuarioApp() {
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-4">
-                        {(ownProfile || isPublicProfile) && (
-                          <div className="space-y-2">
+                      <div className="space-y-5">
+                        {/* Tagline */}
+                        {profile?.company_tagline && (
+                          <p className="text-base font-medium italic" style={{ color: accentHex }}>
+                            "{profile.company_tagline}"
+                          </p>
+                        )}
+
+                        {/* Meta chips: industria, tamaño, fundación, web */}
+                        {(profile?.company_industry || profile?.company_size || profile?.company_founded || profile?.social_website || profile?.pais) && (
+                          <div className="flex flex-wrap gap-2">
+                            {profile?.company_industry && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
+                                style={{ borderColor: accentMid, backgroundColor: accentLight, color: accentHex }}>
+                                🏢 {profile.company_industry}
+                              </span>
+                            )}
+                            {profile?.company_size && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                👥 {profile.company_size} {lang === 'en' ? 'people' : 'personas'}
+                              </span>
+                            )}
+                            {profile?.company_founded && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                📅 {lang === 'en' ? 'Est.' : 'Fundada'} {profile.company_founded}
+                              </span>
+                            )}
+                            {profile?.pais && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                📍 {profile.pais}
+                              </span>
+                            )}
                             {profile?.social_website && (
-                              <a href={profile.social_website} target="_blank" rel="noreferrer" className="text-sm font-semibold text-violet-600 hover:text-violet-700">
-                                {profile.social_website}
-                              </a>
-                            )}
-                            {ownProfile && profile?.email && (
-                              <p className="text-sm text-slate-500">{profile.email}</p>
-                            )}
-                          </div>
-                        )}
-                        <div>
-                          {profile?.bio ? (
-                            <BioCollapsible bio={profile.bio} />
-                          ) : (
-                            <p className="text-sm italic text-slate-400">{lang === 'en' ? 'No description yet.' : 'Aún no hay descripción.'}</p>
-                          )}
-                        </div>
-                        {ownProfile && (
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {profile?.social_github && (
-                              <a href={`https://github.com/${profile.social_github.replace(/.*github\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
-                                GitHub: {profile.social_github}
-                              </a>
-                            )}
-                            {profile?.social_linkedin && (
-                              <a href={profile.social_linkedin} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
-                                LinkedIn: {profile.social_linkedin}
-                              </a>
-                            )}
-                            {profile?.social_twitter && (
-                              <a href={`https://x.com/${profile.social_twitter.replace(/.*x\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
-                                X: {profile.social_twitter}
+                              <a href={profile.social_website} target="_blank" rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition hover:opacity-80"
+                                style={{ borderColor: accentMid, backgroundColor: accentLight, color: accentHex }}>
+                                🔗 {profile.social_website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                               </a>
                             )}
                           </div>
                         )}
+
+                        {/* Bio */}
                         {(ownProfile || isPublicProfile) && (
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                          <div>
+                            {profile?.bio ? (
+                              <BioCollapsible bio={profile.bio} />
+                            ) : (
+                              <p className="text-sm italic text-slate-400">{lang === 'en' ? 'No description yet.' : 'Aún no hay descripción.'}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Redes sociales */}
+                        {(profile?.social_github || profile?.social_linkedin || profile?.social_twitter) && (
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { val: profile?.social_github, type: 'github', label: 'GitHub', href: `https://github.com/${profile?.social_github?.replace(/.*github\.com\//, '')}` },
+                              { val: profile?.social_linkedin, type: 'linkedin', label: 'LinkedIn', href: profile?.social_linkedin },
+                              { val: profile?.social_twitter, type: 'twitter', label: 'X', href: `https://x.com/${profile?.social_twitter?.replace(/.*x\.com\//, '')}` },
+                            ].filter(s => s.val).map(({ type, label, href }) => (
+                              <a key={type} href={href} target="_blank" rel="noreferrer"
+                                className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                                <SocialIcon type={type} className="h-3.5 w-3.5" />
+                                {label}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Miembros afiliados */}
+                        {(ownProfile || isPublicProfile) && (
+                          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
                               {lang === 'en' ? 'Affiliated users' : 'Usuarios afiliados'}
                             </h3>
                             {enterpriseMembersLoading ? (
@@ -1397,8 +1509,9 @@ function UsuarioApp() {
                                   const memberName = member.nombre_display || member.nombre || member.username || 'Usuario'
                                   const memberHref = member.username ? `/user/${member.username}` : `/perfil?id=${member.id_usuario}`
                                   return (
-                                    <a key={member.id_usuario} href={memberHref} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700 border border-slate-200 hover:bg-slate-50">
-                                      <div className="h-7 w-7 rounded-full overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center">
+                                    <a key={member.id_usuario} href={memberHref}
+                                      className="flex items-center gap-2 rounded-xl bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition">
+                                      <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 flex items-center justify-center">
                                         {member.avatar_url ? (
                                           <img src={member.avatar_url} alt={memberName} className="h-full w-full object-cover" />
                                         ) : (
@@ -1408,7 +1521,7 @@ function UsuarioApp() {
                                       <div className="min-w-0">
                                         <p className="truncate text-sm font-medium">{memberName}</p>
                                         <p className="truncate text-[11px] text-slate-400">
-                                          {member.company_role && <span className="font-medium text-violet-500 mr-1">{member.company_role}</span>}
+                                          {member.company_role && <span className="font-medium mr-1" style={{ color: accentHex }}>{member.company_role}</span>}
                                           ELO {member.elo_rating ?? 1000} · {member.total_intentos ?? 0} {lang === 'en' ? 'attempts' : 'intentos'}
                                         </p>
                                       </div>
@@ -1422,100 +1535,67 @@ function UsuarioApp() {
                           </div>
                         )}
 
-                        {/* Estadísticas del equipo — si show_stats está activo */}
+                        {/* Estadísticas del equipo */}
                         {(ownProfile || isPublicProfile) && profile?.show_stats !== false && enterpriseMembers.length > 0 && (
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                            <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
                               {lang === 'en' ? 'Team Stats' : 'Estadísticas del Equipo'}
                             </h3>
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                               {[
-                                {
-                                  label: lang === 'en' ? 'Members' : 'Miembros',
-                                  value: enterpriseMembers.length,
-                                  color: 'text-violet-600',
-                                },
-                                {
-                                  label: lang === 'en' ? 'Avg ELO' : 'ELO Prom.',
-                                  value: Math.round(enterpriseMembers.reduce((s, m) => s + (m.elo_rating || 1000), 0) / enterpriseMembers.length),
-                                  color: 'text-indigo-600',
-                                },
-                                {
-                                  label: lang === 'en' ? 'Avg Score' : 'Score Prom.',
-                                  value: (() => {
-                                    const withScore = enterpriseMembers.filter(m => m.promedio_score)
-                                    return withScore.length ? Math.round(withScore.reduce((s, m) => s + m.promedio_score, 0) / withScore.length) : '—'
-                                  })(),
-                                  color: 'text-emerald-600',
-                                },
-                                {
-                                  label: lang === 'en' ? 'Total Attempts' : 'Intentos',
-                                  value: enterpriseMembers.reduce((s, m) => s + (m.total_intentos || 0), 0),
-                                  color: 'text-amber-600',
-                                },
-                              ].map(({ label, value, color }) => (
-                                <div key={label} className="rounded-xl bg-slate-50 border border-slate-100 p-3 text-center">
-                                  <p className={`text-xl font-bold ${color}`}>{value}</p>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">{label}</p>
+                                { label: lang === 'en' ? 'Members' : 'Miembros', value: enterpriseMembers.length },
+                                { label: lang === 'en' ? 'Avg ELO' : 'ELO Prom.', value: Math.round(enterpriseMembers.reduce((s, m) => s + (m.elo_rating || 1000), 0) / enterpriseMembers.length) },
+                                { label: lang === 'en' ? 'Avg Score' : 'Score Prom.', value: (() => { const w = enterpriseMembers.filter(m => m.promedio_score); return w.length ? Math.round(w.reduce((s, m) => s + m.promedio_score, 0) / w.length) : '—' })() },
+                                { label: lang === 'en' ? 'Attempts' : 'Intentos', value: enterpriseMembers.reduce((s, m) => s + (m.total_intentos || 0), 0) },
+                              ].map(({ label, value }) => (
+                                <div key={label} className="rounded-xl p-3 text-center" style={{ backgroundColor: accentLight, border: `1px solid ${accentMid}` }}>
+                                  <p className="text-xl font-bold" style={{ color: accentHex }}>{value}</p>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {/* Botón "Pedir unirse" — solo para usuarios externos logueados */}
+                        {/* Pedir unirse */}
                         {!ownProfile && user && (
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+                          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
                               {lang === 'en' ? 'Join this company' : 'Unirse a esta empresa'}
                             </h3>
                             {joinRequestStatus === 'member' ? (
-                              <p className="text-sm text-emerald-600 font-medium">
-                                ✓ {lang === 'en' ? 'You are already a member of this company.' : 'Ya eres miembro de esta empresa.'}
-                              </p>
+                              <p className="text-sm text-emerald-600 font-medium">✓ {lang === 'en' ? 'You are already a member.' : 'Ya eres miembro.'}</p>
                             ) : joinRequestStatus === 'already' ? (
-                              <p className="text-sm text-amber-600 font-medium">
-                                ⏳ {lang === 'en' ? 'Your request is pending review.' : 'Tu solicitud está pendiente de revisión.'}
-                              </p>
+                              <p className="text-sm text-amber-600 font-medium">⏳ {lang === 'en' ? 'Request pending review.' : 'Solicitud pendiente de revisión.'}</p>
                             ) : joinRequestStatus === 'sent' ? (
-                              <p className="text-sm text-emerald-600 font-medium">
-                                ✓ {lang === 'en' ? 'Request sent! The company will review it.' : 'Solicitud enviada. La empresa la revisará.'}
-                              </p>
+                              <p className="text-sm text-emerald-600 font-medium">✓ {lang === 'en' ? 'Request sent!' : 'Solicitud enviada.'}</p>
                             ) : (
                               <div className="space-y-3">
                                 <textarea
                                   value={joinRequestMessage}
                                   onChange={e => setJoinRequestMessage(e.target.value)}
                                   rows={2}
-                                  placeholder={lang === 'en' ? 'Optional message to the company...' : 'Mensaje opcional para la empresa...'}
-                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                  placeholder={lang === 'en' ? 'Optional message...' : 'Mensaje opcional...'}
+                                  className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2"
+                                  style={{ '--tw-ring-color': accentHex }}
                                 />
                                 <button
                                   onClick={sendJoinRequest}
                                   disabled={joinRequestStatus === 'loading'}
-                                  className="rounded-full bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition disabled:opacity-60"
+                                  className="rounded-full px-5 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+                                  style={{ backgroundColor: accentHex }}
                                 >
-                                  {joinRequestStatus === 'loading'
-                                    ? (lang === 'en' ? 'Sending...' : 'Enviando...')
-                                    : (lang === 'en' ? 'Request to join' : 'Pedir unirse')}
+                                  {joinRequestStatus === 'loading' ? (lang === 'en' ? 'Sending...' : 'Enviando...') : (lang === 'en' ? 'Request to join' : 'Pedir unirse')}
                                 </button>
-                                {joinRequestStatus === 'error' && (
-                                  <p className="text-xs text-rose-500">
-                                    {lang === 'en' ? 'Could not send request. Try again.' : 'No se pudo enviar la solicitud. Intentá de nuevo.'}
-                                  </p>
-                                )}
                               </div>
                             )}
                           </div>
                         )}
 
-                        {/* Prompt para no logueados */}
                         {!ownProfile && !user && (
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <p className="text-sm text-slate-600">
-                              {lang === 'en'
-                                ? 'Sign in to request to join this company.'
-                                : 'Iniciá sesión para pedir unirte a esta empresa.'}
+                          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                              {lang === 'en' ? 'Sign in to request to join this company.' : 'Iniciá sesión para pedir unirte a esta empresa.'}
                             </p>
                           </div>
                         )}
@@ -1538,9 +1618,13 @@ function UsuarioApp() {
                                 status: profile?.status || '',
                                 organization: profile?.organization || '',
                                 bio: profile?.bio || '',
+                                company_tagline: profile?.company_tagline || '',
+                                company_industry: profile?.company_industry || '',
+                                company_size: profile?.company_size || '',
+                                company_founded: profile?.company_founded || '',
                               })
                             }}
-                            className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                            className="rounded-full border border-slate-300 dark:border-slate-600 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                           >
                             {lang === 'en' ? 'Edit profile' : 'Editar perfil'}
                           </button>
@@ -1549,7 +1633,6 @@ function UsuarioApp() {
                     )}
                   </div>
                 </div>
-              </div>
             </div>
           </div>
         </main>
@@ -1721,7 +1804,7 @@ function UsuarioApp() {
               }}
             >
               <div className="rounded-xl border border-slate-200 bg-white shadow-xl px-3 py-2.5 min-w-[150px]">
-                <p className="text-xs font-semibold text-slate-700">{tooltip.key}</p>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{tooltip.key}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {tooltip.count} {tooltip.count === 1 ? t('attempt') : t('attempts')}
                 </p>
@@ -1764,7 +1847,7 @@ function UsuarioApp() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-slate-900">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       <Header />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
@@ -1777,7 +1860,7 @@ function UsuarioApp() {
             <div className="relative">
               {/* Banner */}
               <div
-                className="h-24 w-full rounded-2xl overflow-hidden"
+                className="h-32 w-full rounded-2xl overflow-hidden"
                 style={{
                     background: bannerUrl
                     ? `url(${bannerUrl}) center/cover no-repeat`
@@ -1801,10 +1884,10 @@ function UsuarioApp() {
               />
 
               {/* Avatar — superpuesto al banner */}
-              <div className="absolute -bottom-10 left-4">
+              <div className="absolute -bottom-12 left-4">
                 {profile?.devstate ? (
                   // Pentágono para devs
-                  <div className="relative h-20 w-20">
+                  <div className="relative h-28 w-28">
                     <svg width="0" height="0" className="absolute">
                       <defs>
                         <clipPath id="pentagon-clip" clipPathUnits="objectBoundingBox">
@@ -1813,13 +1896,13 @@ function UsuarioApp() {
                       </defs>
                     </svg>
                     <div
-                      className="h-20 w-20 bg-slate-100 flex items-center justify-center overflow-hidden"
+                      className="h-28 w-28 bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden"
                       style={{ clipPath: 'url(#pentagon-clip)' }}
                     >
                       {(avatarPreview || getAvatar()) ? (
                         <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
                       ) : (
-                        <span className="text-2xl font-bold text-slate-400">{getDisplayName().substring(0, 1).toUpperCase()}</span>
+                        <span className="text-4xl font-bold text-slate-400">{getDisplayName().substring(0, 1).toUpperCase()}</span>
                       )}
                     </div>
                     {/* Outline SVG superpuesto */}
@@ -1845,12 +1928,12 @@ function UsuarioApp() {
                   </div>
                 ) : (
                   // Círculo normal
-                  <div className={`h-20 w-20 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center ring-4`}
+                  <div className={`h-28 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center ring-4`}
                     style={{ '--tw-ring-color': chartColor, boxShadow: `0 0 0 4px ${chartColor}` }}>
                     {(avatarPreview || getAvatar()) ? (
                       <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
                     ) : (
-                      <span className="text-2xl font-bold text-slate-400">
+                      <span className="text-4xl font-bold text-slate-400">
                         {getDisplayName().substring(0, 1).toUpperCase()}
                       </span>
                     )}
@@ -1889,13 +1972,13 @@ function UsuarioApp() {
             }} />
 
             {/* Nombre + info — con margen para el avatar superpuesto */}
-            <div className="pt-10 flex flex-col items-start gap-3">
+            <div className="pt-14 flex flex-col items-start gap-3">
               {editingProfile ? (
                 <div className="w-full space-y-2">
                   <input type="text" placeholder={t('visibleName')}
                     value={editedProfile.nombre_display ?? getDisplayName()}
                     onChange={e => setEditedProfile(p => ({ ...p, nombre_display: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <input type="text"
@@ -1903,12 +1986,12 @@ function UsuarioApp() {
                       maxLength={20}
                       value={editedProfile.pronouns ?? ''}
                       onChange={e => setEditedProfile(p => ({ ...p, pronouns: e.target.value }))}
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                     />
                     <select
                       value={editedProfile.status ?? ''}
                       onChange={e => setEditedProfile(p => ({ ...p, status: e.target.value }))}
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                      className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                     >
                       <option value="">{lang === 'en' ? 'Status...' : 'Estado...'}</option>
                       <option value="open">{lang === 'en' ? 'Open to collab' : 'Abierto a colaborar'}</option>
@@ -1921,7 +2004,7 @@ function UsuarioApp() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={checkingNsfw}
-                    className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition disabled:opacity-50"
+                    className="w-full rounded-lg border border-dashed border-slate-300 dark:border-slate-600 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
                   >
                     {checkingNsfw
                       ? (lang === 'en' ? 'Checking image...' : 'Verificando imagen...')
@@ -1934,9 +2017,9 @@ function UsuarioApp() {
                   {uploadingBanner && <p className="text-xs text-slate-400 text-center">{lang === 'en' ? 'Uploading banner...' : 'Subiendo banner...'}</p>}
 
                   {/* Toggle email público */}
-                  <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer hover:bg-slate-100 transition">
+                  <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition">
                     <div>
-                      <p className="text-xs font-semibold text-slate-700">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                         {lang === 'en' ? 'Show email on profile' : 'Mostrar email en el perfil'}
                       </p>
                       <p className="text-xs text-slate-400 mt-0.5">
@@ -1946,11 +2029,12 @@ function UsuarioApp() {
                     <button
                       type="button"
                       onClick={() => setEditedProfile(p => ({ ...p, email_publico: !(p.email_publico ?? profile?.email_publico ?? true) }))}
-                      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                        (editedProfile.email_publico ?? profile?.email_publico ?? true)
-                          ? 'bg-slate-900'
-                          : 'bg-slate-300'
-                      }`}
+                      className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                      style={{
+                        backgroundColor: (editedProfile.email_publico ?? profile?.email_publico ?? true)
+                          ? chartColor
+                          : '#cbd5e1'
+                      }}
                     >
                       <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
                         (editedProfile.email_publico ?? profile?.email_publico ?? true)
@@ -1962,9 +2046,9 @@ function UsuarioApp() {
 
                   {/* Toggle badge de empresa */}
                   {userCompanyData && (
-                    <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer hover:bg-slate-100 transition">
+                    <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition">
                       <div>
-                        <p className="text-xs font-semibold text-slate-700">
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                           {lang === 'en' ? 'Show company badge' : 'Mostrar badge de empresa'}
                         </p>
                         <p className="text-xs text-slate-400 mt-0.5">
@@ -1974,11 +2058,12 @@ function UsuarioApp() {
                       <button
                         type="button"
                         onClick={() => setEditedProfile(p => ({ ...p, show_company_badge: !(p.show_company_badge ?? profile?.show_company_badge ?? true) }))}
-                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                          (editedProfile.show_company_badge ?? profile?.show_company_badge ?? true)
-                            ? 'bg-slate-900'
-                            : 'bg-slate-300'
-                        }`}
+                        className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                        style={{
+                          backgroundColor: (editedProfile.show_company_badge ?? profile?.show_company_badge ?? true)
+                            ? chartColor
+                            : '#cbd5e1'
+                        }}
                       >
                         <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
                           (editedProfile.show_company_badge ?? profile?.show_company_badge ?? true)
@@ -1994,7 +2079,7 @@ function UsuarioApp() {
                     placeholder={lang === 'en' ? 'Country / Location' : 'País / Ubicación'}
                     value={editedProfile.pais ?? ''}
                     onChange={e => setEditedProfile(p => ({ ...p, pais: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                   />
 
                   {/* Idioma */}
@@ -2002,7 +2087,7 @@ function UsuarioApp() {
                     placeholder={lang === 'en' ? 'Language (e.g. Spanish, English)' : 'Idioma (ej: Español, English)'}
                     value={editedProfile.idioma_display ?? ''}
                     onChange={e => setEditedProfile(p => ({ ...p, idioma_display: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                   />
 
                   {/* Organization */}
@@ -2011,7 +2096,7 @@ function UsuarioApp() {
                     maxLength={60}
                     value={editedProfile.organization ?? ''}
                     onChange={e => setEditedProfile(p => ({ ...p, organization: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                   />
 
                   {/* Redes sociales */}
@@ -2031,18 +2116,18 @@ function UsuarioApp() {
                           placeholder={placeholder}
                           value={editedProfile[key] ?? ''}
                           onChange={e => setEditedProfile(p => ({ ...p, [key]: e.target.value }))}
-                          className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                          className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
                         />
                       </div>
                     ))}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={saveProfile} disabled={saving || uploadingAvatar || uploadingBanner || checkingNsfw}
-                      className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+                      className="flex-1 rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 dark:hover:bg-slate-200 disabled:opacity-50">
                       {saving ? t('saving') : t('save')}
                     </button>
                     <button onClick={() => { setEditingProfile(false); setAvatarFile(null); setAvatarPreview(null); setBannerFile(null); setBannerPreview(null) }}
-                      className="flex-1 rounded-lg border border-slate-300 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                      className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                       {t('cancel')}
                     </button>
                   </div>
@@ -2051,10 +2136,10 @@ function UsuarioApp() {
                 <div className="w-full">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h1 className="text-xl font-bold text-slate-900">{getDisplayName()}</h1>
+                      <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{getDisplayName()}</h1>
                       <div className="flex items-center gap-2 flex-wrap mt-0.5">
                         {profile?.username && (
-                          <p className="text-sm text-slate-400">@{profile.username}</p>
+                          <p className="text-sm text-slate-400 dark:text-slate-500">@{profile.username}</p>
                         )}
                         {profile?.pronouns && (
                           <span className="text-xs text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">{profile.pronouns}</span>
@@ -2093,7 +2178,7 @@ function UsuarioApp() {
                       status: profile?.status || '',
                       organization: profile?.organization || '',
                     }) }}
-                      className="mt-2 w-full rounded-lg border border-slate-300 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+                      className="mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
                       {t('editProfile')}
                     </button>
                   )}
@@ -2102,22 +2187,22 @@ function UsuarioApp() {
             </div>
 
             {/* Bio */}
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
               {editingBio ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bio</p>
                   <textarea rows={6} value={editedBio}
                     onChange={e => setEditedBio(e.target.value)}
                     placeholder={lang === 'en' ? 'Write your bio in Markdown...' : 'Escribe tu bio en Markdown...'}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:border-slate-400"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:border-slate-400 dark:focus:border-slate-500"
                   />
                   <div className="flex gap-2">
                     <button onClick={saveBio} disabled={saving}
-                      className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+                      className="flex-1 rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 dark:hover:bg-slate-200 disabled:opacity-50">
                       {saving ? t('saving') : t('save')}
                     </button>
                     <button onClick={() => setEditingBio(false)}
-                      className="flex-1 rounded-lg border border-slate-300 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                      className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                       {t('cancel')}
                     </button>
                   </div>
@@ -2127,11 +2212,11 @@ function UsuarioApp() {
                   {profile?.bio ? (
                     <BioCollapsible bio={profile.bio} />
                   ) : (
-                    canEdit && <p className="text-sm text-slate-400 italic">{t('noBio')}</p>
+                    canEdit && <p className="text-sm text-slate-400 dark:text-slate-500 italic">{t('noBio')}</p>
                   )}
                   {canEdit && (
                     <button onClick={() => { setEditingBio(true); setEditedBio(profile?.bio || '') }}
-                      className="mt-2 text-xs text-slate-500 hover:text-slate-800 underline">
+                      className="mt-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 underline">
                       {profile?.bio ? t('editBio') : t('addBio')}
                     </button>
                   )}
@@ -2140,7 +2225,7 @@ function UsuarioApp() {
             </div>
 
             {/* Info */}
-            <div className="border-t border-slate-100 pt-4 space-y-2 text-sm text-slate-600">
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-2 text-sm text-slate-600 dark:text-slate-400">
               <div className="flex items-center gap-2">
                 <svg className="h-4 w-4 shrink-0" style={{ color: chartColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -2172,28 +2257,67 @@ function UsuarioApp() {
                 const tooltipText = sinceText
                   ? (lang === 'en' ? `Member of ${companyName} · ${sinceText}` : `Miembro de ${companyName} · desde hace ${sinceText}`)
                   : (lang === 'en' ? `Member of ${companyName}` : `Miembro de ${companyName}`)
+                // Colores derivados del chartColor del perfil
+                const badgeBg = chartColor + '18'
+                const badgeBorder = chartColor + '55'
                 return (
-                  <a href={`/perfil?id=${userCompanyData.id_usuario}`} title={tooltipText}
-                    className="group relative flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 transition w-fit"
-                  >
-                    <div className="h-5 w-5 rounded-full overflow-hidden bg-violet-200 shrink-0 flex items-center justify-center">
-                      {userCompanyData.avatar_url
-                        ? <img src={userCompanyData.avatar_url} alt={companyName} className="h-full w-full object-cover" />
-                        : <span className="text-[9px] font-bold text-violet-600">{companyName.substring(0,2).toUpperCase()}</span>
-                      }
-                    </div>
-                    <span className="truncate max-w-[110px]">{companyName}</span>
-                    {userCompanyData.verified && (
-                      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-violet-600 shrink-0">
-                        <svg className="h-2 w-2 text-white" viewBox="0 0 12 12" fill="currentColor"><path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/></svg>
+                  <div className="flex items-center gap-2">
+                    <a href={`/perfil?id=${userCompanyData.id_usuario}`} title={tooltipText}
+                      className="group relative flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-medium transition w-fit hover:opacity-90"
+                      style={{ backgroundColor: badgeBg, borderColor: badgeBorder, color: chartColor }}
+                    >
+                      <div className="h-5 w-5 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: chartColor + '30' }}>
+                        {userCompanyData.avatar_url
+                          ? <img src={userCompanyData.avatar_url} alt={companyName} className="h-full w-full object-cover" />
+                          : <span className="text-[9px] font-bold" style={{ color: chartColor }}>{companyName.substring(0,2).toUpperCase()}</span>
+                        }
+                      </div>
+                      <span className="truncate max-w-[110px]">{companyName}</span>
+                      {userCompanyData.verified && (
+                        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full shrink-0" style={{ backgroundColor: chartColor }}>
+                          <svg className="h-2 w-2 text-white" viewBox="0 0 12 12" fill="currentColor"><path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/></svg>
+                        </span>
+                      )}
+                      <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-lg">
+                        {tooltipText}
                       </span>
+                    </a>
+                    {/* Botón ocultar badge — solo en perfil propio */}
+                    {canEdit && (
+                      <button
+                        onClick={async () => {
+                          const newVal = false
+                          await supabase.from('usuarios').update({ show_company_badge: newVal }).eq('id_usuario', user.id)
+                          setProfile(p => ({ ...p, show_company_badge: newVal }))
+                        }}
+                        title={lang === 'en' ? 'Hide badge' : 'Ocultar badge'}
+                        className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition"
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      </button>
                     )}
-                    <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-lg">
-                      {tooltipText}
-                    </span>
-                  </a>
+                  </div>
                 )
               })()}
+              {/* Mostrar badge oculto — solo en perfil propio */}
+              {userCompanyData && profile?.show_company_badge === false && canEdit && (
+                <button
+                  onClick={async () => {
+                    await supabase.from('usuarios').update({ show_company_badge: true }).eq('id_usuario', user.id)
+                    setProfile(p => ({ ...p, show_company_badge: true }))
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition w-fit"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  {lang === 'en' ? 'Show company badge' : 'Mostrar badge de empresa'}
+                </button>
+              )}
 
               {profile?.pais && (
                 <div className="flex items-center gap-2">
@@ -2324,17 +2448,16 @@ function UsuarioApp() {
 
                 {/* Panel de comparación — solo en perfiles ajenos */}
             {!ownProfile && user && (
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className="rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700">
                 <button
                   onClick={async () => {
                     if (!compareOpen && !compareWith) {
-                      // Pre-cargar stats propias por default
                       const own = await fetchCompareStats(user.id)
                       setCompareWith(own)
                     }
                     setCompareOpen(o => !o)
                   }}
-                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition rounded-xl"
                 >
                   <span className="flex items-center gap-2">
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -2348,19 +2471,19 @@ function UsuarioApp() {
                 </button>
 
                 {compareOpen && (
-                  <div className="border-t border-slate-100 p-4 space-y-4">
+                  <div className="border-t border-slate-100 dark:border-slate-800 p-4 space-y-4">
                     {/* Selector del segundo prompter */}
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-slate-400 shrink-0">{lang === 'en' ? 'Compare with:' : 'Comparar con:'}</span>
                       {compareWith ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 flex-1">
-                          <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-slate-200 flex items-center justify-center">
+                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 flex-1">
+                          <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
                             {compareWith.avatar
                               ? <img src={compareWith.avatar} alt="" className="h-full w-full object-cover" />
                               : <span className="text-xs font-bold text-slate-500">{compareWith.name.substring(0,2).toUpperCase()}</span>
                             }
                           </div>
-                          <span className="text-sm font-medium text-slate-700 flex-1 truncate">{compareWith.name}</span>
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-200 flex-1 truncate">{compareWith.name}</span>
                           <button onClick={() => { setCompareWith(null); setCompareSearch('') }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
                         </div>
                       ) : (
@@ -2370,11 +2493,11 @@ function UsuarioApp() {
                             value={compareSearch}
                             onChange={e => handleCompareSearch(e.target.value)}
                             placeholder={lang === 'en' ? 'Search prompter...' : 'Buscar prompter...'}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400"
+                            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm outline-none focus:border-slate-400 dark:focus:border-slate-500"
                           />
                           {loadingCompare && <div className="absolute right-3 top-2 h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />}
                           {compareResults.length > 0 && (
-                            <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
                               {compareResults.map(u => (
                                 <button key={u.id_usuario}
                                   onClick={async () => {
@@ -2383,8 +2506,8 @@ function UsuarioApp() {
                                     setCompareSearch('')
                                     setCompareResults([])
                                   }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">
-                                  <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center">
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                                  <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
                                     {u.avatar_url
                                       ? <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
                                       : <span className="text-xs font-bold text-slate-500">{(u.nombre_display || u.nombre || 'U').substring(0,2).toUpperCase()}</span>
@@ -2412,9 +2535,9 @@ function UsuarioApp() {
                         { label: lang === 'en' ? 'Streak' : 'Racha',        a: them.racha,               b: me.racha,               suffix: '' },
                       ]
                       return (
-                        <div className="rounded-xl border border-slate-100 overflow-hidden">
+                        <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
                           {/* Headers */}
-                          <div className="grid grid-cols-[1fr_5rem_1fr] text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-2 bg-slate-50 border-b border-slate-100">
+                          <div className="grid grid-cols-[1fr_5rem_1fr] text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
                             <span className="truncate">{profile?.nombre_display || profile?.nombre || '—'}</span>
                             <span className="text-center"></span>
                             <span className="text-right truncate">{compareWith.name}</span>
@@ -2423,21 +2546,21 @@ function UsuarioApp() {
                             const max = Math.max(a, b, 1)
                             const aWins = a > b, bWins = b > a
                             return (
-                              <div key={label} className="grid grid-cols-[1fr_5rem_1fr] items-center gap-2 px-4 py-2.5 border-b border-slate-50 last:border-0">
+                              <div key={label} className="grid grid-cols-[1fr_5rem_1fr] items-center gap-2 px-4 py-2.5 border-b border-slate-50 dark:border-slate-800 last:border-0">
                                 <div className="flex items-center gap-2 justify-end">
-                                  <span className={`text-sm font-bold tabular-nums ${aWins ? '' : 'text-slate-400'}`} style={aWins ? { color: chartColor } : {}}>
+                                  <span className={`text-sm font-bold tabular-nums ${aWins ? '' : 'text-slate-400 dark:text-slate-500'}`} style={aWins ? { color: chartColor } : {}}>
                                     {a}{suffix}
                                   </span>
-                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 overflow-hidden flex justify-end">
+                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex justify-end">
                                     <div className="h-full rounded-full transition-all" style={{ width: `${(a/max)*100}%`, backgroundColor: aWins ? chartColor : '#cbd5e1' }} />
                                   </div>
                                 </div>
-                                <p className="text-xs font-medium text-center text-slate-400">{label}</p>
+                                <p className="text-xs font-medium text-center text-slate-400 dark:text-slate-500">{label}</p>
                                 <div className="flex items-center gap-2">
-                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 overflow-hidden">
+                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                                     <div className="h-full rounded-full transition-all" style={{ width: `${(b/max)*100}%`, backgroundColor: bWins ? chartColor : '#cbd5e1' }} />
                                   </div>
-                                  <span className={`text-sm font-bold tabular-nums ${bWins ? '' : 'text-slate-400'}`} style={bWins ? { color: chartColor } : {}}>
+                                  <span className={`text-sm font-bold tabular-nums ${bWins ? '' : 'text-slate-400 dark:text-slate-500'}`} style={bWins ? { color: chartColor } : {}}>
                                     {b}{suffix}
                                   </span>
                                 </div>

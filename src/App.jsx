@@ -89,7 +89,44 @@ function App() {
     const stored = sessionStorage.getItem('guestDailyDate')
     return stored === new Date().toDateString()
   })
+  // Modo desafío de empresa
+  const [challengeCompany, setChallengeCompany] = useState(null) // { company_name, avatar_url, verified }
+  const challengeId = new URLSearchParams(window.location.search).get('challenge')
   const recommendedGuideIds = getRecommendedGuides(improvements, suggestions)
+
+  // Cargar desafío de empresa si viene con ?challenge=ID
+  useEffect(() => {
+    if (!challengeId) return
+    setShowLanding(false)
+    setImageStatus('loading')
+    const loadChallenge = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('imagenes_ia')
+          .select('*, company_id')
+          .eq('id_imagen', challengeId)
+          .maybeSingle()
+        if (error || !data) { setImageStatus('error'); return }
+        setImageData(normalizeImageData(data))
+        setDifficulty(data.image_diff || 'Medium')
+        setMode('challenge')
+        setImageStatus('ok')
+        // Cargar datos de la empresa
+        if (data.company_id) {
+          const { data: co } = await supabase
+            .from('usuarios')
+            .select('company_name, nombre_display, avatar_url, verified')
+            .eq('id_usuario', data.company_id)
+            .maybeSingle()
+          setChallengeCompany(co || null)
+        }
+      } catch (err) {
+        console.error('[challenge] Error:', err)
+        setImageStatus('error')
+      }
+    }
+    loadChallenge()
+  }, [challengeId])
 
   // Verificar suspensión al cargar
   useEffect(() => {
@@ -141,6 +178,7 @@ function App() {
       const { data } = await supabase
         .from('imagenes_ia')
         .select('image_diff')
+        .is('company_id', null)
 
       if (!data) return
       const diffOrder = ['Easy', 'Medium', 'Hard']
@@ -189,13 +227,16 @@ function App() {
 
   // Fetch de la imagen activa
   useEffect(() => {
+    // Si hay un desafío de empresa activo, no cargar imagen normal
+    if (challengeId) return
+
     let cancelled = false
 
     const fetchImageData = async () => {
       setImageStatus('loading')
 
       try {
-        let query = supabase.from('imagenes_ia').select('*')
+        let query = supabase.from('imagenes_ia').select('*').is('company_id', null)
 
         if (mode === 'daily') {
           const hoy = new Date()
@@ -292,7 +333,7 @@ function App() {
           fecha_hora: new Date().toISOString(),
           strengths: result.strengths ?? [],
           improvements: result.improvements ?? [],
-          modo: mode,
+          modo: mode === 'challenge' ? 'challenge' : mode,
           elo_delta: null, // se actualiza abajo si hay usuario
         }])
 
@@ -476,7 +517,7 @@ function App() {
       setImageData(null)
       const fetchRandom = async () => {
         try {
-          let query = supabase.from('imagenes_ia').select('*')
+          let query = supabase.from('imagenes_ia').select('*').is('company_id', null)
           if (difficulty) query = query.eq('image_diff', difficulty)
           const { data } = await query
           if (!data || data.length === 0) { setImageStatus('empty'); return }
@@ -513,16 +554,20 @@ function App() {
 
   const renderControls = () => (
     <div className="flex items-center gap-2 flex-wrap">
-      <button type="button" onClick={openConfig}
-        className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
-        {t('configure')}
-      </button>
+      {mode !== 'challenge' && (
+        <button type="button" onClick={openConfig}
+          className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
+          {t('configure')}
+        </button>
+      )}
       {submitted ? (
         <>
-          <button type="button" onClick={handleNewRandom}
-            className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
-            {t('newRandom')}
-          </button>
+          {mode !== 'challenge' && (
+            <button type="button" onClick={handleNewRandom}
+              className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
+              {t('newRandom')}
+            </button>
+          )}
           <button type="button" onClick={handleReset}
             className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
             {t('reset')}
@@ -584,6 +629,49 @@ function App() {
           <div className={`grid lg:items-stretch ${submitted && scorePercent > 93 ? 'lg:grid-cols-1 max-w-2xl mx-auto w-full' : 'lg:grid-cols-[1.2fr_1fr]'}`}>
             <section className="flex flex-col justify-center space-y-4 p-6 lg:p-8">
               <div className="space-y-4">
+                {/* Banner de desafío de empresa */}
+                {mode === 'challenge' && challengeCompany && (
+                  <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
+                    <div className="relative shrink-0">
+                      <div className="h-9 w-9 rounded-xl overflow-hidden bg-violet-200 flex items-center justify-center border border-violet-300">
+                        {challengeCompany.avatar_url
+                          ? <img src={challengeCompany.avatar_url} alt="" className="h-full w-full object-cover" />
+                          : <span className="text-xs font-bold text-violet-700">
+                              {(challengeCompany.company_name || challengeCompany.nombre_display || 'E').substring(0,2).toUpperCase()}
+                            </span>
+                        }
+                      </div>
+                      {challengeCompany.verified && (
+                        <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-violet-600 ring-1 ring-white">
+                          <svg className="h-2 w-2 text-white" viewBox="0 0 12 12" fill="currentColor">
+                            <path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/>
+                          </svg>
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-violet-800">
+                        {t('challengeFrom') || 'Desafío de empresa'}
+                      </p>
+                      <p className="text-sm font-bold text-violet-900 truncate">
+                        {challengeCompany.company_name || challengeCompany.nombre_display}
+                      </p>
+                    </div>
+                    <div className="ml-auto shrink-0">
+                      <span className="rounded-full bg-violet-600 px-2.5 py-1 text-[11px] font-semibold text-white">
+                        {imageData?.image_diff || 'Medium'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {mode === 'challenge' && !challengeCompany && (
+                  <div className="flex items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
+                    <span className="text-violet-600 text-sm">🎯</span>
+                    <p className="text-sm font-semibold text-violet-800">
+                      {t('companyChallenge') || 'Desafío personalizado de tu empresa'}
+                    </p>
+                  </div>
+                )}
                 {renderControls()}
                 {!submitted ? (
                   <>
