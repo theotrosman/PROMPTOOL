@@ -12,15 +12,8 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
   const [usernameStatus, setUsernameStatus] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const genCaptcha = () => {
-    const a = Math.floor(Math.random() * 9) + 1
-    const b = Math.floor(Math.random() * 9) + 1
-    return { a, b, answer: a + b }
-  }
-  const [captcha, setCaptcha] = useState(genCaptcha)
-  const [captchaInput, setCaptchaInput] = useState('')
-  const captchaOk = parseInt(captchaInput) === captcha.answer
+  const [acceptTerms, setAcceptTerms] = useState(false)
+  const [acceptEmails, setAcceptEmails] = useState(false)
 
   if (!open) return null
 
@@ -48,11 +41,16 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
         if (!nombre.trim()) { setError(t('nameRequired')); setLoading(false); return }
         if (!username || username.length < 3) { setError(t('usernameMin')); setLoading(false); return }
         if (usernameStatus === 'taken') { setError(t('usernameTaken')); setLoading(false); return }
-        if (!captchaOk) {
-          setError(lang === 'en' ? 'Incorrect answer, try again.' : 'Respuesta incorrecta, intentá de nuevo.')
-          setCaptcha(genCaptcha()); setCaptchaInput(''); setLoading(false); return
+        if (!acceptTerms) {
+          setError(lang === 'en' ? 'You must accept the terms to continue.' : 'Tenés que aceptar los términos para continuar.')
+          setLoading(false); return
         }
         await onSignUpWithEmail(email, password, nombre, username)
+        // Guardar preferencia de emails
+        if (acceptEmails) {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) supabase.from('usuarios').update({ email_marketing: true }).eq('id_usuario', user.id)
+        }
         onClose()
       } else {
         await onSignInWithEmail(email, password)
@@ -67,11 +65,15 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
 
   const resetForm = () => {
     setEmail(''); setPassword(''); setNombre(''); setUsername('')
-    setUsernameStatus(null); setError(''); setCaptcha(genCaptcha()); setCaptchaInput('')
+    setUsernameStatus(null); setError(''); setAcceptTerms(false); setAcceptEmails(false)
   }
   const switchMode = () => { setMode(m => m === 'signin' ? 'signup' : 'signin'); resetForm() }
 
   const inputClass = "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+
+  const canSubmit = mode === 'signin'
+    ? !loading
+    : !loading && usernameStatus !== 'taken' && acceptTerms
 
   return (
     <div
@@ -84,25 +86,25 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 pt-6 pb-5 border-b border-slate-100">
+        <div className="px-6 pt-6 pb-4 border-b border-slate-100">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-lg font-semibold text-slate-900">
-              {mode === 'signin'
-                ? (lang === 'en' ? 'Sign in' : 'Iniciar sesión')
-                : (lang === 'en' ? 'Create account' : 'Crear cuenta')}
-            </h2>
-            <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition text-lg leading-none">
-              ×
-            </button>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                {mode === 'signin'
+                  ? (lang === 'en' ? 'Sign in' : 'Iniciar sesión')
+                  : (lang === 'en' ? 'Create account' : 'Crear cuenta')}
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {mode === 'signin'
+                  ? (lang === 'en' ? 'Welcome back to PrompTool' : 'Bienvenido de vuelta')
+                  : (lang === 'en' ? 'Join the PrompTool community' : 'Unite a la comunidad')}
+              </p>
+            </div>
+            <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition text-lg leading-none">×</button>
           </div>
-          <p className="text-xs text-slate-400">
-            {mode === 'signin'
-              ? (lang === 'en' ? 'Welcome back to PrompTool' : 'Bienvenido de vuelta a PrompTool')
-              : (lang === 'en' ? 'Join the PrompTool community' : 'Unite a la comunidad de PrompTool')}
-          </p>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-3">
           {/* Google */}
           <button type="button" onClick={onSignInWithGoogle}
             className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:border-slate-300">
@@ -131,7 +133,7 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">@</span>
                   <input type="text" value={username} onChange={handleUsernameChange}
                     placeholder="username" maxLength={20}
-                    className={`${inputClass} pl-8 pr-9 ${usernameStatus === 'taken' ? 'border-rose-300 focus:border-rose-400' : usernameStatus === 'ok' ? 'border-emerald-300 focus:border-emerald-400' : ''}`}
+                    className={`${inputClass} pl-8 pr-9 ${usernameStatus === 'taken' ? 'border-rose-300' : usernameStatus === 'ok' ? 'border-emerald-300' : ''}`}
                     required />
                   {usernameStatus === 'checking' && <div className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />}
                   {usernameStatus === 'ok' && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-emerald-500">✓</span>}
@@ -141,36 +143,58 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
             )}
 
             <input type="text" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder={mode === 'signin'
-                ? (lang === 'en' ? 'Email or @username' : 'Email o @usuario')
-                : 'Email'}
+              placeholder={mode === 'signin' ? (lang === 'en' ? 'Email or @username' : 'Email o @usuario') : 'Email'}
               className={inputClass} required />
 
             <input type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder={lang === 'en' ? 'Password' : 'Contraseña'}
               className={inputClass} required minLength={6} />
 
+            {/* Checkboxes solo en signup */}
             {mode === 'signup' && (
-              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
-                <span className="text-sm text-slate-600 shrink-0">{captcha.a} + {captcha.b} =</span>
-                <input type="number" value={captchaInput} onChange={e => setCaptchaInput(e.target.value)}
-                  placeholder="?" className="w-14 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-center outline-none focus:border-slate-400" />
-                {captchaInput !== '' && (
-                  <span className={`text-xs font-semibold ml-auto ${captchaOk ? 'text-emerald-500' : 'text-rose-400'}`}>
-                    {captchaOk ? '✓' : '✗'}
+              <div className="space-y-2 pt-1">
+                {/* Términos — obligatorio */}
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className={`mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition ${acceptTerms ? 'border-transparent' : 'border-slate-300 group-hover:border-slate-400'}`}
+                    style={acceptTerms ? { backgroundColor: 'rgb(var(--color-accent))' } : {}}
+                    onClick={() => setAcceptTerms(v => !v)}>
+                    {acceptTerms && <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}
+                  </div>
+                  <span className="text-xs text-slate-600 leading-relaxed">
+                    {lang === 'en' ? 'I accept the ' : 'Acepto los '}
+                    <a href="/terms" target="_blank" className="font-medium text-slate-900 underline underline-offset-2 hover:no-underline">
+                      {lang === 'en' ? 'Terms of Service' : 'Términos de Servicio'}
+                    </a>
+                    {lang === 'en' ? ' and ' : ' y la '}
+                    <a href="/privacy" target="_blank" className="font-medium text-slate-900 underline underline-offset-2 hover:no-underline">
+                      {lang === 'en' ? 'Privacy Policy' : 'Política de Privacidad'}
+                    </a>
+                    <span className="text-rose-500 ml-0.5">*</span>
                   </span>
-                )}
+                </label>
+
+                {/* Emails — opcional */}
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className={`mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition ${acceptEmails ? 'border-transparent' : 'border-slate-300 group-hover:border-slate-400'}`}
+                    style={acceptEmails ? { backgroundColor: 'rgb(var(--color-accent))' } : {}}
+                    onClick={() => setAcceptEmails(v => !v)}>
+                    {acceptEmails && <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}
+                  </div>
+                  <span className="text-xs text-slate-500 leading-relaxed">
+                    {lang === 'en'
+                      ? 'Send me updates about new features, tournaments and tips.'
+                      : 'Quiero recibir novedades sobre nuevas funciones, torneos y tips.'}
+                    <span className="ml-1 text-slate-400">{lang === 'en' ? '(optional)' : '(opcional)'}</span>
+                  </span>
+                </label>
               </div>
             )}
 
             {error && (
-              <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
-                {error}
-              </p>
+              <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{error}</p>
             )}
 
-            <button type="submit"
-              disabled={loading || (mode === 'signup' && (usernameStatus === 'taken' || !captchaOk))}
+            <button type="submit" disabled={!canSubmit}
               className="w-full rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-40"
               style={{ backgroundColor: 'rgb(var(--color-accent))' }}>
               {loading ? '...' : mode === 'signin'

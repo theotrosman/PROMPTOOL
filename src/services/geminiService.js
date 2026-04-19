@@ -117,7 +117,7 @@ Devuelve SOLO un JSON válido así:
   "suggestions": "resumen breve de mejoras en 1 o 2 oraciones"
 }`;
 
-    console.log("🚀 Enviando request a Groq...");
+    // console.log("🚀 Enviando request a Groq...");
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -146,7 +146,7 @@ Devuelve SOLO un JSON válido así:
 
     const textResponse = data.choices[0].message.content;
 
-    console.log("📝 RAW:", textResponse);
+    // console.log("📝 RAW:", textResponse);
 
     let parsed;
 

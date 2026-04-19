@@ -19,6 +19,9 @@ const Header = () => {
   const [showPwForm, setShowPwForm] = useState(false)
   const [pwForm, setPwForm] = useState({ newPw: '', confirmPw: '' })
   const [pwStatus, setPwStatus] = useState(null)
+  const [showEmailForm, setShowEmailForm] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailStatus, setEmailStatus] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searchOpen, setSearchOpen] = useState(false)
@@ -80,6 +83,18 @@ const Header = () => {
     setPwForm({ newPw: '', confirmPw: '' })
     setShowPwForm(false)
     setTimeout(() => setPwStatus(null), 2000)
+  }
+
+  const handleChangeEmail = async (e) => {
+    e.preventDefault()
+    if (!newEmail.includes('@')) { setEmailStatus('invalid'); return }
+    setEmailStatus('saving')
+    const { error } = await supabase.auth.updateUser({ email: newEmail })
+    if (error) { setEmailStatus('error'); return }
+    setEmailStatus('ok')
+    setNewEmail('')
+    setShowEmailForm(false)
+    setTimeout(() => setEmailStatus(null), 3000)
   }
 
   const handleMouseEnter = () => {
@@ -324,6 +339,29 @@ const Header = () => {
                                 <button type="submit" disabled={pwStatus === 'saving'}
                                   className="w-full rounded-xl bg-slate-900 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50">
                                   {pwStatus === 'saving' ? '...' : t('save')}
+                                </button>
+                              </form>
+                            )}
+                          </div>
+
+                          <div>
+                            <button type="button" onClick={() => { setShowEmailForm(f => !f); setEmailStatus(null) }}
+                              className="flex w-full items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 hover:text-slate-700 transition">
+                              <span>{lang === 'en' ? 'Change email' : 'Cambiar email'}</span>
+                              <Icon d={showEmailForm ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} className="h-3.5 w-3.5" />
+                            </button>
+                            {showEmailForm && (
+                              <form onSubmit={handleChangeEmail} className="space-y-2">
+                                <input type="email" placeholder={lang === 'en' ? 'New email address' : 'Nuevo email'} value={newEmail}
+                                  onChange={e => setNewEmail(e.target.value)}
+                                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-400"
+                                  required />
+                                {emailStatus === 'invalid' && <p className="text-xs text-rose-600">{lang === 'en' ? 'Invalid email' : 'Email inválido'}</p>}
+                                {emailStatus === 'error' && <p className="text-xs text-rose-600">{lang === 'en' ? 'Error updating email' : 'Error al actualizar el email'}</p>}
+                                {emailStatus === 'ok' && <p className="text-xs text-emerald-600">{lang === 'en' ? 'Check your inbox to confirm.' : 'Revisá tu bandeja para confirmar.'}</p>}
+                                <button type="submit" disabled={emailStatus === 'saving'}
+                                  className="w-full rounded-xl bg-slate-900 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50">
+                                  {emailStatus === 'saving' ? '...' : t('save')}
                                 </button>
                               </form>
                             )}

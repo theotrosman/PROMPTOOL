@@ -8,20 +8,30 @@ import { getRank } from './services/eloService'
 
 const TOP_COLORS = ['#f59e0b', '#94a3b8', '#b45309']
 
-function RankArrow({ current, previous }) {
-  if (!previous || previous === current) return <span className="w-3" />
-  if (current < previous) {
-    // subió (número menor = mejor posición)
+function RankArrow({ current, previous, isTop1 }) {
+  if (!previous || previous === current) return null
+  const delta = previous - current // positivo = subió, negativo = bajó
+  const up = delta > 0
+
+  if (isTop1) {
+    // Top 1 siempre amarillo
     return (
-      <svg className="h-3 w-3 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-      </svg>
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-500">
+        <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <path strokeLinecap="round" strokeLinejoin="round" d={up ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+        </svg>
+        {Math.abs(delta)}
+      </span>
     )
   }
+
   return (
-    <svg className="h-3 w-3 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${up ? 'text-emerald-500' : 'text-rose-400'}`}>
+      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+        <path strokeLinecap="round" strokeLinejoin="round" d={up ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+      </svg>
+      {Math.abs(delta)}
+    </span>
   )
 }
 
@@ -53,25 +63,40 @@ function LeaderboardApp() {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true)
+      // Primero sincronizar total_intentos del usuario logueado
+      if (user) {
+        const { count } = await supabase
+          .from('intentos')
+          .select('id_intento', { count: 'exact', head: true })
+          .eq('id_usuario', user.id)
+        if (count !== null) {
+          await supabase.from('usuarios').update({ total_intentos: count }).eq('id_usuario', user.id)
+        }
+      }
+
       const { data } = await supabase
         .from('usuarios')
         .select('id_usuario, nombre, nombre_display, username, avatar_url, promedio_score, mejor_score, total_intentos, porcentaje_aprobacion, racha_actual, rank_anterior, elo_rating')
         .eq('adminstate', false)
-        .gte('total_intentos', 10)
+        .gte('total_intentos', 5)
         .order(sortBy, { ascending: false })
         .limit(100)
 
       const list = data || []
       setPlayers(list)
 
-      // Guardar rank actual en BD para la próxima vez
+      // Actualizar rank_anterior solo una vez por día para que el delta sea visible
       if (list.length > 0) {
-        const updates = list.map((p, i) => ({ id_usuario: p.id_usuario, rank_anterior: i + 1 }))
-        // Solo actualizar si el rank cambió (batch update)
-        for (const u of updates) {
-          const player = list.find(p => p.id_usuario === u.id_usuario)
-          if (player?.rank_anterior !== u.rank_anterior) {
-            supabase.from('usuarios').update({ rank_anterior: u.rank_anterior }).eq('id_usuario', u.id_usuario)
+        const today = new Date().toDateString()
+        const lastUpdate = localStorage.getItem('rankUpdateDate')
+        if (lastUpdate !== today) {
+          localStorage.setItem('rankUpdateDate', today)
+          for (let i = 0; i < list.length; i++) {
+            const p = list[i]
+            const newRank = i + 1
+            if (p.rank_anterior !== newRank) {
+              supabase.from('usuarios').update({ rank_anterior: newRank }).eq('id_usuario', p.id_usuario)
+            }
           }
         }
       }
@@ -80,16 +105,15 @@ function LeaderboardApp() {
         const idx = list.findIndex(p => p.id_usuario === user.id)
         setMyRank(idx >= 0 ? idx + 1 : null)
 
-        // Si no aparece en la tabla, buscar cuántos intentos tiene
+        // Si no aparece en la tabla, contar intentos reales directamente
         if (idx < 0) {
-          const { data: userData } = await supabase
-            .from('usuarios')
-            .select('total_intentos')
+          const { count } = await supabase
+            .from('intentos')
+            .select('id_intento', { count: 'exact', head: true })
             .eq('id_usuario', user.id)
-            .maybeSingle()
-          setMyAttempts(userData?.total_intentos ?? 0)
+          setMyAttempts(count ?? 0)
         } else {
-          setMyAttempts(null) // ya está en la tabla
+          setMyAttempts(null)
         }
       }
 
@@ -292,18 +316,6 @@ function LeaderboardApp() {
                 {lang === 'en' ? `Your rank: #${myRank}` : `Tu posición: #${myRank}`}
               </p>
             )}
-            {user && myAttempts !== null && myAttempts < 10 && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="h-1.5 w-24 rounded-full bg-slate-200 overflow-hidden">
-                  <div className="h-full rounded-full bg-indigo-400 transition-all" style={{ width: `${(myAttempts / 10) * 100}%` }} />
-                </div>
-                <p className="text-xs text-slate-500">
-                  {lang === 'en'
-                    ? `${myAttempts}/10 attempts to appear on the leaderboard`
-                    : `${myAttempts}/10 intentos para aparecer en la liga`}
-                </p>
-              </div>
-            )}
             <p className="mt-1 text-xs text-slate-400">
               {lang === 'en'
                 ? `Resets on: ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
@@ -311,16 +323,30 @@ function LeaderboardApp() {
               }
             </p>
           </div>
-          <button
-            onClick={() => setCompareOpen(o => !o)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition border ${
-              compareOpen
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {lang === 'en' ? 'Compare prompters' : 'Comparar prompters'}
-          </button>
+
+          {/* Lado derecho — botón comparar + counter */}
+          <div className="flex flex-col items-end gap-3 shrink-0">
+            <button
+              onClick={() => setCompareOpen(o => !o)}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition border ${
+                compareOpen
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {lang === 'en' ? 'Compare prompters' : 'Comparar prompters'}
+            </button>
+            {user && myAttempts !== null && myAttempts < 5 && (
+              <div className="text-right">
+                <p className="text-4xl font-bold tabular-nums text-slate-900 leading-none">
+                  {myAttempts}<span className="text-slate-300">/5</span>
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {lang === 'en' ? 'attempts to join the league' : 'intentos para entrar a la liga'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Compare panel */}
@@ -387,16 +413,32 @@ function LeaderboardApp() {
                     isMe ? 'bg-indigo-50 border-l-2 border-l-indigo-400' : isTop3 ? 'bg-amber-50/30' : 'hover:bg-slate-50'
                   }`}
                 >
-                  {/* Rank + arrow */}
-                  <div className="flex items-center gap-1">
-                    {isTop3 ? (
+                  {/* Rank */}
+                  <div className="flex items-center justify-center">
+                    {rank === 1 ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill={TOP_COLORS[0]}>
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        <RankArrow current={rank} previous={p.rank_anterior} isTop1={true} />
+                      </div>
+                    ) : rank <= 3 ? (
                       <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill={TOP_COLORS[rank-1]}>
                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                       </svg>
+                    ) : p.rank_anterior && p.rank_anterior !== rank ? (
+                      // Reemplazar número por flecha gris con delta
+                      <span className="inline-flex flex-col items-center gap-0">
+                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d={p.rank_anterior > rank ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                        </svg>
+                        <span className="text-[10px] font-semibold text-slate-400 leading-none">
+                          {Math.abs(p.rank_anterior - rank)}
+                        </span>
+                      </span>
                     ) : (
                       <span className="text-sm font-bold text-slate-400 w-5 text-center">{rank}</span>
                     )}
-                    <RankArrow current={rank} previous={p.rank_anterior} />
                   </div>
 
                   {/* Player */}

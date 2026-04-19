@@ -60,17 +60,8 @@ function App() {
   const [scorePercent, setScorePercent] = useState(null)
   const [eloDelta, setEloDelta] = useState(null)
   const [submitted, setSubmitted] = useState(false)
-  const [mode, setMode] = useState(() => {
-    // Si ya hizo el diario hoy, arrancar directo en random
-    if (typeof window === 'undefined') return 'daily'
-    const stored = localStorage.getItem('dailyDoneDate')
-    return stored === new Date().toDateString() ? 'random' : 'daily'
-  })
-  const [draftMode, setDraftMode] = useState(() => {
-    if (typeof window === 'undefined') return 'daily'
-    const stored = localStorage.getItem('dailyDoneDate')
-    return stored === new Date().toDateString() ? 'random' : 'daily'
-  })
+  const [mode, setMode] = useState('daily')
+  const [draftMode, setDraftMode] = useState('daily')
   const [difficulty, setDifficulty] = useState('Medium')
   const [configOpen, setConfigOpen] = useState(false)
   const [draftDifficulty, setDraftDifficulty] = useState('Medium')
@@ -83,11 +74,7 @@ function App() {
   const [timingData, setTimingData] = useState({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
   const [timePenaltyMessage, setTimePenaltyMessage] = useState('')
   const [availableDiffs, setAvailableDiffs] = useState([])
-  const [dailyDone, setDailyDone] = useState(() => {
-    if (typeof window === 'undefined') return false
-    const stored = localStorage.getItem('dailyDoneDate')
-    return stored === new Date().toDateString()
-  })
+  const [dailyDone, setDailyDone] = useState(false)
   const [suspensionInfo, setSuspensionInfo] = useState(null)
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false)
   // Para no logueados: límite de 1 partida diaria (guardada en sessionStorage)
@@ -134,8 +121,22 @@ function App() {
 
   // Verificar si el usuario ya hizo el modo diario hoy (solo al montar o cambiar usuario)
   useEffect(() => {
-    if (!user) return
+    if (!user) {
+      setDailyDone(false)
+      setMode('daily')
+      setDraftMode('daily')
+      return
+    }
+    const dailyKey = `dailyDoneDate_${user.id}`
     const checkDaily = async () => {
+      // Primero chequear localStorage con clave específica del usuario
+      const stored = localStorage.getItem(dailyKey)
+      if (stored === new Date().toDateString()) {
+        setDailyDone(true)
+        if (!submitted) { setMode('random'); setDraftMode('random') }
+        return
+      }
+      // Verificar en BD
       const hoy = new Date()
       hoy.setHours(0, 0, 0, 0)
       const { data } = await supabase
@@ -147,7 +148,10 @@ function App() {
         .limit(1)
       const done = !!(data && data.length > 0)
       setDailyDone(done)
-      if (done) localStorage.setItem('dailyDoneDate', new Date().toDateString())
+      if (done) {
+        localStorage.setItem(dailyKey, new Date().toDateString())
+        if (!submitted) { setMode('random'); setDraftMode('random') }
+      }
     }
     checkDaily()
   }, [user?.id])
@@ -263,10 +267,23 @@ function App() {
 
       if (dbError) console.error('[intentos] Error al guardar:', dbError.message)
       else {
+        // Incrementar total_intentos en la BD para que el leaderboard lo refleje inmediatamente
+        if (user) {
+          supabase.from('usuarios')
+            .select('total_intentos')
+            .eq('id_usuario', user.id)
+            .maybeSingle()
+            .then(({ data }) => {
+              supabase.from('usuarios')
+                .update({ total_intentos: (data?.total_intentos ?? 0) + 1 })
+                .eq('id_usuario', user.id)
+            })
+        }
+
         if (mode === 'daily') {
           if (user) {
             setDailyDone(true)
-            localStorage.setItem('dailyDoneDate', new Date().toDateString())
+            localStorage.setItem(`dailyDoneDate_${user.id}`, new Date().toDateString())
           }
           else {
             sessionStorage.setItem('guestDailyDate', new Date().toDateString())
@@ -295,33 +312,38 @@ function App() {
             const currentElo = userData?.elo_rating ?? 1000
             const totalAttempts = userData?.total_intentos ?? 0
 
-            const { newElo, delta } = calculateElo({
-              userElo: currentElo,
-              totalAttempts,
-              score: finalScore,
-              difficulty: imageData?.image_diff ?? difficulty,
-              timing: {
-                elapsedSeconds: timingData.elapsedSeconds,
-                recommendedSeconds: timingData.recommendedSeconds,
-                penaltyOvertimeSeconds: timingData.penaltyOvertimeSeconds ?? 0,
-              },
-            })
+            // No calcular ELO hasta tener 5 intentos
+            if (totalAttempts < 5) {
+              console.log(`[ELO] Awaiting rank (${totalAttempts}/5)`)
+            } else {
+              const { newElo, delta } = calculateElo({
+                userElo: currentElo,
+                totalAttempts,
+                score: finalScore,
+                difficulty: imageData?.image_diff ?? difficulty,
+                timing: {
+                  elapsedSeconds: timingData.elapsedSeconds,
+                  recommendedSeconds: timingData.recommendedSeconds,
+                  penaltyOvertimeSeconds: timingData.penaltyOvertimeSeconds ?? 0,
+                },
+              })
 
-            await supabase
-              .from('usuarios')
-              .update({ elo_rating: newElo })
-              .eq('id_usuario', user.id)
+              await supabase
+                .from('usuarios')
+                .update({ elo_rating: newElo })
+                .eq('id_usuario', user.id)
 
-            // Guardar delta en el intento más reciente
-            await supabase
-              .from('intentos')
-              .update({ elo_delta: delta })
-              .eq('id_usuario', user.id)
-              .order('fecha_hora', { ascending: false })
-              .limit(1)
+              // Guardar delta en el intento más reciente
+              await supabase
+                .from('intentos')
+                .update({ elo_delta: delta })
+                .eq('id_usuario', user.id)
+                .order('fecha_hora', { ascending: false })
+                .limit(1)
 
-            setEloDelta(delta)
-            console.log(`[ELO] ${currentElo} → ${newElo} (${delta > 0 ? '+' : ''}${delta})`)
+              setEloDelta(delta)
+              console.log(`[ELO] ${currentElo} → ${newElo} (${delta > 0 ? '+' : ''}${delta})`)
+            }
           } catch (eloErr) {
             console.warn('[ELO] Error actualizando:', eloErr.message)
           }

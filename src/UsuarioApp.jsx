@@ -179,8 +179,8 @@ function UsuarioApp() {
   }
 
   const handleChartColorChange = (hex) => {    setChartColor(hex)
-    localStorage.setItem('profileChartColor', hex)
     if (user) {
+      localStorage.setItem(`profileChartColor_${user.id}`, hex)
       supabase.from('usuarios').update({ accent_color: hex }).eq('id_usuario', user.id).then(() => {})
     }
   }
@@ -280,8 +280,8 @@ function UsuarioApp() {
           (targetUsername && user && prof?.id_usuario === user.id)
 
         if (ownProfileCheck) {
-          // Propio: localStorage tiene prioridad, luego BD
-          const saved = localStorage.getItem('profileChartColor')
+          // Propio: localStorage con clave de usuario tiene prioridad, luego BD
+          const saved = user ? localStorage.getItem(`profileChartColor_${user.id}`) : null
           setChartColor(saved || prof?.accent_color || '#6366f1')
         } else {
           // Ajeno: solo la BD, nunca tocar localStorage
@@ -305,7 +305,8 @@ function UsuarioApp() {
         if (ownProfile || isAdmin) {
           const { data: intentos, error: intentosError } = await supabase
             .from('intentos')
-.select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, imagenes_ia(url_image, prompt_original, image_diff)')            .order('fecha_hora', { ascending: false })
+.select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, imagenes_ia(url_image, prompt_original, image_diff)')            .eq('id_usuario', idToLoad)
+            .order('fecha_hora', { ascending: false })
 
           console.log('[intentos] data:', intentos?.length, 'error:', intentosError?.message)
 
@@ -1696,6 +1697,36 @@ function UsuarioApp() {
             {/* ELO Card */}
             {(() => {
               const elo = profile?.elo_rating ?? 1000
+              const totalIntentos = stats.totalIntentos
+              const isAwaiting = totalIntentos < 5
+
+              if (isAwaiting) {
+                return (
+                  <div className="rounded-xl border p-4 flex items-center gap-4" style={{ borderColor: chartColor + '40', backgroundColor: chartColor + '08' }}>
+                    <div className="shrink-0 text-center min-w-[4rem]">
+                      <p className="text-3xl font-bold tabular-nums" style={{ color: chartColor + '60' }}>
+                        {totalIntentos}<span className="text-slate-300">/5</span>
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">ELO</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-500">
+                        {lang === 'en' ? 'Awaiting rank' : 'Esperando rango'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {lang === 'en'
+                          ? `${5 - totalIntentos} more attempt${5 - totalIntentos !== 1 ? 's' : ''} to unlock your ELO`
+                          : `${5 - totalIntentos} intento${5 - totalIntentos !== 1 ? 's' : ''} más para desbloquear tu ELO`}
+                      </p>
+                      <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${(totalIntentos / 5) * 100}%`, backgroundColor: chartColor + '80' }} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
               const rank = getRank(elo)
               const nextRank = getNextRank(elo)
               const progress = nextRank
@@ -1703,12 +1734,10 @@ function UsuarioApp() {
                 : 100
               return (
                 <div className="rounded-xl border p-4 flex items-center gap-4" style={{ borderColor: chartColor + '40', backgroundColor: chartColor + '08' }}>
-                  {/* ELO number */}
                   <div className="shrink-0 text-center">
                     <p className="text-3xl font-bold tabular-nums" style={{ color: chartColor }}>{elo}</p>
                     <p className="text-xs text-slate-400 mt-0.5">ELO</p>
                   </div>
-                  {/* Rank info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-sm font-semibold" style={{ color: chartColor }}>
@@ -1720,22 +1749,15 @@ function UsuarioApp() {
                         </span>
                       )}
                     </div>
-                    {/* Progress bar to next rank */}
                     <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${progress}%`, backgroundColor: chartColor }}
-                      />
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${progress}%`, backgroundColor: chartColor }} />
                     </div>
-                    {/* All ranks mini display */}
                     <div className="mt-2 flex gap-1">
                       {ELO_RANKS.map((r, i) => (
-                        <div
-                          key={i}
-                          title={lang === 'en' ? r.nameEn : r.name}
+                        <div key={i} title={lang === 'en' ? r.nameEn : r.name}
                           className="h-1 flex-1 rounded-full transition-all"
-                          style={{ backgroundColor: elo >= r.min ? chartColor : '#e2e8f0' }}
-                        />
+                          style={{ backgroundColor: elo >= r.min ? chartColor : '#e2e8f0' }} />
                       ))}
                     </div>
                   </div>
