@@ -101,7 +101,7 @@ function UsuarioApp() {
         let prof = null
         const { data: profFull, error: profError } = await supabase
           .from('usuarios')
-          .select('id_usuario, nombre, nombre_display, email, bio, avatar_url, adminstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual')
+          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, adminstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website')
           .eq('id_usuario', idToLoad)
           .maybeSingle()
 
@@ -130,7 +130,7 @@ function UsuarioApp() {
   (targetId && user && targetId === user.id)
 
         // Cargar intentos — RLS permite leer solo los propios, admin puede leer todos
-        if (ownProfile || isAdmin || !targetId) {
+        if (ownProfile || isAdmin) {
           const { data: intentos, error: intentosError } = await supabase
             .from('intentos')
 .select('puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, imagenes_ia(url_image, prompt_original, image_diff)')            .order('fecha_hora', { ascending: false })
@@ -228,6 +228,15 @@ function UsuarioApp() {
             porcentajeAprobacion: prof.porcentaje_aprobacion || 0,
             racha: prof.racha_actual || 0,
           })
+
+          // Cargar últimos 5 intentos públicos (sin prompts, solo score + imagen + improvements)
+          const { data: publicIntentos } = await supabase
+            .from('intentos')
+            .select('puntaje_similitud, fecha_hora, improvements, id_imagen, imagenes_ia(url_image, image_diff)')
+            .eq('id_usuario', idToLoad)
+            .order('fecha_hora', { ascending: false })
+            .limit(5)
+          if (publicIntentos) setRecentAttempts(publicIntentos)
         }
       } catch (err) {
         console.error('fetchData error:', err)
@@ -343,6 +352,15 @@ function UsuarioApp() {
     try {
       const updates = {}
       if (editedProfile.nombre_display !== undefined) updates.nombre_display = editedProfile.nombre_display
+      // Siempre guardar email_publico (tiene valor inicial del perfil)
+      updates.email_publico = editedProfile.email_publico ?? profile?.email_publico ?? true
+      // Campos opcionales
+      if (editedProfile.pais !== undefined) updates.pais = editedProfile.pais
+      if (editedProfile.idioma_display !== undefined) updates.idioma_display = editedProfile.idioma_display
+      if (editedProfile.social_github !== undefined) updates.social_github = editedProfile.social_github
+      if (editedProfile.social_linkedin !== undefined) updates.social_linkedin = editedProfile.social_linkedin
+      if (editedProfile.social_twitter !== undefined) updates.social_twitter = editedProfile.social_twitter
+      if (editedProfile.social_website !== undefined) updates.social_website = editedProfile.social_website
 
       // Si hay archivo nuevo, subirlo primero
       if (avatarFile) {
@@ -456,6 +474,26 @@ function UsuarioApp() {
   (!targetId && !targetUsername && !!user) ||
   (targetId && user && targetId === user.id) // con parámetro → comparar IDs
   const canEdit = ownProfile && !!user
+
+  // ── Social icon ──
+  const SocialIcon = ({ type, className = 'h-4 w-4' }) => {
+    const paths = {
+      github: 'M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z',
+      linkedin: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z',
+      twitter: 'M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z',
+      web: null,
+    }
+    if (type === 'web') return (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+      </svg>
+    )
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d={paths[type]} />
+      </svg>
+    )
+  }
 
   // ── Bio collapsible ──
   const BioCollapsible = ({ bio }) => {
@@ -721,7 +759,7 @@ function UsuarioApp() {
               <div className="relative">
                 <div className={`h-[260px] w-[260px] overflow-hidden rounded-full bg-slate-100 flex items-center justify-center ${
                   isTop1
-                    ? 'border-4 border-yellow-400 shadow-lg shadow-yellow-200'
+                    ? 'border-[3px] border-amber-400/60'
                     : 'border-4 border-slate-200'
                 }`}>
                   {(avatarPreview || getAvatar()) ? (
@@ -738,8 +776,8 @@ function UsuarioApp() {
                   </span>
                 )}
                 {isTop1 && (
-                  <span className="absolute top-3 left-1/2 -translate-x-1/2 rounded-full bg-yellow-400 px-3 py-0.5 text-xs font-bold text-yellow-900 shadow whitespace-nowrap">
-                    # 1 Liga
+                  <span className={`absolute bottom-3 rounded-full bg-yellow-500 px-2.5 py-0.5 text-xs font-bold text-white shadow ${profile?.adminstate ? 'right-20' : 'right-3'}`}>
+                    #1 Liga
                   </span>
                 )}
                 {/* Botón de cambiar foto — solo en modo edición */}
@@ -782,6 +820,72 @@ function UsuarioApp() {
                     }
                   </button>
                   {uploadingAvatar && <p className="text-xs text-slate-400 text-center">{t('uploading')}</p>}
+
+                  {/* Toggle email público */}
+                  <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer hover:bg-slate-100 transition">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700">
+                        {lang === 'en' ? 'Show email on profile' : 'Mostrar email en el perfil'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {lang === 'en' ? 'Visible to other users' : 'Visible para otros usuarios'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditedProfile(p => ({ ...p, email_publico: !(p.email_publico ?? profile?.email_publico ?? true) }))}
+                      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                        (editedProfile.email_publico ?? profile?.email_publico ?? true)
+                          ? 'bg-slate-900'
+                          : 'bg-slate-300'
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                        (editedProfile.email_publico ?? profile?.email_publico ?? true)
+                          ? 'translate-x-4'
+                          : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </label>
+
+                  {/* País */}
+                  <input type="text"
+                    placeholder={lang === 'en' ? 'Country / Location' : 'País / Ubicación'}
+                    value={editedProfile.pais ?? ''}
+                    onChange={e => setEditedProfile(p => ({ ...p, pais: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+
+                  {/* Idioma */}
+                  <input type="text"
+                    placeholder={lang === 'en' ? 'Language (e.g. Spanish, English)' : 'Idioma (ej: Español, English)'}
+                    value={editedProfile.idioma_display ?? ''}
+                    onChange={e => setEditedProfile(p => ({ ...p, idioma_display: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+
+                  {/* Redes sociales */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      {lang === 'en' ? 'Social links' : 'Redes sociales'}
+                    </p>
+                    {[
+                      { key: 'social_github',   placeholder: 'github.com/usuario',   icon: 'github' },
+                      { key: 'social_linkedin', placeholder: 'linkedin.com/in/usuario', icon: 'linkedin' },
+                      { key: 'social_twitter',  placeholder: 'x.com/usuario',        icon: 'twitter' },
+                      { key: 'social_website',  placeholder: 'tusitio.com',           icon: 'web' },
+                    ].map(({ key, placeholder, icon }) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <SocialIcon type={icon} className="h-4 w-4 shrink-0 text-slate-400" />
+                        <input type="text"
+                          placeholder={placeholder}
+                          value={editedProfile[key] ?? ''}
+                          onChange={e => setEditedProfile(p => ({ ...p, [key]: e.target.value }))}
+                          className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
                   <div className="flex gap-2">
                     <button onClick={saveProfile} disabled={saving || uploadingAvatar || checkingNsfw}
                       className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
@@ -799,9 +903,19 @@ function UsuarioApp() {
                   {profile?.username && (
                     <p className="text-sm font-medium text-slate-400">@{profile.username}</p>
                   )}
-                  <p className="text-sm text-slate-500">{profile?.email}</p>
+                  <p className="text-sm text-slate-500">
+                    {(ownProfile || (profile?.email_publico !== false)) ? profile?.email : null}
+                  </p>
                   {canEdit && (
-                    <button onClick={() => { setEditingProfile(true); setEditedProfile({}) }}
+                    <button onClick={() => { setEditingProfile(true); setEditedProfile({
+                      email_publico: profile?.email_publico ?? true,
+                      pais: profile?.pais || '',
+                      idioma_display: profile?.idioma_display || '',
+                      social_github: profile?.social_github || '',
+                      social_linkedin: profile?.social_linkedin || '',
+                      social_twitter: profile?.social_twitter || '',
+                      social_website: profile?.social_website || '',
+                    }) }}
                       className="mt-2 w-full rounded-lg border border-slate-300 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
                       {t('editProfile')}
                     </button>
@@ -856,6 +970,23 @@ function UsuarioApp() {
                 </svg>
                 <span>{t('memberSince')} {new Date(profile?.fecha_registro).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { month: 'long', year: 'numeric' })}</span>
               </div>
+              {profile?.pais && (
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>{profile.pais}</span>
+                </div>
+              )}
+              {profile?.idioma_display && (
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                  </svg>
+                  <span>{profile.idioma_display}</span>
+                </div>
+              )}
               {stats.racha > 0 && (
                 <div className="flex items-center gap-2">
                   <img src="/media/fireicon.png" alt="racha" className="h-4 w-4 object-contain" />
@@ -863,6 +994,27 @@ function UsuarioApp() {
                 </div>
               )}
             </div>
+
+            {/* Social links */}
+            {(profile?.social_github || profile?.social_linkedin || profile?.social_twitter || profile?.social_website) && (
+              <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                {[
+                  { val: profile?.social_github,   type: 'github',   label: 'GitHub' },
+                  { val: profile?.social_linkedin,  type: 'linkedin', label: 'LinkedIn' },
+                  { val: profile?.social_twitter,   type: 'twitter',  label: 'X' },
+                  { val: profile?.social_website,   type: 'web',      label: 'Website' },
+                ].filter(s => s.val).map(({ val, type, label }) => {
+                  const href = val.startsWith('http') ? val : `https://${val}`
+                  return (
+                    <a key={type} href={href} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
+                      <SocialIcon type={type} className="h-3.5 w-3.5" />
+                      {label}
+                    </a>
+                  )
+                })}
+              </div>
+            )}
 
             <button onClick={copyProfileLink}
               className="w-full rounded-lg border border-slate-300 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition flex items-center justify-center gap-2">
@@ -936,13 +1088,11 @@ function UsuarioApp() {
                 { label: t('bestScore'), value: stats.mejorScore, suffix: '%', key: 'mejorScore', isScore: true },
                 { label: t('approval'), value: stats.porcentajeAprobacion, suffix: '%', key: 'porcentajeAprobacion', isScore: true },
                 { label: t('totalAttempts'), value: stats.totalIntentos, suffix: '', key: 'totalIntentos', isScore: false },
-              ].map(({ label, value, suffix, key, isScore }) => {
-                // Color: red(0) → yellow(50) → green(100)
+              ].map(({ label, value, suffix, key, isScore }, cardIdx) => {
                 const pct = isScore ? Math.min(100, Math.max(0, value)) : Math.min(100, Math.round((value / Math.max(stats.totalIntentos, 1)) * 100))
                 const r = 32, cx = 40, cy = 40
                 const circumference = 2 * Math.PI * r
                 const filled = (pct / 100) * circumference
-                // Interpolate color: 0=red, 50=amber, 100=green
                 const getColor = (p) => {
                   if (p >= 70) return '#10b981'
                   if (p >= 40) return '#f59e0b'
@@ -951,7 +1101,9 @@ function UsuarioApp() {
                 const color = isScore ? getColor(pct) : '#6366f1'
 
                 return (
-                  <div key={key} className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col items-center gap-1">
+                  <div key={key}
+                    className="stat-card-animate rounded-xl border border-slate-200 bg-white p-4 flex flex-col items-center gap-1"
+                    style={{ animationDelay: `${cardIdx * 80}ms` }}>
                     <p className="text-xs font-medium text-slate-500 self-start">{label}</p>
                     {editingStats ? (
                       <input type="number" min="0" max={suffix === '%' ? 100 : undefined}
@@ -964,7 +1116,7 @@ function UsuarioApp() {
                         <svg width="80" height="80" viewBox="0 0 80 80">
                           {/* Track */}
                           <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e2e8f0" strokeWidth="8" />
-                          {/* Fill */}
+                          {/* Animated fill */}
                           <circle
                             cx={cx} cy={cy} r={r}
                             fill="none"
@@ -972,8 +1124,10 @@ function UsuarioApp() {
                             strokeWidth="8"
                             strokeLinecap="round"
                             strokeDasharray={`${filled} ${circumference}`}
+                            strokeDashoffset="0"
                             transform={`rotate(-90 ${cx} ${cy})`}
-                            style={{ transition: 'stroke-dasharray 0.8s ease, stroke 0.5s ease' }}
+                            className="stat-circle"
+                            style={{ animationDelay: `${cardIdx * 80 + 200}ms`, animationDuration: `${0.8 + pct * 0.005}s` }}
                           />
                         </svg>
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -1035,45 +1189,50 @@ function UsuarioApp() {
             {/* Gráfico de evolución */}
             {chartData.length > 1 && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-700 mb-3">Evolución de scores</p>
-                <ResponsiveContainer width="100%" height={160}>
-                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
-                      formatter={(v) => [`${v}%`, 'Score']}
-                      labelFormatter={(l) => `${l}`}
-                    />
-                    <Area
-                      type="monotone" dataKey="score"
-                      stroke="#6366f1" strokeWidth={2}
-                      fill="url(#scoreGrad)" dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <p className="text-sm font-semibold text-slate-700 mb-3">{t('scoreEvolution')}</p>
+                <div className="chart-animate">
+                  <ResponsiveContainer width="100%" height={160}>
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                        formatter={(v) => [`${v}%`, 'Score']}
+                        labelFormatter={(l) => `${l}`}
+                      />
+                      <Area
+                        type="monotone" dataKey="score"
+                        stroke="#6366f1" strokeWidth={2}
+                        fill="url(#scoreGrad)" dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }}
+                        activeDot={{ r: 5 }}
+                        isAnimationActive={true}
+                        animationDuration={1200}
+                        animationEasing="ease-out"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
 
             {/* Heatmap de actividad */}
             <ActivityHeatmap data={heatmapData} allAttempts={recentAttempts} isOwn={ownProfile} />
 
-            {(ownProfile || isAdmin) && (
+            {recentAttempts.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold text-slate-800">
                     {t('resolutionHistory')}
                   </h2>
                   <span className="text-xs text-slate-400">
-                    {t('today')}: {stats.intentosHoy} · {t('thisWeek')}: {stats.intentosEstaSemana}
+                    {ownProfile ? `${t('today')}: ${stats.intentosHoy} · ${t('thisWeek')}: ${stats.intentosEstaSemana}` : `${lang === 'en' ? 'Last 5' : 'Últimos 5'}`}
                   </span>
                 </div>
 
@@ -1141,14 +1300,7 @@ function UsuarioApp() {
                                     </p>
                                   </div>
                                 ) : null}
-                                {attempt.imagenes_ia?.prompt_original && ownProfile && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t('originalPrompt')}</p>
-                                    <p className="text-xs text-slate-600 bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-200 line-clamp-2">
-                                      {attempt.imagenes_ia.prompt_original}
-                                    </p>
-                                  </div>
-                                )}
+                                {/* Prompt original — never shown */}
                                 {/* Improvements — visible para todos */}
                                 {attempt.improvements?.length > 0 && (
                                   <div>

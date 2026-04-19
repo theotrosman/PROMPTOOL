@@ -133,3 +133,29 @@ html.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
 }
 .guide-card { animation: guide-card-enter 420ms ease-out both; }
 @media (prefers-reduced-motion: reduce) { .guide-card { animation: none; } }
+
+/* ── Profile stat circles ── */
+@keyframes circle-fill {
+  from { stroke-dasharray: 0 999; }
+}
+.stat-circle {
+  animation: circle-fill 1s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ── Area chart reveal left→right ── */
+@keyframes chart-reveal {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0% 0 0); }
+}
+.chart-animate {
+  animation: chart-reveal 1.2s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ── Stat card entrance ── */
+@keyframes stat-card-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.stat-card-animate {
+  animation: stat-card-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
