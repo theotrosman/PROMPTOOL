@@ -49,6 +49,9 @@ function UsuarioApp() {
   const [enterpriseSavingProfile, setEnterpriseSavingProfile] = useState(false)
   const [enterpriseMembers, setEnterpriseMembers] = useState([])
   const [enterpriseMembersLoading, setEnterpriseMembersLoading] = useState(false)
+  const [joinRequestStatus, setJoinRequestStatus] = useState(null) // null | 'loading' | 'sent' | 'already' | 'error' | 'member'
+  const [joinRequestMessage, setJoinRequestMessage] = useState('')
+  const [userCompanyData, setUserCompanyData] = useState(null) // datos de la empresa a la que pertenece el usuario
 
   const ownProfile =
     (!targetId && !targetUsername && !!user) ||
@@ -269,7 +272,7 @@ function UsuarioApp() {
         let prof = null
         const { data: profFull, error: profError } = await supabase
           .from('usuarios')
-          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating, user_type, company_name')
+          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating, user_type, company_name, company_id, company_role, company_joined_at, show_stats, show_company_badge, verified')
           .eq('id_usuario', idToLoad)
           .maybeSingle()
 
@@ -293,7 +296,17 @@ function UsuarioApp() {
 
         setProfile(prof)
 
-        // Cargar accent_color: si es perfil propio usar localStorage como preferencia,
+        // Cargar datos de empresa si el usuario pertenece a una
+        if (prof?.company_id) {
+          supabase
+            .from('usuarios')
+            .select('id_usuario, company_name, nombre_display, avatar_url, verified, company_joined_at')
+            .eq('id_usuario', prof.company_id)
+            .maybeSingle()
+            .then(({ data }) => setUserCompanyData(data || null))
+        } else {
+          setUserCompanyData(null)
+        }
         // si es ajeno usar solo el de la BD
         const ownProfileCheck =
           (!targetId && !targetUsername && !!user) ||
@@ -677,6 +690,8 @@ function UsuarioApp() {
         }
       }
       updates.email_publico = editedProfile.email_publico ?? profile?.email_publico ?? true
+      updates.show_company_badge = editedProfile.show_company_badge ?? profile?.show_company_badge ?? true
+      if (editedProfile.show_stats !== undefined) updates.show_stats = editedProfile.show_stats
       if (editedProfile.pais !== undefined) updates.pais = editedProfile.pais
       if (editedProfile.idioma_display !== undefined) updates.idioma_display = editedProfile.idioma_display
       if (editedProfile.social_github !== undefined) updates.social_github = editedProfile.social_github
@@ -838,16 +853,16 @@ function UsuarioApp() {
   const updateEnterpriseRequestStatus = async (request, status) => {
     if (!request?.id) return
     try {
-      const { error } = await supabase
-        .from('team_invitations')
-        .update({ status })
-        .eq('id', request.id)
-      if (error) throw error
-
-      if (status === 'accepted' && request.user_id) {
-        await supabase.from('usuarios').update({ company_id: profile.id_usuario }).eq('id_usuario', request.user_id)
+      if (status === 'accepted') {
+        const { error } = await supabase.rpc('accept_team_invitation', { invitation_id: request.id })
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('team_invitations')
+          .update({ status })
+          .eq('id', request.id)
+        if (error) throw error
       }
-
       setEnterpriseActionStatus(status === 'accepted'
         ? (lang === 'en' ? 'Request accepted.' : 'Solicitud aceptada.')
         : (lang === 'en' ? 'Request rejected.' : 'Solicitud rechazada.'))
@@ -855,6 +870,55 @@ function UsuarioApp() {
     } catch (err) {
       console.error('Error updating request status:', err)
       setEnterpriseActionStatus(lang === 'en' ? 'Could not update request.' : 'No se pudo actualizar la solicitud.')
+    }
+  }
+
+  // Verifica si el usuario ya tiene una solicitud pendiente o ya es miembro
+  useEffect(() => {
+    if (!user || !profile || profile.user_type !== 'enterprise' || ownProfile) return
+    const checkExisting = async () => {
+      // ¿Ya es miembro?
+      const { data: me } = await supabase
+        .from('usuarios')
+        .select('company_id')
+        .eq('id_usuario', user.id)
+        .maybeSingle()
+      if (me?.company_id === profile.id_usuario) {
+        setJoinRequestStatus('member')
+        return
+      }
+      // ¿Ya tiene solicitud pendiente o aceptada?
+      const { data: existing } = await supabase
+        .from('team_invitations')
+        .select('id, status')
+        .eq('company_id', profile.id_usuario)
+        .eq('user_id', user.id)
+        .in('status', ['requested', 'pending', 'accepted'])
+        .maybeSingle()
+      if (existing) {
+        setJoinRequestStatus(existing.status === 'accepted' ? 'member' : 'already')
+      }
+    }
+    checkExisting()
+  }, [user?.id, profile?.id_usuario, ownProfile])
+
+  const sendJoinRequest = async () => {
+    if (!user || !profile) return
+    setJoinRequestStatus('loading')
+    try {
+      const payload = {
+        company_id: profile.id_usuario,
+        user_id: user.id,
+        user_email: user.email,
+        status: 'requested',
+        message: joinRequestMessage.trim(),
+      }
+      const { error } = await supabase.from('team_invitations').insert([payload])
+      if (error) throw error
+      setJoinRequestStatus('sent')
+    } catch (err) {
+      console.error('Error sending join request:', err)
+      setJoinRequestStatus('error')
     }
   }
 
@@ -886,7 +950,7 @@ function UsuarioApp() {
       try {
         const { data, error } = await supabase
           .from('usuarios')
-          .select('id_usuario, nombre, nombre_display, username, avatar_url, elo_rating, total_intentos')
+          .select('id_usuario, nombre, nombre_display, username, avatar_url, elo_rating, total_intentos, promedio_score, porcentaje_aprobacion, company_role')
           .eq('company_id', profile.id_usuario)
           .order('elo_rating', { ascending: false })
           .limit(24)
@@ -1145,6 +1209,12 @@ function UsuarioApp() {
                         {profile?.username && (
                           <span className="rounded-full border border-slate-200 px-2 py-1 text-xs text-slate-500">@{profile.username}</span>
                         )}
+                        {profile?.verified && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white" title={lang === 'en' ? 'Verified company' : 'Empresa verificada'}>
+                            <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor"><path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/></svg>
+                            {lang === 'en' ? 'Verified' : 'Verificada'}
+                          </span>
+                        )}
                         {canEdit && !editingProfile && (
                           <button
                             type="button"
@@ -1241,6 +1311,17 @@ function UsuarioApp() {
                             {lang === 'en' ? 'Public company profile' : 'Perfil de empresa público'}
                           </span>
                         </label>
+                        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={(editedProfile.show_stats ?? profile.show_stats ?? true)}
+                            onChange={(e) => setEditedProfile(p => ({ ...p, show_stats: e.target.checked }))}
+                            className="h-4 w-4 rounded border-slate-300 text-violet-600"
+                          />
+                          <span className="text-sm text-slate-700">
+                            {lang === 'en' ? 'Show team statistics publicly' : 'Mostrar estadísticas del equipo públicamente'}
+                          </span>
+                        </label>
                         <div className="grid gap-3 sm:grid-cols-2">
                           <button
                             onClick={saveProfile}
@@ -1327,6 +1408,7 @@ function UsuarioApp() {
                                       <div className="min-w-0">
                                         <p className="truncate text-sm font-medium">{memberName}</p>
                                         <p className="truncate text-[11px] text-slate-400">
+                                          {member.company_role && <span className="font-medium text-violet-500 mr-1">{member.company_role}</span>}
                                           ELO {member.elo_rating ?? 1000} · {member.total_intentos ?? 0} {lang === 'en' ? 'attempts' : 'intentos'}
                                         </p>
                                       </div>
@@ -1339,6 +1421,105 @@ function UsuarioApp() {
                             )}
                           </div>
                         )}
+
+                        {/* Estadísticas del equipo — si show_stats está activo */}
+                        {(ownProfile || isPublicProfile) && profile?.show_stats !== false && enterpriseMembers.length > 0 && (
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                              {lang === 'en' ? 'Team Stats' : 'Estadísticas del Equipo'}
+                            </h3>
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                              {[
+                                {
+                                  label: lang === 'en' ? 'Members' : 'Miembros',
+                                  value: enterpriseMembers.length,
+                                  color: 'text-violet-600',
+                                },
+                                {
+                                  label: lang === 'en' ? 'Avg ELO' : 'ELO Prom.',
+                                  value: Math.round(enterpriseMembers.reduce((s, m) => s + (m.elo_rating || 1000), 0) / enterpriseMembers.length),
+                                  color: 'text-indigo-600',
+                                },
+                                {
+                                  label: lang === 'en' ? 'Avg Score' : 'Score Prom.',
+                                  value: (() => {
+                                    const withScore = enterpriseMembers.filter(m => m.promedio_score)
+                                    return withScore.length ? Math.round(withScore.reduce((s, m) => s + m.promedio_score, 0) / withScore.length) : '—'
+                                  })(),
+                                  color: 'text-emerald-600',
+                                },
+                                {
+                                  label: lang === 'en' ? 'Total Attempts' : 'Intentos',
+                                  value: enterpriseMembers.reduce((s, m) => s + (m.total_intentos || 0), 0),
+                                  color: 'text-amber-600',
+                                },
+                              ].map(({ label, value, color }) => (
+                                <div key={label} className="rounded-xl bg-slate-50 border border-slate-100 p-3 text-center">
+                                  <p className={`text-xl font-bold ${color}`}>{value}</p>
+                                  <p className="text-[11px] text-slate-500 mt-0.5">{label}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Botón "Pedir unirse" — solo para usuarios externos logueados */}
+                        {!ownProfile && user && (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+                              {lang === 'en' ? 'Join this company' : 'Unirse a esta empresa'}
+                            </h3>
+                            {joinRequestStatus === 'member' ? (
+                              <p className="text-sm text-emerald-600 font-medium">
+                                ✓ {lang === 'en' ? 'You are already a member of this company.' : 'Ya eres miembro de esta empresa.'}
+                              </p>
+                            ) : joinRequestStatus === 'already' ? (
+                              <p className="text-sm text-amber-600 font-medium">
+                                ⏳ {lang === 'en' ? 'Your request is pending review.' : 'Tu solicitud está pendiente de revisión.'}
+                              </p>
+                            ) : joinRequestStatus === 'sent' ? (
+                              <p className="text-sm text-emerald-600 font-medium">
+                                ✓ {lang === 'en' ? 'Request sent! The company will review it.' : 'Solicitud enviada. La empresa la revisará.'}
+                              </p>
+                            ) : (
+                              <div className="space-y-3">
+                                <textarea
+                                  value={joinRequestMessage}
+                                  onChange={e => setJoinRequestMessage(e.target.value)}
+                                  rows={2}
+                                  placeholder={lang === 'en' ? 'Optional message to the company...' : 'Mensaje opcional para la empresa...'}
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                />
+                                <button
+                                  onClick={sendJoinRequest}
+                                  disabled={joinRequestStatus === 'loading'}
+                                  className="rounded-full bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition disabled:opacity-60"
+                                >
+                                  {joinRequestStatus === 'loading'
+                                    ? (lang === 'en' ? 'Sending...' : 'Enviando...')
+                                    : (lang === 'en' ? 'Request to join' : 'Pedir unirse')}
+                                </button>
+                                {joinRequestStatus === 'error' && (
+                                  <p className="text-xs text-rose-500">
+                                    {lang === 'en' ? 'Could not send request. Try again.' : 'No se pudo enviar la solicitud. Intentá de nuevo.'}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Prompt para no logueados */}
+                        {!ownProfile && !user && (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <p className="text-sm text-slate-600">
+                              {lang === 'en'
+                                ? 'Sign in to request to join this company.'
+                                : 'Iniciá sesión para pedir unirte a esta empresa.'}
+                            </p>
+                          </div>
+                        )}
+
                         {canEdit && (
                           <button
                             onClick={() => {
@@ -1779,6 +1960,35 @@ function UsuarioApp() {
                     </button>
                   </label>
 
+                  {/* Toggle badge de empresa */}
+                  {userCompanyData && (
+                    <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer hover:bg-slate-100 transition">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700">
+                          {lang === 'en' ? 'Show company badge' : 'Mostrar badge de empresa'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {lang === 'en' ? 'Display your company membership on your profile' : 'Muestra tu membresía en tu perfil'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditedProfile(p => ({ ...p, show_company_badge: !(p.show_company_badge ?? profile?.show_company_badge ?? true) }))}
+                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                          (editedProfile.show_company_badge ?? profile?.show_company_badge ?? true)
+                            ? 'bg-slate-900'
+                            : 'bg-slate-300'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                          (editedProfile.show_company_badge ?? profile?.show_company_badge ?? true)
+                            ? 'translate-x-4'
+                            : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </label>
+                  )}
+
                   {/* País */}
                   <input type="text"
                     placeholder={lang === 'en' ? 'Country / Location' : 'País / Ubicación'}
@@ -1945,6 +2155,46 @@ function UsuarioApp() {
                   <span>{profile.organization}</span>
                 </div>
               )}
+
+              {/* Badge de empresa */}
+              {userCompanyData && profile?.show_company_badge !== false && (() => {
+                const companyName = userCompanyData.company_name || userCompanyData.nombre_display || 'Empresa'
+                const joinedAt = profile?.company_joined_at
+                const sinceText = joinedAt ? (() => {
+                  const diff = Date.now() - new Date(joinedAt).getTime()
+                  const days = Math.floor(diff / 86400000)
+                  if (days < 30) return lang === 'en' ? `${days}d` : `${days}d`
+                  const months = Math.floor(days / 30)
+                  if (months < 12) return lang === 'en' ? `${months}mo` : `${months} mes${months > 1 ? 'es' : ''}`
+                  const years = Math.floor(months / 12)
+                  return lang === 'en' ? `${years}yr` : `${years} año${years > 1 ? 's' : ''}`
+                })() : null
+                const tooltipText = sinceText
+                  ? (lang === 'en' ? `Member of ${companyName} · ${sinceText}` : `Miembro de ${companyName} · desde hace ${sinceText}`)
+                  : (lang === 'en' ? `Member of ${companyName}` : `Miembro de ${companyName}`)
+                return (
+                  <a href={`/perfil?id=${userCompanyData.id_usuario}`} title={tooltipText}
+                    className="group relative flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 transition w-fit"
+                  >
+                    <div className="h-5 w-5 rounded-full overflow-hidden bg-violet-200 shrink-0 flex items-center justify-center">
+                      {userCompanyData.avatar_url
+                        ? <img src={userCompanyData.avatar_url} alt={companyName} className="h-full w-full object-cover" />
+                        : <span className="text-[9px] font-bold text-violet-600">{companyName.substring(0,2).toUpperCase()}</span>
+                      }
+                    </div>
+                    <span className="truncate max-w-[110px]">{companyName}</span>
+                    {userCompanyData.verified && (
+                      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-violet-600 shrink-0">
+                        <svg className="h-2 w-2 text-white" viewBox="0 0 12 12" fill="currentColor"><path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/></svg>
+                      </span>
+                    )}
+                    <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-lg">
+                      {tooltipText}
+                    </span>
+                  </a>
+                )
+              })()}
+
               {profile?.pais && (
                 <div className="flex items-center gap-2">
                   <svg className="h-4 w-4 shrink-0" style={{ color: chartColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">

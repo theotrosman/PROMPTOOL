@@ -72,6 +72,14 @@ const Header = () => {
   const getInvitationNotificationText = (invitation, isCompany, isReceiver) => {
     const companyName = invitation.company_name || (lang === 'en' ? 'Company' : 'Empresa')
     if (isCompany) {
+      if (invitation.status === 'requested') {
+        return {
+          title: lang === 'en' ? 'Join request' : 'Solicitud de ingreso',
+          body: lang === 'en'
+            ? `${invitation.user_email || 'A user'} wants to join your company`
+            : `${invitation.user_email || 'Un usuario'} quiere unirse a tu empresa`,
+        }
+      }
       return {
         title: lang === 'en' ? 'Company request' : 'Solicitud de empresa',
         body: lang === 'en'
@@ -80,6 +88,14 @@ const Header = () => {
       }
     }
     if (isReceiver) {
+      if (invitation.status === 'requested') {
+        return {
+          title: lang === 'en' ? 'Join request sent' : 'Solicitud enviada',
+          body: lang === 'en'
+            ? `Your request to join ${companyName} is pending`
+            : `Tu solicitud para unirte a ${companyName} está pendiente`,
+        }
+      }
       return {
         title: lang === 'en' ? 'Invitation received' : 'Invitación recibida',
         body: lang === 'en'
@@ -107,7 +123,7 @@ const Header = () => {
 
       const { data: invitationRows } = await supabase
         .from('team_invitations')
-        .select('id, company_id, user_id, user_email, status, message, created_at')
+        .select('id, company_id, user_id, user_email, status, message, created_at, sender:usuarios!team_invitations_company_id_fkey(company_name, nombre_display, avatar_url, verified)')
         .or(`company_id.eq.${user.id},user_id.eq.${user.id},user_email.eq.${user.email}`)
         .order('created_at', { ascending: false })
         .limit(30)
@@ -136,9 +152,14 @@ const Header = () => {
       ;(invitationRows || []).forEach((inv) => {
         const isCompany = inv.company_id === user.id
         const isReceiver = inv.user_id === user.id || (!!user.email && inv.user_email === user.email)
+        // Nombre de la empresa: si soy el receptor, viene del join; si soy la empresa, del perfil propio
+        const senderCompanyName = inv.sender?.company_name || inv.sender?.nombre_display
+        const resolvedCompanyName = isCompany ? myProfile?.company_name : (senderCompanyName || myProfile?.company_name)
         const copy = getInvitationNotificationText({
           ...inv,
-          company_name: myProfile?.company_name,
+          company_name: resolvedCompanyName,
+          sender_avatar: inv.sender?.avatar_url,
+          sender_verified: inv.sender?.verified,
         }, isCompany, isReceiver)
         const sourceType = 'team_invitation'
         const sourceId = String(inv.id)
@@ -154,8 +175,10 @@ const Header = () => {
           createdAt: inv.created_at,
           title: copy.title,
           body: copy.body,
-          invitation: inv,
-          actionUrl: isCompany ? `/perfil` : `/perfil?id=${inv.company_id}`,
+          invitation: { ...inv, company_name: resolvedCompanyName },
+          senderAvatar: inv.sender?.avatar_url || null,
+          senderVerified: inv.sender?.verified || false,
+          actionUrl: isCompany ? `/?tab=requests` : `/perfil?id=${inv.company_id}`,
           canRespond,
         })
       })
@@ -221,17 +244,20 @@ const Header = () => {
     setNotificationActionLoading(item.id + status)
     try {
       const invitation = item.invitation
-      const { error } = await supabase
-        .from('team_invitations')
-        .update({ status })
-        .eq('id', invitation.id)
-      if (error) throw error
 
       if (status === 'accepted') {
-        const targetUserId = invitation.user_id || (invitation.user_email === user.email ? user.id : null)
-        if (targetUserId) {
-          await supabase.from('usuarios').update({ company_id: invitation.company_id }).eq('id_usuario', targetUserId)
-        }
+        // Usar RPC con SECURITY DEFINER — maneja el update de status y company_id
+        const isCompanyAccepting = invitation.company_id === user.id
+        const rpcName = isCompanyAccepting ? 'accept_team_invitation' : 'accept_company_invite'
+        const { error: rpcError } = await supabase.rpc(rpcName, { invitation_id: invitation.id })
+        if (rpcError) throw rpcError
+      } else {
+        // Rechazar: update directo (solo cambia status, no necesita SECURITY DEFINER)
+        const { error } = await supabase
+          .from('team_invitations')
+          .update({ status })
+          .eq('id', invitation.id)
+        if (error) throw error
       }
 
       setNotifications(prev => prev.map(n => n.id === item.id
@@ -485,14 +511,29 @@ const Header = () => {
                           </div>
                         ) : notifications.map((item) => (
                           <div key={item.id} className={`border-b border-slate-100 px-4 py-3 last:border-b-0 ${item.read ? 'bg-white' : 'bg-indigo-50/40'}`}>
-                            <div className="mb-1 flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
-                                <p className="mt-0.5 text-xs text-slate-500">{item.body}</p>
+                            <div className="mb-1 flex items-start gap-2.5">
+                              {/* Avatar de empresa/sender */}
+                              {item.senderAvatar ? (
+                                <div className="relative shrink-0 mt-0.5">
+                                  <img src={item.senderAvatar} alt="" className="h-8 w-8 rounded-full object-cover border border-slate-200" />
+                                  {item.senderVerified && (
+                                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-violet-600 ring-1 ring-white" title="Verificado">
+                                      <svg className="h-2 w-2 text-white" viewBox="0 0 12 12" fill="currentColor"><path d="M10.28 2.28L4.5 8.06 1.72 5.28a1 1 0 00-1.44 1.44l3.5 3.5a1 1 0 001.44 0l6.5-6.5a1 1 0 00-1.44-1.44z"/></svg>
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
+                                    <p className="mt-0.5 text-xs text-slate-500">{item.body}</p>
+                                  </div>
+                                  {!item.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />}
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-0.5">{formatNotificationDate(item.createdAt)}</p>
                               </div>
-                              {!item.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />}
                             </div>
-                            <p className="text-[11px] text-slate-400">{formatNotificationDate(item.createdAt)}</p>
 
                             <div className="mt-2 flex flex-wrap gap-2">
                               {item.actionUrl && (

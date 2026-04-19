@@ -6,7 +6,10 @@ import Footer from './Footer'
 
 const EnterprisePanel = ({ user }) => {
   const { lang } = useLang()
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('tab') || 'dashboard'
+  })
   const [companyData, setCompanyData] = useState(null)
   const [teamUsers, setTeamUsers] = useState([])
   const [enterpriseRequests, setEnterpriseRequests] = useState([])
@@ -44,9 +47,9 @@ const EnterprisePanel = ({ user }) => {
         if (company) {
           const { data: members } = await supabase
             .from('usuarios')
-            .select('id_usuario, nombre, email, elo_rating, total_intentos, created_at')
+            .select('id_usuario, nombre, nombre_display, username, avatar_url, email, elo_rating, total_intentos, promedio_score, porcentaje_aprobacion, racha_actual, company_role, company_joined_at, created_at')
             .eq('company_id', company.id_usuario)
-          
+            .order('elo_rating', { ascending: false })
           setTeamUsers(members || [])
         }
       } catch (err) {
@@ -65,11 +68,21 @@ const EnterprisePanel = ({ user }) => {
     try {
       const { data, error } = await supabase
         .from('team_invitations')
-        .select('id, user_email, user_id, status, message, created_at')
+        .select('id, user_email, user_id, status, message, created_at, usuarios!team_invitations_user_id_fkey(nombre, nombre_display, username, avatar_url)')
         .eq('company_id', user.id)
         .order('created_at', { ascending: false })
-      if (error) throw error
-      setEnterpriseRequests(data || [])
+      if (error) {
+        // Fallback sin join si la FK no existe
+        const { data: fallback, error: fallbackErr } = await supabase
+          .from('team_invitations')
+          .select('id, user_email, user_id, status, message, created_at')
+          .eq('company_id', user.id)
+          .order('created_at', { ascending: false })
+        if (fallbackErr) throw fallbackErr
+        setEnterpriseRequests(fallback || [])
+      } else {
+        setEnterpriseRequests(data || [])
+      }
     } catch (err) {
       console.error('Error fetching enterprise requests:', err)
       setEnterpriseRequests([])
@@ -121,17 +134,16 @@ const EnterprisePanel = ({ user }) => {
   const updateEnterpriseRequestStatus = async (request, status) => {
     if (!request?.id) return
     try {
-      const { error } = await supabase
-        .from('team_invitations')
-        .update({ status })
-        .eq('id', request.id)
-      if (error) throw error
-
-      if (status === 'accepted' && request.user_id) {
-        await supabase
-          .from('usuarios')
-          .update({ company_id: user.id })
-          .eq('id_usuario', request.user_id)
+      if (status === 'accepted') {
+        // Usar RPC con SECURITY DEFINER para poder escribir company_id en el usuario
+        const { error } = await supabase.rpc('accept_team_invitation', { invitation_id: request.id })
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('team_invitations')
+          .update({ status })
+          .eq('id', request.id)
+        if (error) throw error
       }
 
       setEnterpriseActionStatus(
@@ -139,10 +151,41 @@ const EnterprisePanel = ({ user }) => {
           ? (lang === 'en' ? 'Request accepted.' : 'Solicitud aceptada.')
           : (lang === 'en' ? 'Request rejected.' : 'Solicitud rechazada.'),
       )
+
+      // Refrescar lista de miembros
+      const { data: members } = await supabase
+        .from('usuarios')
+        .select('id_usuario, nombre, nombre_display, username, avatar_url, email, elo_rating, total_intentos, promedio_score, porcentaje_aprobacion, racha_actual, company_role, company_joined_at, created_at')
+        .eq('company_id', user.id)
+        .order('elo_rating', { ascending: false })
+      setTeamUsers(members || [])
+
       fetchEnterpriseRequests()
     } catch (err) {
       console.error('Error updating request status:', err)
       setEnterpriseActionStatus(lang === 'en' ? 'Could not update request.' : 'No se pudo actualizar la solicitud.')
+    }
+  }
+
+  const cancelEnterpriseInvite = async (requestId) => {
+    try {
+      const { error } = await supabase.from('team_invitations').delete().eq('id', requestId)
+      if (error) throw error
+      setEnterpriseActionStatus(lang === 'en' ? 'Invitation cancelled.' : 'Invitación cancelada.')
+      fetchEnterpriseRequests()
+    } catch (err) {
+      console.error('Error cancelling invite:', err)
+      setEnterpriseActionStatus(lang === 'en' ? 'Could not cancel invitation.' : 'No se pudo cancelar la invitación.')
+    }
+  }
+
+  const assignRole = async (userId, role) => {
+    try {
+      const { error } = await supabase.from('usuarios').update({ company_role: role }).eq('id_usuario', userId)
+      if (error) throw error
+      setTeamUsers(prev => prev.map(u => u.id_usuario === userId ? { ...u, company_role: role } : u))
+    } catch (err) {
+      console.error('Error assigning role:', err)
     }
   }
 
@@ -232,7 +275,12 @@ const EnterprisePanel = ({ user }) => {
     { id: 'dashboard', label: lang === 'en' ? 'Dashboard' : 'Dashboard', icon: '📊' },
     { id: 'users', label: lang === 'en' ? 'Team' : 'Equipo', icon: '👥' },
     { id: 'settings', label: lang === 'en' ? 'Settings' : 'Configuración', icon: '⚙️' },
-    { id: 'requests', label: lang === 'en' ? 'Requests' : 'Solicitudes', icon: '📥' },
+    {
+      id: 'requests',
+      label: lang === 'en' ? 'Requests' : 'Solicitudes',
+      icon: '📥',
+      badge: enterpriseRequests.filter(r => r.status === 'requested').length || null,
+    },
     { id: 'challenges', label: lang === 'en' ? 'Challenges' : 'Desafíos', icon: '🎯' },
   ]
 
@@ -295,7 +343,10 @@ const EnterprisePanel = ({ user }) => {
         <h3 className="text-lg font-semibold text-slate-900">
           {lang === 'en' ? 'Team Members' : 'Miembros del Equipo'}
         </h3>
-        <button className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition">
+        <button
+          onClick={() => setActiveTab('requests')}
+          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition"
+        >
           + {lang === 'en' ? 'Invite User' : 'Invitar Usuario'}
         </button>
       </div>
@@ -304,31 +355,62 @@ const EnterprisePanel = ({ user }) => {
         <table className="w-full">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Name' : 'Nombre'}</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">ELO</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Attempts' : 'Intentos'}</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Joined' : 'Unido'}</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Actions' : 'Acciones'}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Member' : 'Miembro'}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-900">ELO</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Avg Score' : 'Prom.'}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Attempts' : 'Intentos'}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Approval' : 'Aprobación'}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Role' : 'Rol'}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-900">{lang === 'en' ? 'Actions' : 'Acciones'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {teamUsers.map((teamUser) => (
-              <tr key={teamUser.id_usuario} className="hover:bg-slate-50 transition">
-                <td className="px-6 py-4 text-sm font-medium text-slate-900">{teamUser.nombre}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">{teamUser.email}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-violet-600">{teamUser.elo_rating || 1000}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">{teamUser.total_intentos || 0}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">
-                  {teamUser.created_at ? new Date(teamUser.created_at).toLocaleDateString() : '—'}
-                </td>
-                <td className="px-6 py-4 text-sm">
-                  <button className="text-violet-600 hover:text-violet-700 font-medium">
-                    {lang === 'en' ? 'View' : 'Ver'}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {teamUsers.map((member) => {
+              const displayName = member.nombre_display || member.nombre || member.username || member.email
+              const profileHref = member.username ? `/user/${member.username}` : `/perfil?id=${member.id_usuario}`
+              return (
+                <tr key={member.id_usuario} className="hover:bg-slate-50 transition">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center border border-slate-200">
+                        {member.avatar_url
+                          ? <img src={member.avatar_url} alt={displayName} className="h-full w-full object-cover" />
+                          : <span className="text-xs font-bold text-slate-500">{displayName?.substring(0,2).toUpperCase()}</span>
+                        }
+                      </div>
+                      <div className="min-w-0">
+                        <a href={profileHref} className="text-sm font-medium text-slate-900 hover:text-violet-600 truncate block">{displayName}</a>
+                        <p className="text-[11px] text-slate-400 truncate">{member.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm font-semibold text-violet-600">{member.elo_rating || 1000}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{member.promedio_score ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{member.total_intentos || 0}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{member.porcentaje_aprobacion != null ? `${member.porcentaje_aprobacion}%` : '—'}</td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={member.company_role || ''}
+                      onChange={e => assignRole(member.id_usuario, e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                    >
+                      <option value="">{lang === 'en' ? 'No role' : 'Sin rol'}</option>
+                      <option value="member">{lang === 'en' ? 'Member' : 'Miembro'}</option>
+                      <option value="analyst">{lang === 'en' ? 'Analyst' : 'Analista'}</option>
+                      <option value="senior">{lang === 'en' ? 'Senior' : 'Senior'}</option>
+                      <option value="lead">{lang === 'en' ? 'Lead' : 'Lead'}</option>
+                      <option value="manager">{lang === 'en' ? 'Manager' : 'Manager'}</option>
+                      <option value="admin">{lang === 'en' ? 'Admin' : 'Admin'}</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <a href={profileHref} className="text-xs font-medium text-violet-600 hover:text-violet-700">
+                      {lang === 'en' ? 'View' : 'Ver'}
+                    </a>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -435,29 +517,65 @@ const EnterprisePanel = ({ user }) => {
           <p className="text-slate-600">{lang === 'en' ? 'Loading requests...' : 'Cargando solicitudes...'}</p>
         ) : enterpriseRequests.filter(r => r.status === 'requested').length > 0 ? (
           <div className="space-y-3">
-            {enterpriseRequests.filter(r => r.status === 'requested').map((request) => (
-              <div key={request.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="font-semibold text-slate-900">{request.user_email}</p>
-                <p className="text-xs text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => updateEnterpriseRequestStatus(request, 'accepted')}
-                    className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition"
-                  >
-                    {lang === 'en' ? 'Accept' : 'Aceptar'}
-                  </button>
-                  <button
-                    onClick={() => updateEnterpriseRequestStatus(request, 'rejected')}
-                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                  >
-                    {lang === 'en' ? 'Reject' : 'Rechazar'}
-                  </button>
+            {enterpriseRequests.filter(r => r.status === 'requested').map((request) => {
+              const userInfo = request.usuarios
+              const displayName = userInfo?.nombre_display || userInfo?.nombre || userInfo?.username || request.user_email
+              const avatarUrl = userInfo?.avatar_url
+              const profileHref = userInfo?.username
+                ? `/user/${userInfo.username}`
+                : request.user_id ? `/perfil?id=${request.user_id}` : null
+              return (
+                <div key={request.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-200 shrink-0 flex items-center justify-center">
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-bold text-slate-500">{displayName?.substring(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      {profileHref ? (
+                        <a href={profileHref} className="font-semibold text-slate-900 text-sm hover:text-violet-600 truncate block">
+                          {displayName}
+                        </a>
+                      ) : (
+                        <p className="font-semibold text-slate-900 text-sm truncate">{displayName}</p>
+                      )}
+                      <p className="text-[11px] text-slate-400 truncate">{request.user_email}</p>
+                    </div>
+                  </div>
+                  {request.message && (
+                    <p className="text-xs text-slate-600 italic mb-2 bg-white rounded-lg px-2 py-1.5 border border-slate-200">
+                      "{request.message}"
+                    </p>
+                  )}
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    {new Date(request.created_at).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => updateEnterpriseRequestStatus(request, 'accepted')}
+                      className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition"
+                    >
+                      {lang === 'en' ? 'Accept' : 'Aceptar'}
+                    </button>
+                    <button
+                      onClick={() => updateEnterpriseRequestStatus(request, 'rejected')}
+                      className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      {lang === 'en' ? 'Reject' : 'Rechazar'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <p className="text-slate-600">{lang === 'en' ? 'No incoming requests yet.' : 'No hay solicitudes entrantes aún.'}</p>
+        )}
+        {enterpriseActionStatus && (
+          <p className="mt-3 text-sm font-medium text-slate-700">{enterpriseActionStatus}</p>
         )}
       </div>
 
@@ -471,9 +589,21 @@ const EnterprisePanel = ({ user }) => {
           <div className="space-y-3">
             {enterpriseRequests.filter(r => r.status === 'pending').map((request) => (
               <div key={request.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="font-semibold text-slate-900">{request.user_email}</p>
-                <p className="text-xs text-slate-500">{request.message || (lang === 'en' ? 'No message provided.' : 'Sin mensaje proporcionado.')}</p>
-                <p className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">{lang === 'en' ? 'Pending' : 'Pendiente'}</p>
+                <p className="font-semibold text-slate-900 text-sm">{request.user_email}</p>
+                {request.message && (
+                  <p className="text-xs text-slate-500 mt-1 italic">"{request.message}"</p>
+                )}
+                <div className="mt-2 flex items-center justify-between">
+                  <p className="text-[11px] uppercase tracking-wide text-amber-600 font-semibold">
+                    ⏳ {lang === 'en' ? 'Awaiting response' : 'Esperando respuesta'}
+                  </p>
+                  <button
+                    onClick={() => cancelEnterpriseInvite(request.id)}
+                    className="text-[11px] text-rose-500 hover:text-rose-700 font-medium transition"
+                  >
+                    {lang === 'en' ? 'Cancel' : 'Cancelar'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -545,13 +675,18 @@ const EnterprisePanel = ({ user }) => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 font-medium transition ${
+              className={`relative px-4 py-3 font-medium transition ${
                 activeTab === tab.id
                   ? 'border-b-2 border-violet-600 text-violet-600'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               {tab.icon} {tab.label}
+              {tab.badge ? (
+                <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
+                  {tab.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
