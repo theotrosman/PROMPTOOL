@@ -98,8 +98,8 @@ const Header = () => {
 
   const navLinks = [
     { href: '/guides', label: t('guides') },
-    { href: '/leaderboard', label: lang === 'en' ? 'Leaderboard' : 'Ranking' },
-    { href: '#retos', label: t('challenges') },
+    { href: '/leaderboard', label: t('leaderboard') },
+    { href: '/tournaments', label: t('challenges') },
     ...(isAdmin ? [{ href: '/admin', label: t('tables'), className: 'text-purple-600 font-semibold' }] : []),
   ]
 

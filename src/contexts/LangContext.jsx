@@ -6,10 +6,11 @@ const translations = {
     // Nav
     guides: 'Guías',
     stats: 'Estadísticas',
-    challenges: 'Retos',
-    tables: 'Tablas',
+    challenges: 'Torneos',
+    tables: 'Admin',
     signIn: 'Iniciar sesión',
-    leaderboard: 'Ranking',
+    leaderboard: 'Liga Competitiva',
+    leaderboardReset: 'Se reinicia cada mes',
 
     // Header menu
     viewProfile: 'Ver perfil',
@@ -148,10 +149,11 @@ const translations = {
     // Nav
     guides: 'Guides',
     stats: 'Statistics',
-    challenges: 'Challenges',
-    tables: 'Tables',
+    challenges: 'Tournaments',
+    tables: 'Admin',
     signIn: 'Sign in',
-    leaderboard: 'Leaderboard',
+    leaderboard: 'Competitive League',
+    leaderboardReset: 'Resets every month',
 
     // Header menu
     viewProfile: 'View profile',

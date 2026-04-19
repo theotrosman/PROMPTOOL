@@ -253,13 +253,35 @@ function LeaderboardApp() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">{t('globalLeaderboard')}</h1>
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
+              {lang === 'en' ? 'Resets every month' : 'Se reinicia cada mes'}
+            </p>
+            <h1 className="text-3xl font-bold text-slate-900">
+              {lang === 'en'
+                ? `Competitive League — ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                : `Liga Competitiva — ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`
+              }
+            </h1>
             <p className="mt-1 text-sm text-slate-500">{t('leaderboardDesc')}</p>
+            <p className="mt-2 text-sm text-slate-600 flex items-center gap-2">
+              <svg className="h-4 w-4 text-amber-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              {lang === 'en'
+                ? 'The #1 player at the end of the month earns an exclusive badge on their profile.'
+                : 'El jugador #1 al final del mes gana una badge exclusiva en su perfil.'}
+            </p>
             {myRank && (
               <p className="mt-2 text-sm font-semibold text-indigo-600">
                 {lang === 'en' ? `Your rank: #${myRank}` : `Tu posición: #${myRank}`}
               </p>
             )}
+            <p className="mt-1 text-xs text-slate-400">
+              {lang === 'en'
+                ? `Resets on: ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                : `Próximo reset: ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('es-ES', { month: 'long', day: 'numeric', year: 'numeric' })}`
+              }
+            </p>
           </div>
           <button
             onClick={() => setCompareOpen(o => !o)}

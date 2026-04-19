@@ -51,6 +51,15 @@ function AdminApp() {
   const [sqlLoading, setSqlLoading] = useState(false)
   const [showSql, setShowSql] = useState(false)
 
+  // Tickets
+  const [activeTab, setActiveTab] = useState('tables') // 'tables' | 'tickets'
+  const [tickets, setTickets] = useState([])
+  const [selectedTicket, setSelectedTicket] = useState(null)
+  const [ticketMessages, setTicketMessages] = useState([])
+  const [ticketReply, setTicketReply] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
+  const ticketEndRef = useRef(null)
+
   const [toast, setToast] = useState(null)
   const hasRedirected = useRef(false)
 
@@ -58,6 +67,66 @@ function AdminApp() {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
+
+  // ── TICKETS ──
+  const fetchTickets = async () => {
+    const { data } = await supabase
+      .from('tickets')
+      .select('*, usuarios(nombre, nombre_display, email, avatar_url)')
+      .order('updated_at', { ascending: false })
+    setTickets(data || [])
+  }
+
+  const fetchTicketMessages = async (id_ticket) => {
+    const { data } = await supabase
+      .from('ticket_mensajes')
+      .select('*, usuarios(nombre, nombre_display, avatar_url)')
+      .eq('id_ticket', id_ticket)
+      .order('created_at', { ascending: true })
+    setTicketMessages(data || [])
+    setTimeout(() => ticketEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  }
+
+  const selectTicket = (t) => {
+    setSelectedTicket(t)
+    fetchTicketMessages(t.id_ticket)
+  }
+
+  const sendReply = async (e) => {
+    e.preventDefault()
+    if (!ticketReply.trim() || !selectedTicket) return
+    setSendingReply(true)
+    try {
+      await supabase.from('ticket_mensajes').insert([{
+        id_ticket: selectedTicket.id_ticket,
+        id_usuario: user.id,
+        mensaje: ticketReply,
+        es_admin: true,
+      }])
+      await supabase.from('tickets').update({
+        estado: 'in_progress',
+        updated_at: new Date().toISOString(),
+      }).eq('id_ticket', selectedTicket.id_ticket)
+      setTicketReply('')
+      fetchTicketMessages(selectedTicket.id_ticket)
+      fetchTickets()
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error')
+    } finally {
+      setSendingReply(false)
+    }
+  }
+
+  const closeTicket = async (id_ticket) => {
+    await supabase.from('tickets').update({ estado: 'closed' }).eq('id_ticket', id_ticket)
+    fetchTickets()
+    if (selectedTicket?.id_ticket === id_ticket) setSelectedTicket(t => ({ ...t, estado: 'closed' }))
+    showToast('Ticket closed')
+  }
+
+  useEffect(() => {
+    if (activeTab === 'tickets' && adminChecked && isAdmin) fetchTickets()
+  }, [activeTab, adminChecked, isAdmin])
 
   useEffect(() => {
     if (authLoading) return
@@ -247,8 +316,20 @@ function AdminApp() {
           </div>
         </div>
 
+        {/* Main tabs */}
+        <div className="flex gap-2 border-b border-slate-200 pb-0">
+          {['tables', 'tickets'].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition -mb-px ${
+                activeTab === tab ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}>
+              {tab === 'tables' ? 'Tables' : `Tickets ${tickets.filter(t => t.estado === 'open').length > 0 ? `(${tickets.filter(t => t.estado === 'open').length})` : ''}`}
+            </button>
+          ))}
+        </div>
+
         {/* SQL Runner */}
-        {showSql && (
+        {showSql && activeTab === 'tables' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
             <p className="text-sm font-semibold text-slate-700">SQL Query Runner</p>
             <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
@@ -284,6 +365,7 @@ function AdminApp() {
         )}
 
         {/* Table tabs */}
+        {activeTab === 'tables' && (<>
         <div className="flex gap-2 flex-wrap">
           {TABLES.map(t => (
             <button key={t} onClick={() => setSelectedTable(t)}
@@ -486,6 +568,105 @@ function AdminApp() {
             </div>
           )}
         </div>
+        </>)}
+
+        {/* ── TICKETS TAB ── */}
+        {activeTab === 'tickets' && (
+          <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+            {/* Ticket list */}
+            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-700">All tickets</p>
+                <button onClick={fetchTickets} className="text-xs text-slate-400 hover:text-slate-700">Reload</button>
+              </div>
+              <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
+                {tickets.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-400">No tickets</p>
+                ) : tickets.map(t => {
+                  const u = t.usuarios
+                  const statusColor = t.estado === 'open' ? 'bg-emerald-100 text-emerald-700' : t.estado === 'in_progress' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                  return (
+                    <button key={t.id_ticket} onClick={() => selectTicket(t)}
+                      className={`w-full text-left px-4 py-3 transition ${selectedTicket?.id_ticket === t.id_ticket ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor}`}>{t.estado}</span>
+                        <span className="text-xs text-slate-400">{new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-700 truncate">{t.asunto}</p>
+                      {u && <p className="text-xs text-slate-400 mt-0.5">{u.nombre_display || u.nombre || u.email}</p>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Chat panel */}
+            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col" style={{ minHeight: 480 }}>
+              {!selectedTicket ? (
+                <div className="flex flex-1 items-center justify-center text-slate-400 text-sm">
+                  Select a ticket to view the conversation
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div>
+                      <p className="font-semibold text-slate-800">{selectedTicket.asunto}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {selectedTicket.usuarios?.email || selectedTicket.id_usuario}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {selectedTicket.estado !== 'closed' && (
+                        <button onClick={() => closeTicket(selectedTicket.id_ticket)}
+                          className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition">
+                          Close ticket
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-5 space-y-4" style={{ maxHeight: 380 }}>
+                    {ticketMessages.map((m, i) => {
+                      const isAdminMsg = m.es_admin
+                      return (
+                        <div key={i} className={`flex gap-3 ${isAdminMsg ? 'flex-row-reverse' : ''}`}>
+                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                            isAdminMsg ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {isAdminMsg ? 'A' : (m.usuarios?.nombre || 'U').substring(0, 1).toUpperCase()}
+                          </div>
+                          <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                            isAdminMsg ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-800'
+                          }`}>
+                            <p>{m.mensaje}</p>
+                            <p className="text-xs mt-1 opacity-60">
+                              {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div ref={ticketEndRef} />
+                  </div>
+
+                  {selectedTicket.estado !== 'closed' && (
+                    <form onSubmit={sendReply} className="border-t border-slate-100 p-4 flex gap-3">
+                      <input type="text" value={ticketReply} onChange={e => setTicketReply(e.target.value)}
+                        placeholder="Reply as admin..."
+                        className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-slate-400"
+                        required />
+                      <button type="submit" disabled={sendingReply}
+                        className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 transition disabled:opacity-50">
+                        {sendingReply ? '...' : 'Reply'}
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
 
       <Footer />

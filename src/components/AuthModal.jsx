@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useLang } from '../contexts/LangContext'
 
 const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSignUpWithEmail }) => {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -120,9 +120,11 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t('email')}</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="tu@email.com"
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              {mode === 'signin' ? (lang === 'en' ? 'Email or username' : 'Email o usuario') : t('email')}
+            </label>
+            <input type="text" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder={mode === 'signin' ? (lang === 'en' ? 'email or @username' : 'email o @usuario') : 'tu@email.com'}
               className="w-full rounded-[1.25rem] border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400"
               required />
           </div>

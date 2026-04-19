@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
-  RadialBarChart, RadialBar, ResponsiveContainer,
+  ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
 import Header from './components/Header'
@@ -56,6 +56,11 @@ function UsuarioApp() {
   const [avatarFile, setAvatarFile] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [checkingNsfw, setCheckingNsfw] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followersCount, setFollowersCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [followLoading, setFollowLoading] = useState(false)
+  const [isTop1, setIsTop1] = useState(false)
   const hasRedirected = useRef(false)
   const fileInputRef = useRef(null)
 
@@ -232,6 +237,46 @@ function UsuarioApp() {
     }
 
       fetchData()
+
+      // Load follow data
+      const loadFollowData = async () => {
+        const { data: followersData } = await supabase
+          .from('follows')
+          .select('id', { count: 'exact' })
+          .eq('following_id', idToLoad)
+        setFollowersCount(followersData?.length || 0)
+
+        const { data: followingData } = await supabase
+          .from('follows')
+          .select('id', { count: 'exact' })
+          .eq('follower_id', idToLoad)
+        setFollowingCount(followingData?.length || 0)
+
+        if (user && user.id !== idToLoad) {
+          const { data: myFollow } = await supabase
+            .from('follows')
+            .select('id')
+            .eq('follower_id', user.id)
+            .eq('following_id', idToLoad)
+            .maybeSingle()
+          setIsFollowing(!!myFollow)
+        }
+      }
+      loadFollowData()
+
+      // Check if top 1
+      const checkTop1 = async () => {
+        const { data } = await supabase
+          .from('usuarios')
+          .select('id_usuario')
+          .eq('adminstate', false)
+          .gt('total_intentos', 0)
+          .order('promedio_score', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        setIsTop1(data?.id_usuario === idToLoad)
+      }
+      checkTop1()
     }
 
     run()
@@ -366,6 +411,28 @@ function UsuarioApp() {
       alert('Error al guardar stats: ' + err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleFollow = async () => {
+    if (!user) return
+    const idToLoad = targetId || (targetUsername ? profile?.id_usuario : user?.id)
+    setFollowLoading(true)
+    try {
+      if (isFollowing) {
+        await supabase.from('follows').delete()
+          .eq('follower_id', user.id).eq('following_id', idToLoad)
+        setIsFollowing(false)
+        setFollowersCount(c => Math.max(0, c - 1))
+      } else {
+        await supabase.from('follows').insert([{ follower_id: user.id, following_id: idToLoad }])
+        setIsFollowing(true)
+        setFollowersCount(c => c + 1)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setFollowLoading(false)
     }
   }
 
@@ -652,7 +719,11 @@ function UsuarioApp() {
           <aside className="w-full lg:w-72 shrink-0 space-y-4">
             <div className="flex flex-col items-center lg:items-start gap-3">
               <div className="relative">
-                <div className="h-[260px] w-[260px] overflow-hidden rounded-full border-4 border-slate-200 bg-slate-100 flex items-center justify-center">
+                <div className={`h-[260px] w-[260px] overflow-hidden rounded-full bg-slate-100 flex items-center justify-center ${
+                  isTop1
+                    ? 'border-4 border-yellow-400 shadow-lg shadow-yellow-200'
+                    : 'border-4 border-slate-200'
+                }`}>
                   {(avatarPreview || getAvatar()) ? (
                     <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
                   ) : (
@@ -664,6 +735,11 @@ function UsuarioApp() {
                 {profile?.adminstate && (
                   <span className="absolute bottom-3 right-3 rounded-full bg-purple-600 px-2.5 py-0.5 text-xs font-bold text-white shadow">
                     ADMIN
+                  </span>
+                )}
+                {isTop1 && (
+                  <span className="absolute top-3 left-1/2 -translate-x-1/2 rounded-full bg-yellow-400 px-3 py-0.5 text-xs font-bold text-yellow-900 shadow whitespace-nowrap">
+                    # 1 Liga
                   </span>
                 )}
                 {/* Botón de cambiar foto — solo en modo edición */}
@@ -795,6 +871,33 @@ function UsuarioApp() {
               </svg>
               {t('copyProfileLink')}
             </button>
+
+            {/* Followers / Following */}
+            <div className="flex items-center gap-4 text-sm text-slate-600 border-t border-slate-100 pt-3">
+              <div className="text-center">
+                <p className="text-lg font-bold text-slate-900">{followersCount}</p>
+                <p className="text-xs text-slate-400">{lang === 'en' ? 'followers' : 'seguidores'}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-slate-900">{followingCount}</p>
+                <p className="text-xs text-slate-400">{lang === 'en' ? 'following' : 'siguiendo'}</p>
+              </div>
+              {user && !ownProfile && (
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`ml-auto rounded-xl px-4 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                    isFollowing
+                      ? 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-600 border border-slate-200'
+                      : 'bg-slate-900 text-white hover:bg-slate-700'
+                  }`}
+                >
+                  {followLoading ? '...' : isFollowing
+                    ? (lang === 'en' ? 'Unfollow' : 'Dejar de seguir')
+                    : (lang === 'en' ? 'Follow' : 'Seguir')}
+                </button>
+              )}
+            </div>
           </aside>
 
           {/* Contenido principal */}
@@ -829,13 +932,24 @@ function UsuarioApp() {
             {/* Tarjetas principales con radial */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: 'Promedio', value: stats.promedioScore, suffix: '%', key: 'promedioScore', stroke: '#6366f1' },
-                { label: 'Mejor score', value: stats.mejorScore, suffix: '%', key: 'mejorScore', stroke: '#10b981' },
-                { label: 'Aprobación', value: stats.porcentajeAprobacion, suffix: '%', key: 'porcentajeAprobacion', stroke: '#f59e0b' },
-                { label: 'Intentos', value: stats.totalIntentos, suffix: '', key: 'totalIntentos', stroke: '#64748b', max: Math.max(stats.totalIntentos, 1) },
-              ].map(({ label, value, suffix, key, stroke, max = 100 }) => {
-                const pct = Math.min(100, Math.round((value / max) * 100))
-                const radialData = [{ value: pct, fill: stroke }]
+                { label: t('average'), value: stats.promedioScore, suffix: '%', key: 'promedioScore', isScore: true },
+                { label: t('bestScore'), value: stats.mejorScore, suffix: '%', key: 'mejorScore', isScore: true },
+                { label: t('approval'), value: stats.porcentajeAprobacion, suffix: '%', key: 'porcentajeAprobacion', isScore: true },
+                { label: t('totalAttempts'), value: stats.totalIntentos, suffix: '', key: 'totalIntentos', isScore: false },
+              ].map(({ label, value, suffix, key, isScore }) => {
+                // Color: red(0) → yellow(50) → green(100)
+                const pct = isScore ? Math.min(100, Math.max(0, value)) : Math.min(100, Math.round((value / Math.max(stats.totalIntentos, 1)) * 100))
+                const r = 32, cx = 40, cy = 40
+                const circumference = 2 * Math.PI * r
+                const filled = (pct / 100) * circumference
+                // Interpolate color: 0=red, 50=amber, 100=green
+                const getColor = (p) => {
+                  if (p >= 70) return '#10b981'
+                  if (p >= 40) return '#f59e0b'
+                  return '#ef4444'
+                }
+                const color = isScore ? getColor(pct) : '#6366f1'
+
                 return (
                   <div key={key} className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col items-center gap-1">
                     <p className="text-xs font-medium text-slate-500 self-start">{label}</p>
@@ -846,18 +960,22 @@ function UsuarioApp() {
                         className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xl font-bold"
                       />
                     ) : (
-                      <div className="relative w-20 h-20">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RadialBarChart
-                            cx="50%" cy="50%"
-                            innerRadius="65%" outerRadius="100%"
-                            startAngle={90} endAngle={-270}
-                            data={radialData}
-                            barSize={8}
-                          >
-                            <RadialBar background={{ fill: '#f1f5f9' }} dataKey="value" cornerRadius={6} />
-                          </RadialBarChart>
-                        </ResponsiveContainer>
+                      <div className="relative" style={{ width: 80, height: 80 }}>
+                        <svg width="80" height="80" viewBox="0 0 80 80">
+                          {/* Track */}
+                          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e2e8f0" strokeWidth="8" />
+                          {/* Fill */}
+                          <circle
+                            cx={cx} cy={cy} r={r}
+                            fill="none"
+                            stroke={color}
+                            strokeWidth="8"
+                            strokeLinecap="round"
+                            strokeDasharray={`${filled} ${circumference}`}
+                            transform={`rotate(-90 ${cx} ${cy})`}
+                            style={{ transition: 'stroke-dasharray 0.8s ease, stroke 0.5s ease' }}
+                          />
+                        </svg>
                         <div className="absolute inset-0 flex items-center justify-center">
                           <span className="text-base font-bold text-slate-800">{value}{suffix}</span>
                         </div>
@@ -932,7 +1050,7 @@ function UsuarioApp() {
                     <Tooltip
                       contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
                       formatter={(v) => [`${v}%`, 'Score']}
-                      labelFormatter={(l) => `Fecha: ${l}`}
+                      labelFormatter={(l) => `${l}`}
                     />
                     <Area
                       type="monotone" dataKey="score"

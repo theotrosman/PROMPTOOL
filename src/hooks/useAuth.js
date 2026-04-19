@@ -57,7 +57,18 @@ export const useAuth = () => {
   }
 
   const signInWithEmail = async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // Allow login with username — resolve to email first
+    let loginEmail = email
+    if (!email.includes('@')) {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('email')
+        .ilike('username', email)
+        .maybeSingle()
+      if (!data?.email) throw new Error('Username not found')
+      loginEmail = data.email
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
     if (error) throw error
   }
 

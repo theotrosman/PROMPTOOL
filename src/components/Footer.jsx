@@ -24,6 +24,7 @@ const Footer = () => (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-400">
           <a href="/terms" className="transition hover:text-slate-700">Terms of Service</a>
           <a href="/privacy" className="transition hover:text-slate-700">Privacy Policy</a>
+          <a href="/support" className="transition hover:text-slate-700">Support</a>
           <a href="/guides" className="transition hover:text-slate-700">Guides</a>
         </div>
 

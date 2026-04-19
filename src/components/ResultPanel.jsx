@@ -42,10 +42,136 @@ const getDifficultyConfig = (difficulty = 'Medium') => {
 
 const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry }) => {
   const { t, lang } = useLang()
+  const [sharing, setSharing] = useState(false)
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
   const difficultyConfig = getDifficultyConfig(difficulty)
   const isPass = safeScore >= difficultyConfig.minPassScore
   const recommendedGuides = GUIDE_LIBRARY.filter(g => recommendedGuideIds?.includes(g.id))
+
+  const handleShare = async () => {
+    setSharing(true)
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = 800
+      canvas.height = 420
+      const ctx = canvas.getContext('2d')
+
+      // Background gradient
+      const grad = ctx.createLinearGradient(0, 0, 800, 420)
+      grad.addColorStop(0, '#0f172a')
+      grad.addColorStop(1, '#1e1b4b')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, 800, 420)
+
+      // Subtle grid pattern
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)'
+      ctx.lineWidth = 1
+      for (let x = 0; x < 800; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 420); ctx.stroke() }
+      for (let y = 0; y < 420; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(800, y); ctx.stroke() }
+
+      // Score circle
+      const cx = 200, cy = 210, r = 110
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, 0, Math.PI * 2)
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+      ctx.lineWidth = 16
+      ctx.stroke()
+
+      const scoreColor = safeScore >= 70 ? '#10b981' : safeScore >= 50 ? '#f59e0b' : '#ef4444'
+      const angle = (safeScore / 100) * Math.PI * 2 - Math.PI / 2
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, -Math.PI / 2, angle)
+      ctx.strokeStyle = scoreColor
+      ctx.lineWidth = 16
+      ctx.lineCap = 'round'
+      ctx.stroke()
+
+      // Score text
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 64px system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(`${safeScore}%`, cx, cy + 12)
+      ctx.font = '16px system-ui, sans-serif'
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'
+      ctx.fillText('SCORE', cx, cy + 38)
+
+      // Right side content
+      const rx = 380
+      // Brand
+      ctx.font = 'bold 14px system-ui, sans-serif'
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'
+      ctx.textAlign = 'left'
+      ctx.fillText('PROMPTOOL', rx, 60)
+
+      // Result badge
+      const badgeColor = isPass ? '#10b981' : '#ef4444'
+      ctx.fillStyle = badgeColor + '33'
+      ctx.beginPath()
+      ctx.roundRect(rx, 80, isPass ? 140 : 160, 36, 18)
+      ctx.fill()
+      ctx.fillStyle = badgeColor
+      ctx.font = 'bold 14px system-ui, sans-serif'
+      ctx.fillText(isPass ? (lang === 'en' ? '✓ Level Passed' : '✓ Nivel Superado') : (lang === 'en' ? '✗ Keep Trying' : '✗ Sigue intentando'), rx + 14, 104)
+
+      // Difficulty
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'
+      ctx.beginPath()
+      ctx.roundRect(rx, 128, 90, 30, 15)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'
+      ctx.font = '13px system-ui, sans-serif'
+      ctx.fillText(difficultyConfig.label, rx + 14, 148)
+
+      // Strengths
+      if (strengths.length > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'
+        ctx.font = 'bold 11px system-ui, sans-serif'
+        ctx.fillText(lang === 'en' ? 'STRENGTHS' : 'FORTALEZAS', rx, 195)
+        strengths.slice(0, 2).forEach((s, i) => {
+          ctx.fillStyle = '#10b981' + '33'
+          ctx.beginPath()
+          ctx.roundRect(rx, 205 + i * 38, Math.min(s.length * 8 + 24, 360), 30, 15)
+          ctx.fill()
+          ctx.fillStyle = '#6ee7b7'
+          ctx.font = '12px system-ui, sans-serif'
+          ctx.fillText(s.length > 38 ? s.substring(0, 38) + '…' : s, rx + 12, 225 + i * 38)
+        })
+      }
+
+      // Improvements
+      if (improvements.length > 0) {
+        const iy = strengths.length > 0 ? 295 : 195
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'
+        ctx.font = 'bold 11px system-ui, sans-serif'
+        ctx.fillText(lang === 'en' ? 'TO IMPROVE' : 'A MEJORAR', rx, iy)
+        improvements.slice(0, 1).forEach((m, i) => {
+          ctx.fillStyle = '#ef4444' + '22'
+          ctx.beginPath()
+          ctx.roundRect(rx, iy + 10 + i * 38, Math.min(m.length * 8 + 24, 360), 30, 15)
+          ctx.fill()
+          ctx.fillStyle = '#fca5a5'
+          ctx.font = '12px system-ui, sans-serif'
+          ctx.fillText(m.length > 38 ? m.substring(0, 38) + '…' : m, rx + 12, iy + 30 + i * 38)
+        })
+      }
+
+      // Bottom URL
+      ctx.fillStyle = 'rgba(255,255,255,0.25)'
+      ctx.font = '13px system-ui, sans-serif'
+      ctx.textAlign = 'right'
+      ctx.fillText('promptool.app', 780, 400)
+
+      // Download
+      const link = document.createElement('a')
+      link.download = `promptool-score-${safeScore}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    } catch (err) {
+      console.error('Share error:', err)
+    } finally {
+      setSharing(false)
+    }
+  }
 
   return (
     <div className="rounded-[1.75rem] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6 animate-in fade-in zoom-in duration-500">
@@ -71,6 +197,17 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
                   {lang === 'en' ? 'Try again' : 'Reintentar'}
                 </button>
               )}
+              <button
+                type="button"
+                onClick={handleShare}
+                disabled={sharing}
+                className="ml-auto rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-200 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {sharing ? '...' : (lang === 'en' ? 'Share' : 'Compartir')}
+              </button>
             </div>
             <p className="mt-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{t('aiAnalysis')}</p>
             <p className="mt-1 text-sm leading-relaxed text-slate-800">
