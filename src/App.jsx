@@ -540,12 +540,14 @@ function App() {
             </section>
 
             <aside className={`flex flex-col items-stretch justify-center gap-4 p-4 transition-all duration-500 ${submitted && scorePercent > 93 ? 'hidden' : ''}`}>
-              <ImageCard
-                mode={mode}
-                data={imageData ?? {}}
-                imageStatus={imageStatus}
-                onPreviewChange={setImagePreviewOpen}
-              />
+              <div className="w-full" style={{ height: 'calc(100vh - 120px)' }}>
+                <ImageCard
+                  mode={mode}
+                  data={imageData ?? {}}
+                  imageStatus={imageStatus}
+                  onPreviewChange={setImagePreviewOpen}
+                />
+              </div>
             </aside>
 
           </div>

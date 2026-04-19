@@ -87,7 +87,7 @@ const ImageCard = ({ mode, data, imageStatus, onPreviewChange }) => {
           className={`h-full w-full object-cover pointer-events-none transition-opacity duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
           draggable={false}
           loading="eager"
-          fetchPriority="high"
+          fetchpriority="high"
           onLoad={() => setImgLoaded(true)}
         />
         {/* Overlay hover — cubre toda la imagen */}
@@ -109,10 +109,9 @@ const ImageCard = ({ mode, data, imageStatus, onPreviewChange }) => {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-6 text-left">
+      <div className="flex w-full flex-col gap-6 text-left h-full">
         <div
-          className="group relative w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/60"
-          style={{ aspectRatio, maxHeight: 'calc(100vh - 120px)' }}
+          className="group relative w-full h-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/60"
         >
           {renderContent()}
         </div>

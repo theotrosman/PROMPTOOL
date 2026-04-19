@@ -14,6 +14,7 @@ import { supabase } from './supabaseClient'
 import { checkImageSafe } from './services/moderationService'
 import { getRank, getNextRank, ELO_RANKS } from './services/eloService'
 import { calculateElo } from './services/eloService'
+import ImageCropper from './components/ImageCropper'
 
 function getTargetUserId() {
   const params = new URLSearchParams(window.location.search)
@@ -73,6 +74,12 @@ function UsuarioApp() {
   const [showcaseFile, setShowcaseFile] = useState(null)
   const [uploadingShowcase, setUploadingShowcase] = useState(false)
 
+  // Cropper state
+  const [cropperSrc, setCropperSrc] = useState(null)
+  const [cropperType, setCropperType] = useState(null) // 'avatar' | 'banner' | 'showcase'
+  const [cropperAspect, setCropperAspect] = useState(null)
+  const [cropperShape, setCropperShape] = useState('rect')
+
   // Comparador de stats
   const [compareOpen, setCompareOpen] = useState(false)
   const [compareWith, setCompareWith] = useState(null)   // { id, name, avatar, stats }
@@ -126,8 +133,52 @@ function UsuarioApp() {
     { hex: '#14b8a6', name: 'Teal' },
   ]
 
-  const handleChartColorChange = (hex) => {
-    setChartColor(hex)
+  const openCropper = (file, type) => {
+    // GIFs no se pueden recortar sin perder la animación — subir directo
+    if (file.type === 'image/gif') {
+      handleCropDone(file, type)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setCropperSrc(url)
+    setCropperType(type)
+    if (type === 'avatar') { setCropperAspect(1); setCropperShape('circle') }
+    else if (type === 'banner') { setCropperAspect(3); setCropperShape('rect') }
+    else { setCropperAspect(null); setCropperShape('rect') }
+  }
+
+  const handleCropDone = async (blobOrFile, typeOverride) => {
+    const type = typeOverride ?? cropperType
+    setCropperSrc(null); setCropperType(null)
+    const isGif = blobOrFile instanceof File && blobOrFile.type === 'image/gif'
+    const ext = isGif ? 'gif' : 'jpg'
+    const file = isGif ? blobOrFile : new File([blobOrFile], `${type}.jpg`, { type: 'image/jpeg' })
+    const previewUrl = URL.createObjectURL(file)
+
+    if (type === 'avatar') {
+      setAvatarFile(file)
+      setAvatarPreview(previewUrl)
+    } else if (type === 'banner') {
+      setBannerFile(file)
+      setProfile(p => ({ ...p, banner_url: previewUrl }))
+    } else if (type === 'showcase') {
+      setShowcaseFile(file)
+      setProfile(p => ({ ...p, showcase_url: previewUrl }))
+      setUploadingShowcase(true)
+      try {
+        await supabase.storage.createBucket('avatars', { public: true }).catch(() => {})
+        const path = `${user.id}/showcase.${ext}`
+        await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+        const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+        const url = data.publicUrl + '?t=' + Date.now()
+        await supabase.from('usuarios').update({ showcase_url: url }).eq('id_usuario', user.id)
+        setProfile(p => ({ ...p, showcase_url: url }))
+      } catch (err) { alert('Error: ' + err.message) }
+      finally { setUploadingShowcase(false) }
+    }
+  }
+
+  const handleChartColorChange = (hex) => {    setChartColor(hex)
     localStorage.setItem('profileChartColor', hex)
     if (user) {
       supabase.from('usuarios').update({ accent_color: hex }).eq('id_usuario', user.id).then(() => {})
@@ -778,12 +829,15 @@ function UsuarioApp() {
     useEffect(() => {
       if (!userId) return
       const fetchMedals = async () => {
-        const { data } = await supabase
-          .from('usuario_medallas')
-          .select('fecha_obtenida, medallas(nombre, descripcion, icono_url, color)')
-          .eq('id_usuario', userId)
-          .order('fecha_obtenida', { ascending: false })
-        setMedals(data || [])
+        try {
+          const { data, error } = await supabase
+            .from('usuario_medallas')
+            .select('fecha_obtenida, medallas(nombre, descripcion, icono_url, color)')
+            .eq('id_usuario', userId)
+            .order('fecha_obtenida', { ascending: false })
+          if (!error) setMedals(data || [])
+          // Si la tabla no existe (404) simplemente no mostramos nada
+        } catch { /* tabla no existe aún */ }
       }
       fetchMedals()
     }, [userId])
@@ -1045,13 +1099,7 @@ function UsuarioApp() {
                 )}
               </div>
               <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
-                onChange={e => {
-                  const f = e.target.files[0]
-                  if (!f) return
-                  setBannerFile(f)
-                  setBannerPreview(URL.createObjectURL(f))
-                  setProfile(p => ({ ...p, banner_url: URL.createObjectURL(f) }))
-                }}
+                onChange={e => { const f = e.target.files[0]; if (f) openCropper(f, 'banner') }}
               />
 
               {/* Avatar — superpuesto al banner */}
@@ -1138,7 +1186,9 @@ function UsuarioApp() {
               </div>
             </div>
 
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFileChange} />
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
+              const f = e.target.files[0]; if (f) openCropper(f, 'avatar')
+            }} />
 
             {/* Nombre + info — con margen para el avatar superpuesto */}
             <div className="pt-10 flex flex-col items-start gap-3">
@@ -1470,27 +1520,7 @@ function UsuarioApp() {
                   type="file"
                   accept="image/*,.gif"
                   className="hidden"
-                  onChange={e => {
-                    const f = e.target.files[0]
-                    if (!f) return
-                    setShowcaseFile(f)
-                    setProfile(p => ({ ...p, showcase_url: URL.createObjectURL(f) }))
-                    const save = async () => {
-                      setUploadingShowcase(true)
-                      try {
-                        await supabase.storage.createBucket('avatars', { public: true }).catch(() => {})
-                        const ext = f.name.split('.').pop()
-                        const path = `${user.id}/showcase.${ext}`
-                        await supabase.storage.from('avatars').upload(path, f, { upsert: true })
-                        const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-                        const url = data.publicUrl + '?t=' + Date.now()
-                        await supabase.from('usuarios').update({ showcase_url: url }).eq('id_usuario', user.id)
-                        setProfile(p => ({ ...p, showcase_url: url }))
-                      } catch (err) { alert('Error: ' + err.message) }
-                      finally { setUploadingShowcase(false) }
-                    }
-                    save()
-                  }}
+                  onChange={e => { const f = e.target.files[0]; if (f) openCropper(f, 'showcase') }}
                 />
                 {uploadingShowcase && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
@@ -2029,6 +2059,16 @@ function UsuarioApp() {
       </main>
 
       <Footer />
+
+      {cropperSrc && (
+        <ImageCropper
+          src={cropperSrc}
+          aspect={cropperAspect}
+          shape={cropperShape}
+          onCrop={(blob) => handleCropDone(blob)}
+          onCancel={() => { setCropperSrc(null); setCropperType(null) }}
+        />
+      )}
     </div>
   )
 }
