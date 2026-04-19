@@ -47,6 +47,8 @@ function UsuarioApp() {
     publicProfile: true,
   })
   const [enterpriseSavingProfile, setEnterpriseSavingProfile] = useState(false)
+  const [enterpriseMembers, setEnterpriseMembers] = useState([])
+  const [enterpriseMembersLoading, setEnterpriseMembersLoading] = useState(false)
 
   const ownProfile =
     (!targetId && !targetUsername && !!user) ||
@@ -867,6 +869,40 @@ function UsuarioApp() {
     fetchEnterpriseRequests()
   }, [profile, ownProfile])
 
+  useEffect(() => {
+    if (!profile || profile.user_type !== 'enterprise') {
+      setEnterpriseMembers([])
+      return
+    }
+
+    const canSeeMembers = ownProfile || profile.email_publico !== false
+    if (!canSeeMembers) {
+      setEnterpriseMembers([])
+      return
+    }
+
+    const fetchEnterpriseMembers = async () => {
+      setEnterpriseMembersLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('id_usuario, nombre, nombre_display, username, avatar_url, elo_rating, total_intentos')
+          .eq('company_id', profile.id_usuario)
+          .order('elo_rating', { ascending: false })
+          .limit(24)
+        if (error) throw error
+        setEnterpriseMembers(data || [])
+      } catch (err) {
+        console.error('Error loading enterprise members:', err)
+        setEnterpriseMembers([])
+      } finally {
+        setEnterpriseMembersLoading(false)
+      }
+    }
+
+    fetchEnterpriseMembers()
+  }, [profile?.id_usuario, profile?.user_type, profile?.email_publico, ownProfile])
+
   const handleFollow = async () => {
     if (!user) return
     const idToLoad = targetId || (targetUsername ? profile?.id_usuario : user?.id)
@@ -1036,9 +1072,8 @@ function UsuarioApp() {
   const renderEnterpriseProfile = () => {
     if (!profile) return null
 
-    const incoming = enterpriseRequests.filter(r => r.status === 'requested')
-    const pending = enterpriseRequests.filter(r => r.status === 'pending')
     const displayName = profile.company_name || profile.nombre_display || getDisplayName()
+    const isPublicProfile = profile?.email_publico !== false
 
     return (
       <div className="flex min-h-screen flex-col bg-white text-slate-900">
@@ -1137,6 +1172,24 @@ function UsuarioApp() {
                           </button>
                         )}
                       </div>
+                      {canEdit && (
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                          {CHART_COLORS.map(({ hex, name }) => (
+                            <button
+                              key={hex}
+                              type="button"
+                              title={name}
+                              onClick={() => handleChartColorChange(hex)}
+                              className="h-5 w-5 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                              style={{
+                                backgroundColor: hex,
+                                boxShadow: chartColor === hex ? `0 0 0 2px white, 0 0 0 3.5px ${hex}` : 'none',
+                                transform: chartColor === hex ? 'scale(1.15)' : undefined,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
                       {profile?.status && (
                         <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-slate-500">
                           {profile.status === 'open' ? (lang === 'en' ? 'Open to collab' : 'Abierto a colaborar') : profile.status === 'learning' ? (lang === 'en' ? 'Learning' : 'Aprendiendo') : profile.status === 'busy' ? (lang === 'en' ? 'Busy' : 'Ocupado') : profile.status === 'lurking' ? (lang === 'en' ? 'Just lurking' : 'Solo mirando') : profile.status}
@@ -1212,16 +1265,18 @@ function UsuarioApp() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="space-y-2">
-                          {profile?.social_website && (
-                            <a href={profile.social_website} target="_blank" rel="noreferrer" className="text-sm font-semibold text-violet-600 hover:text-violet-700">
-                              {profile.social_website}
-                            </a>
-                          )}
-                          {(ownProfile || profile?.email_publico !== false) && profile?.email && (
-                            <p className="text-sm text-slate-500">{profile.email}</p>
-                          )}
-                        </div>
+                        {(ownProfile || isPublicProfile) && (
+                          <div className="space-y-2">
+                            {profile?.social_website && (
+                              <a href={profile.social_website} target="_blank" rel="noreferrer" className="text-sm font-semibold text-violet-600 hover:text-violet-700">
+                                {profile.social_website}
+                              </a>
+                            )}
+                            {ownProfile && profile?.email && (
+                              <p className="text-sm text-slate-500">{profile.email}</p>
+                            )}
+                          </div>
+                        )}
                         <div>
                           {profile?.bio ? (
                             <BioCollapsible bio={profile.bio} />
@@ -1229,23 +1284,61 @@ function UsuarioApp() {
                             <p className="text-sm italic text-slate-400">{lang === 'en' ? 'No description yet.' : 'Aún no hay descripción.'}</p>
                           )}
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {profile?.social_github && (
-                            <a href={`https://github.com/${profile.social_github.replace(/.*github\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
-                              GitHub: {profile.social_github}
-                            </a>
-                          )}
-                          {profile?.social_linkedin && (
-                            <a href={profile.social_linkedin} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
-                              LinkedIn: {profile.social_linkedin}
-                            </a>
-                          )}
-                          {profile?.social_twitter && (
-                            <a href={`https://x.com/${profile.social_twitter.replace(/.*x\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
-                              X: {profile.social_twitter}
-                            </a>
-                          )}
-                        </div>
+                        {ownProfile && (
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {profile?.social_github && (
+                              <a href={`https://github.com/${profile.social_github.replace(/.*github\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
+                                GitHub: {profile.social_github}
+                              </a>
+                            )}
+                            {profile?.social_linkedin && (
+                              <a href={profile.social_linkedin} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
+                                LinkedIn: {profile.social_linkedin}
+                              </a>
+                            )}
+                            {profile?.social_twitter && (
+                              <a href={`https://x.com/${profile.social_twitter.replace(/.*x\.com\//, '')}`} target="_blank" rel="noreferrer" className="text-sm text-slate-600 hover:text-slate-900">
+                                X: {profile.social_twitter}
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {(ownProfile || isPublicProfile) && (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                              {lang === 'en' ? 'Affiliated users' : 'Usuarios afiliados'}
+                            </h3>
+                            {enterpriseMembersLoading ? (
+                              <p className="text-xs text-slate-500">{lang === 'en' ? 'Loading users...' : 'Cargando usuarios...'}</p>
+                            ) : enterpriseMembers.length > 0 ? (
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                {enterpriseMembers.map((member) => {
+                                  const memberName = member.nombre_display || member.nombre || member.username || 'Usuario'
+                                  const memberHref = member.username ? `/user/${member.username}` : `/perfil?id=${member.id_usuario}`
+                                  return (
+                                    <a key={member.id_usuario} href={memberHref} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700 border border-slate-200 hover:bg-slate-50">
+                                      <div className="h-7 w-7 rounded-full overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center">
+                                        {member.avatar_url ? (
+                                          <img src={member.avatar_url} alt={memberName} className="h-full w-full object-cover" />
+                                        ) : (
+                                          <span className="text-xs font-semibold text-slate-500">{memberName.substring(0, 2).toUpperCase()}</span>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">{memberName}</p>
+                                        <p className="truncate text-[11px] text-slate-400">
+                                          ELO {member.elo_rating ?? 1000} · {member.total_intentos ?? 0} {lang === 'en' ? 'attempts' : 'intentos'}
+                                        </p>
+                                      </div>
+                                    </a>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-500">{lang === 'en' ? 'No affiliated users yet.' : 'Aún no hay usuarios afiliados.'}</p>
+                            )}
+                          </div>
+                        )}
                         {canEdit && (
                           <button
                             onClick={() => {
@@ -1485,7 +1578,7 @@ function UsuarioApp() {
     )
   }
 
-  if (ownProfile && profile?.user_type === 'enterprise') {
+  if (profile?.user_type === 'enterprise') {
     return renderEnterpriseProfile()
   }
 
@@ -1957,8 +2050,8 @@ function UsuarioApp() {
 
           {/* Contenido principal */}
           <div className="flex-1 min-w-0 space-y-5">
-            {isEnterpriseProfile ? (
-              <div className="space-y-6">
+              <div className="space-y-5">
+                {isEnterpriseProfile && (
                 <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                   <h2 className="text-lg font-semibold text-slate-900 mb-4">
                     {lang === 'en' ? 'Requests moved to dashboard' : 'Solicitudes movidas al dashboard'}
@@ -1975,9 +2068,7 @@ function UsuarioApp() {
                     {lang === 'en' ? 'Go to dashboard' : 'Ir al dashboard'}
                   </a>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-5">
+                )}
                 {/* Medallas */}
                 <MedalsSection userId={profile?.id_usuario} />
 
@@ -2518,7 +2609,6 @@ function UsuarioApp() {
                 )}
               </div>
           </div>
-        )}
         </div>
         </div>
       </main>
