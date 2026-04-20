@@ -62,6 +62,7 @@ function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [userType, setUserType] = useState(null)
   const [userTypeLoading, setUserTypeLoading] = useState(false)
+  const [userStreak, setUserStreak] = useState(0)
   const [promptUsuario, setPromptUsuario] = useState('')
   const [aiExplanation, setAiExplanation] = useState('')
   const [scorePercent, setScorePercent] = useState(null)
@@ -199,10 +200,11 @@ function App() {
       setUserTypeLoading(true)
       const { data } = await supabase
         .from('usuarios')
-        .select('user_type')
+        .select('user_type, racha_actual')
         .eq('id_usuario', user.id)
         .maybeSingle()
       setUserType(data?.user_type || 'individual')
+      setUserStreak(data?.racha_actual || 0)
       setUserTypeLoading(false)
     }
     fetchUserType()
@@ -341,6 +343,31 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, difficulty])
 
+  // Precargar imagen del día siguiente (solo en modo daily, una vez)
+  useEffect(() => {
+    if (mode !== 'daily' || challengeId) return
+    const prefetch = async () => {
+      try {
+        const manana = new Date()
+        manana.setDate(manana.getDate() + 1)
+        manana.setHours(23, 59, 59, 999)
+        const { data } = await supabase
+          .from('imagenes_ia')
+          .select('url_image')
+          .is('company_id', null)
+          .lte('fecha', manana.toISOString())
+          .order('fecha', { ascending: false })
+          .limit(2) // limit 2: [0] = hoy, [1] = mañana
+        const nextUrl = data?.[1]?.url_image
+        if (nextUrl) {
+          const img = new Image()
+          img.src = nextUrl
+        }
+      } catch { /* silencioso */ }
+    }
+    prefetch()
+  }, [mode, challengeId])
+
   // El modo ya se inicializa correctamente desde localStorage en el useState — no hace falta useEffect
 
   const hasImage = imageStatus === 'ok' && imageData !== null
@@ -388,6 +415,7 @@ function App() {
           modo: mode === 'challenge' ? 'challenge' : mode,
           elo_delta: null, // se actualiza abajo si hay usuario
           is_ranked: !challengeId && isRanked,
+          tiempo_respuesta: timingData.elapsedSeconds > 0 ? timingData.elapsedSeconds : null,
         }])
 
       if (dbError) console.error('[intentos] Error al guardar:', dbError.message)
@@ -785,6 +813,8 @@ function App() {
                         paused={imagePreviewOpen}
                         isRanked={isRanked}
                         onToggleRanked={challengeId ? null : setIsRanked}
+                        streak={user ? userStreak : 0}
+                        imageId={imageData?.id_imagen || null}
                       />
                     )}
                   </>

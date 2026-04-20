@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useLang } from '../contexts/LangContext'
 import Header from './Header'
 import Footer from './Footer'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const EnterprisePanel = ({ user }) => {
   const { lang } = useLang()
@@ -45,6 +46,8 @@ const EnterprisePanel = ({ user }) => {
   // Cancelar invitación
   const [cancellingId, setCancellingId] = useState(null)
   const [copyLinkStatus, setCopyLinkStatus] = useState(null) // null | 'copied'
+  // Analytics de progreso
+  const [teamProgressData, setTeamProgressData] = useState([]) // intentos del equipo agrupados por día
   // Desafíos
   const [challenges, setChallenges] = useState([])
   const [loadingChallenges, setLoadingChallenges] = useState(false)
@@ -131,6 +134,41 @@ const EnterprisePanel = ({ user }) => {
             .eq('company_id', company.id_usuario)
             .order('elo_rating', { ascending: false })
           setTeamUsers(members || [])
+
+          // Fetch progreso del equipo — últimos 30 días de intentos de miembros
+          if ((members || []).length > 0) {
+            const memberIds = (members || []).map(m => m.id_usuario)
+            const since = new Date()
+            since.setDate(since.getDate() - 29)
+            const { data: progressData } = await supabase
+              .from('intentos')
+              .select('id_usuario, puntaje_similitud, fecha_hora')
+              .in('id_usuario', memberIds)
+              .gte('fecha_hora', since.toISOString())
+              .order('fecha_hora', { ascending: true })
+
+            // Agrupar por día: promedio de score del equipo
+            const byDay = {}
+            ;(progressData || []).forEach(i => {
+              const day = i.fecha_hora.slice(0, 10)
+              if (!byDay[day]) byDay[day] = []
+              byDay[day].push(i.puntaje_similitud || 0)
+            })
+            const days = []
+            for (let d = 0; d < 30; d++) {
+              const date = new Date(since)
+              date.setDate(date.getDate() + d)
+              const key = date.toISOString().slice(0, 10)
+              const scores = byDay[key] || []
+              days.push({
+                date: key,
+                label: date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+                avg: scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : null,
+                count: scores.length,
+              })
+            }
+            setTeamProgressData(days)
+          }
 
           // Fetch challenges
           const { data: chs } = await supabase
@@ -512,6 +550,83 @@ const EnterprisePanel = ({ user }) => {
           <p className="mt-2 text-lg font-semibold text-slate-900 truncate">{companyData?.company_name}</p>
         </div>
       </div>
+
+      {/* Gráfico de progreso del equipo */}
+      {teamProgressData.some(d => d.avg !== null) && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                {lang === 'en' ? 'Team Progress' : 'Progreso del Equipo'}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {lang === 'en' ? 'Average score — last 30 days' : 'Score promedio — últimos 30 días'}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-violet-600">
+                {(() => {
+                  const withData = teamProgressData.filter(d => d.avg !== null)
+                  return withData.length ? Math.round(withData.reduce((s, d) => s + d.avg, 0) / withData.length) : '—'
+                })()}%
+              </p>
+              <p className="text-xs text-slate-400">{lang === 'en' ? 'period avg' : 'promedio del período'}</p>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={teamProgressData.filter(d => d.avg !== null)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="teamGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null
+                  const d = payload[0].payload
+                  return (
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-xs space-y-0.5">
+                      <p className="font-semibold text-slate-500">{d.date}</p>
+                      <p className="font-bold text-violet-600">{d.avg}%</p>
+                      <p className="text-slate-400">{d.count} {lang === 'en' ? 'attempts' : 'intentos'}</p>
+                    </div>
+                  )
+                }}
+              />
+              <Area type="monotone" dataKey="avg" stroke="#7c3aed" strokeWidth={2}
+                fill="url(#teamGrad)" dot={{ r: 3, fill: '#7c3aed', strokeWidth: 0 }}
+                activeDot={{ r: 5 }} connectNulls />
+            </AreaChart>
+          </ResponsiveContainer>
+
+          {/* Mini stats del período */}
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {[
+              {
+                label: lang === 'en' ? 'Best day' : 'Mejor día',
+                value: (() => { const m = teamProgressData.filter(d => d.avg !== null).reduce((best, d) => d.avg > (best?.avg ?? 0) ? d : best, null); return m ? `${m.avg}%` : '—' })(),
+              },
+              {
+                label: lang === 'en' ? 'Total attempts' : 'Intentos totales',
+                value: teamProgressData.reduce((s, d) => s + d.count, 0),
+              },
+              {
+                label: lang === 'en' ? 'Active days' : 'Días activos',
+                value: teamProgressData.filter(d => d.count > 0).length,
+              },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-center">
+                <p className="text-base font-bold text-slate-800 dark:text-slate-100">{value}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Top performers */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">

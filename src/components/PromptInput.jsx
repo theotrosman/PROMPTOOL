@@ -23,12 +23,49 @@ const formatTime = (seconds = 0) => {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`
 }
 
-const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null }) => {
+const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null, streak = 0, imageId = null }) => {
   const { t, lang } = useLang()
   const [startedAt, setStartedAt] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const [pausedElapsed, setPausedElapsed] = useState(0) // segundos acumulados antes de pausar
+  const [pausedElapsed, setPausedElapsed] = useState(0)
+  const [showShortWarning, setShowShortWarning] = useState(false)
+  const [restoredDraft, setRestoredDraft] = useState(false)
   const timerConfig = useMemo(() => getTimerConfig(mode, difficulty), [mode, difficulty])
+
+  const DRAFT_KEY = `promptdraft_${mode}_${imageId || 'noimg'}`
+
+  // Restaurar borrador al montar (solo si hay texto y corresponde a la misma imagen)
+  useEffect(() => {
+    if (!imageId || promptUsuario.trim()) return
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (!saved) return
+      const { text, elapsed } = JSON.parse(saved)
+      if (text?.trim()) {
+        setPromptUsuario(text)
+        if (elapsed > 0) {
+          setPausedElapsed(elapsed)
+          setElapsedSeconds(elapsed)
+        }
+        setRestoredDraft(true)
+        setTimeout(() => setRestoredDraft(false), 3000)
+      }
+    } catch { /* silencioso */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageId])
+
+  // Guardar borrador en localStorage continuamente
+  useEffect(() => {
+    if (!imageId || !promptUsuario.trim()) return
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ text: promptUsuario, elapsed: elapsedSeconds }))
+    } catch { /* silencioso */ }
+  }, [promptUsuario, elapsedSeconds, DRAFT_KEY, imageId])
+
+  // Limpiar borrador al enviar
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* silencioso */ }
+  }
 
   useEffect(() => {
     if (!startedAt || paused) return
@@ -80,14 +117,42 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
     : 'bg-rose-100 text-rose-700'
 
   return (
-    <form className="space-y-3" onSubmit={onSubmit}>
-      <label className="block text-sm font-medium text-slate-700">{t('writePrompt')}</label>
+    <form className="space-y-3" onSubmit={e => {
+      if (wordsCount < 5 && !showShortWarning) {
+        e.preventDefault()
+        setShowShortWarning(true)
+        return
+      }
+      setShowShortWarning(false)
+      clearDraft()
+      onSubmit(e)
+    }}>
+      {/* Banner de borrador restaurado */}
+      {restoredDraft && (
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {lang === 'en' ? 'Draft restored' : 'Borrador restaurado'}
+        </div>
+      )}
+      {/* Racha — junto al label */}
+      <div className="flex items-center justify-between">
+        <label className="block text-sm font-medium text-slate-700">{t('writePrompt')}</label>
+        {streak >= 2 && (
+          <div className="flex items-center gap-0.5">
+            <img src="/media/flame-lit.gif" alt="" className="h-6 w-6 object-contain" />
+            <span className="text-base font-black tabular-nums translate-y-px" style={{ color: '#fb923c', letterSpacing: '-0.02em' }}>{streak}</span>
+          </div>
+        )}
+      </div>
       <div className="relative">
         <textarea
           value={promptUsuario}
           onChange={(e) => {
             if (!startedAt && e.target.value.trim() && !paused) setStartedAt(Date.now())
             setPromptUsuario(e.target.value)
+            if (showShortWarning) setShowShortWarning(false)
           }}
           onCopy={handleAntiPaste} onPaste={handleAntiPaste} onCut={handleAntiPaste}
           onDrop={handleAntiPaste} onKeyDown={handleKeyDown}
@@ -181,6 +246,19 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
       )}
 
       <p className="text-xs text-slate-400">{t('promptRecommendation')}</p>
+
+      {showShortWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-800">
+            {lang === 'en' ? 'Your prompt is very short' : 'Tu prompt es muy corto'}
+          </p>
+          <p className="text-xs text-amber-600 mt-0.5">
+            {lang === 'en'
+              ? `Only ${wordsCount} word${wordsCount !== 1 ? 's' : ''}. A good prompt usually has 10+ words with visual details, style and lighting. Submit anyway?`
+              : `Solo ${wordsCount} palabra${wordsCount !== 1 ? 's' : ''}. Un buen prompt suele tener 10+ palabras con detalles visuales, estilo e iluminación. ¿Enviar igual?`}
+          </p>
+        </div>
+      )}
 
       <button type="submit" disabled={isLoading || disabled}
         className="inline-flex w-full items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../supabaseClient'
+import { useTheme } from '../contexts/ThemeContext'
 
 // Filtra prompts que valgan la pena: >10 palabras y sin contenido inapropiado
 const BLOCKED_WORDS = [
@@ -50,17 +51,17 @@ const Slide = ({ item, visible }) => (
           <img
             src={item.avatar_url}
             alt={item.username || 'Usuario'}
-            className="h-7 w-7 rounded-full object-cover ring-1 ring-white/20 pointer-events-none"
+            className="h-7 w-7 rounded-full object-cover ring-1 ring-black/10 pointer-events-none"
             draggable={false}
           />
         ) : (
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500/30 text-xs font-bold text-violet-200 ring-1 ring-white/20">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500/30 text-xs font-bold text-violet-600 ring-1 ring-black/10">
             {(item.username || '?')[0].toUpperCase()}
           </div>
         )}
-        <span className="text-xs font-medium text-slate-300">{item.username || 'Anónimo'}</span>
+        <span className="text-xs font-medium text-slate-500">{item.username || 'Anónimo'}</span>
         {item.score != null && (
-          <span className="ml-auto rounded-full bg-violet-500/20 px-2 py-0.5 text-xs font-semibold text-violet-300">
+          <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">
             {item.score}%
           </span>
         )}
@@ -92,7 +93,7 @@ const Dots = ({ total, current, onSelect }) => (
 
 const SLIDE_INTERVAL = 4500
 
-const CommunitySlideshow = () => {
+const CommunitySlideshow = ({ dark = true }) => {
   const [slides, setSlides] = useState([])
   const [current, setCurrent] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -193,7 +194,7 @@ const CommunitySlideshow = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <p className="mb-3 text-xs uppercase tracking-widest text-slate-500">Comunidad</p>
+      <p className={`mb-3 text-xs uppercase tracking-widest ${dark ? 'text-slate-500' : 'text-slate-400'}`}>Comunidad</p>
       <div className="relative flex-1">
         {slides.map((item, i) => (
           <Slide key={i} item={item} visible={i === current} />
@@ -207,13 +208,19 @@ const CommunitySlideshow = () => {
 }
 
 const LandingPage = ({ onOpenAuth, onTryApp }) => {
+  const { theme } = useTheme()
+  const dark = theme === 'dark'
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white">
+    <div className={`min-h-screen ${dark
+      ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white'
+      : 'bg-gradient-to-br from-slate-50 via-white to-indigo-50 text-slate-900'
+    }`}>
       {/* Blobs de fondo */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-[-10%] h-96 w-96 -translate-x-1/2 rounded-full bg-violet-500/20 blur-3xl" />
-        <div className="absolute right-[-10%] top-1/3 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="absolute left-[-8%] bottom-12 h-72 w-72 rounded-full bg-white/5 blur-3xl" />
+        <div className={`absolute right-[-10%] top-1/3 h-80 w-80 rounded-full blur-3xl ${dark ? 'bg-cyan-400/10' : 'bg-cyan-400/20'}`} />
+        <div className={`absolute left-[-8%] bottom-12 h-72 w-72 rounded-full blur-3xl ${dark ? 'bg-white/5' : 'bg-violet-100/60'}`} />
       </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16 lg:px-8">
@@ -221,7 +228,10 @@ const LandingPage = ({ onOpenAuth, onTryApp }) => {
 
           {/* ── Columna izquierda ── */}
           <div className="space-y-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1 text-xs text-slate-300">
+            <span className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs ${dark
+              ? 'border-white/15 bg-white/5 text-slate-300'
+              : 'border-slate-200 bg-white text-slate-500 shadow-sm'
+            }`}>
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
               Nuevo desafío cada día
             </span>
@@ -229,9 +239,9 @@ const LandingPage = ({ onOpenAuth, onTryApp }) => {
             <div className="space-y-4">
               <h1 className="text-5xl font-black tracking-tight sm:text-6xl lg:text-7xl">
                 Adiviná el prompt.{' '}
-                <span className="text-violet-300">Domina la IA.</span>
+                <span className="text-violet-500">Domina la IA.</span>
               </h1>
-              <p className="max-w-md text-base leading-7 text-slate-300/80">
+              <p className={`max-w-md text-base leading-7 ${dark ? 'text-slate-300/80' : 'text-slate-500'}`}>
                 Un juego diario donde recreás el prompt de una imagen generada por IA.
                 Recibís score y feedback real para mejorar cada día.
               </p>
@@ -241,14 +251,20 @@ const LandingPage = ({ onOpenAuth, onTryApp }) => {
               <button
                 type="button"
                 onClick={onTryApp}
-                className="inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-slate-950 shadow-lg transition hover:bg-slate-100"
+                className={`inline-flex items-center justify-center rounded-full px-7 py-3 text-sm font-semibold shadow-lg transition ${dark
+                  ? 'bg-white text-slate-950 hover:bg-slate-100'
+                  : 'bg-slate-900 text-white hover:bg-slate-700'
+                }`}
               >
                 Probar
               </button>
               <button
                 type="button"
                 onClick={onOpenAuth}
-                className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 px-7 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className={`inline-flex items-center justify-center rounded-full border px-7 py-3 text-sm font-semibold transition ${dark
+                  ? 'border-white/30 bg-white/10 text-white hover:bg-white/20'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm'
+                }`}
               >
                 Iniciar sesión
               </button>
@@ -263,20 +279,26 @@ const LandingPage = ({ onOpenAuth, onTryApp }) => {
               ].map(f => (
                 <div
                   key={f.label}
-                  className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 py-4 text-center backdrop-blur-sm"
+                  className={`flex flex-col items-center gap-1.5 rounded-2xl border py-4 text-center backdrop-blur-sm ${dark
+                    ? 'border-white/10 bg-white/5'
+                    : 'border-slate-200 bg-white shadow-sm'
+                  }`}
                 >
                   <span className="text-xl">{f.icon}</span>
-                  <span className="text-xs font-medium text-slate-300">{f.label}</span>
+                  <span className={`text-xs font-medium ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{f.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* ── Columna derecha: slideshow ── */}
-          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 p-5 shadow-2xl shadow-slate-950/50 backdrop-blur-xl lg:h-[520px]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(124,106,255,0.2),_transparent_40%)]" />
+          <div className={`relative overflow-hidden rounded-3xl border p-5 shadow-2xl backdrop-blur-xl lg:h-[520px] ${dark
+            ? 'border-white/10 bg-slate-950/60 shadow-slate-950/50'
+            : 'border-slate-200 bg-white/80 shadow-slate-200/80'
+          }`}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(124,106,255,0.15),_transparent_40%)]" />
             <div className="relative h-full">
-              <CommunitySlideshow />
+              <CommunitySlideshow dark={dark} />
             </div>
           </div>
 

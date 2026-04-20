@@ -61,7 +61,7 @@ function UsuarioApp() {
   const [stats, setStats] = useState({
     totalIntentos: 0, promedioScore: 0, mejorScore: 0,
     peorScore: 0, intentosHoy: 0, intentosEstaSemana: 0,
-    porcentajeAprobacion: 0, racha: 0,
+    porcentajeAprobacion: 0, racha: 0, avgTime: null,
   })
   const [recentAttempts, setRecentAttempts] = useState([])
   const [chartData, setChartData] = useState([])
@@ -273,7 +273,7 @@ function UsuarioApp() {
         let prof = null
         const { data: profFull, error: profError } = await supabase
           .from('usuarios')
-          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating, user_type, company_name, company_id, company_role, company_joined_at, show_stats, show_company_badge, verified, company_tagline, company_industry, company_size, company_founded')
+          .select('id_usuario, nombre, nombre_display, username, email, email_publico, bio, avatar_url, banner_url, adminstate, devstate, fecha_registro, total_intentos, promedio_score, mejor_score, peor_score, porcentaje_aprobacion, racha_actual, pais, idioma_display, social_github, social_linkedin, social_twitter, social_website, pronouns, status, accent_color, organization, showcase_url, elo_rating, user_type, company_name, company_id, company_role, company_joined_at, show_stats, show_company_badge, verified, company_tagline, company_industry, company_size, company_founded, username_last_changed')
           .eq('id_usuario', idToLoad)
           .maybeSingle()
 
@@ -340,7 +340,7 @@ function UsuarioApp() {
         if (ownProfile || isAdmin) {
           const { data: intentos, error: intentosError } = await supabase
             .from('intentos')
-.select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, is_ranked, imagenes_ia(url_image, prompt_original, image_diff, company_id)')            .eq('id_usuario', idToLoad)
+.select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, is_ranked, tiempo_respuesta, imagenes_ia(url_image, prompt_original, image_diff, company_id)')            .eq('id_usuario', idToLoad)
             .order('fecha_hora', { ascending: false })
 
           console.log('[intentos] data:', intentos?.length, 'error:', intentosError?.message)
@@ -376,7 +376,16 @@ function UsuarioApp() {
               }
             }
 
-            setStats({ totalIntentos: total, promedioScore: promedio, mejorScore: mejor, peorScore: peor, intentosHoy, intentosEstaSemana, porcentajeAprobacion, racha })
+            setStats({ totalIntentos: total, promedioScore: promedio, mejorScore: mejor, peorScore: peor, intentosHoy, intentosEstaSemana, porcentajeAprobacion, racha,
+              avgTime: (() => {
+                const avgByDiff = {}
+                for (const diff of ['Easy', 'Medium', 'Hard']) {
+                  const group = intentos.filter(i => i.tiempo_respuesta > 0 && i.imagenes_ia?.image_diff === diff)
+                  if (group.length) avgByDiff[diff] = Math.round(group.reduce((s, i) => s + i.tiempo_respuesta, 0) / group.length)
+                }
+                return Object.keys(avgByDiff).length ? avgByDiff : null
+              })(),
+            })
 
             // Filtrar del historial los intentos de desafíos de empresas no verificadas
             const companyIds = [...new Set(intentos.map(i => i.imagenes_ia?.company_id).filter(Boolean))]
@@ -418,6 +427,7 @@ function UsuarioApp() {
               diff: i.imagenes_ia?.image_diff || null,
               company_id: i.imagenes_ia?.company_id || null,
               is_ranked: i.is_ranked !== false, // default true si no está seteado
+              elo_delta: i.elo_delta ?? null,
             })))
 
             // Nombres de empresas para el tooltip del gráfico
@@ -745,6 +755,27 @@ function UsuarioApp() {
         updates.company_name = editedProfile.company_name
         if (editedProfile.nombre_display === undefined) {
           updates.nombre_display = editedProfile.company_name
+        }
+      }
+      // Username — solo si cambió y pasaron 7 días
+      if (editedProfile.username !== undefined && editedProfile.username !== profile?.username) {
+        const lastChanged = profile?.username_last_changed ? new Date(profile.username_last_changed) : null
+        const daysSince = lastChanged ? Math.floor((Date.now() - lastChanged.getTime()) / 86400000) : 999
+        if (daysSince >= 7) {
+          // Verificar que no esté tomado
+          const { data: existing } = await supabase
+            .from('usuarios')
+            .select('id_usuario')
+            .ilike('username', editedProfile.username)
+            .neq('id_usuario', user.id)
+            .maybeSingle()
+          if (existing) {
+            alert(lang === 'en' ? 'Username already taken.' : 'Ese username ya está en uso.')
+            setSaving(false)
+            return
+          }
+          updates.username = editedProfile.username
+          updates.username_last_changed = new Date().toISOString()
         }
       }
       updates.email_publico = editedProfile.email_publico ?? profile?.email_publico ?? true
@@ -1972,8 +2003,41 @@ function UsuarioApp() {
   }
   if (authLoading || loadingData) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+      <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950">
+        <Header />
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+          <div className="flex flex-col gap-8 lg:flex-row">
+            {/* Sidebar skeleton */}
+            <aside className="w-full lg:w-72 shrink-0 flex flex-col gap-4">
+              <div className="relative">
+                <div className="h-32 w-full rounded-2xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                <div className="absolute -bottom-12 left-4 h-28 w-28 rounded-full bg-slate-300 dark:bg-slate-700 animate-pulse ring-4 ring-white dark:ring-slate-950" />
+              </div>
+              <div className="pt-14 space-y-3">
+                <div className="h-5 w-36 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                <div className="h-3.5 w-24 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                <div className="h-3 w-full rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                <div className="h-3 w-4/5 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                <div className="h-3 w-3/5 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                ))}
+              </div>
+            </aside>
+            {/* Main skeleton */}
+            <div className="flex-1 space-y-4">
+              <div className="h-40 rounded-2xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="h-48 rounded-2xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-12 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     )
   }
@@ -2128,6 +2192,42 @@ function UsuarioApp() {
                     onChange={e => setEditedProfile(p => ({ ...p, nombre_display: e.target.value }))}
                     className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                   />
+                  {/* Username — editable cada 7 días */}
+                  {(() => {
+                    const lastChanged = profile?.username_last_changed ? new Date(profile.username_last_changed) : null
+                    const daysSince = lastChanged ? Math.floor((Date.now() - lastChanged.getTime()) / 86400000) : 999
+                    const canChangeUsername = daysSince >= 7
+                    const daysLeft = 7 - daysSince
+                    return (
+                      <div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">@</span>
+                          <input
+                            type="text"
+                            placeholder="username"
+                            disabled={!canChangeUsername}
+                            value={editedProfile.username ?? profile?.username ?? ''}
+                            onChange={e => {
+                              const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20)
+                              setEditedProfile(p => ({ ...p, username: val }))
+                            }}
+                            className={`w-full rounded-lg border pl-8 pr-3 py-2 text-sm ${
+                              canChangeUsername
+                                ? 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                                : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-400 cursor-not-allowed'
+                            }`}
+                          />
+                        </div>
+                        {!canChangeUsername && (
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            {lang === 'en'
+                              ? `Username can be changed in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`
+                              : `Podés cambiar el username en ${daysLeft} día${daysLeft !== 1 ? 's' : ''}`}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
                   <div className="grid grid-cols-2 gap-2">
                     <input type="text"
                       placeholder={lang === 'en' ? 'Pronouns' : 'Pronombres'}
@@ -2271,7 +2371,7 @@ function UsuarioApp() {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={saveProfile} disabled={saving || uploadingAvatar || uploadingBanner || checkingNsfw}
-                      className="flex-1 rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-700 dark:hover:bg-slate-200 disabled:opacity-50">
+                      className="flex-1 rounded-lg bg-violet-600 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
                       {saving ? t('saving') : t('save')}
                     </button>
                     <button onClick={() => { setEditingProfile(false); setAvatarFile(null); setAvatarPreview(null); setBannerFile(null); setBannerPreview(null) }}
@@ -2888,6 +2988,36 @@ function UsuarioApp() {
               })}
             </div>
 
+            {/* Tiempo promedio de respuesta por dificultad */}
+            {ownProfile && stats.avgTime !== null && (
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-slate-500">
+                    {lang === 'en' ? 'Avg response time' : 'Tiempo promedio de respuesta'}
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  {[
+                    { key: 'Easy',   label: lang === 'en' ? 'Easy'   : 'Fácil',  color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                    { key: 'Medium', label: lang === 'en' ? 'Medium' : 'Medio',  color: 'text-amber-600 bg-amber-50 border-amber-200' },
+                    { key: 'Hard',   label: lang === 'en' ? 'Hard'   : 'Difícil', color: 'text-rose-600 bg-rose-50 border-rose-200' },
+                  ].filter(d => stats.avgTime[d.key] !== undefined).map(({ key, label, color }) => {
+                    const t = stats.avgTime[key]
+                    const fmt = t >= 60 ? `${Math.floor(t / 60)}m ${t % 60}s` : `${t}s`
+                    return (
+                      <div key={key} className={`flex-1 rounded-lg border px-3 py-2 text-center ${color}`}>
+                        <p className="text-xs font-medium opacity-70">{label}</p>
+                        <p className="text-sm font-bold tabular-nums mt-0.5">{fmt}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Stats secundarias en fila — eliminadas */}
 
             {/* Fortalezas y debilidades (últimos 5 intentos) */}
@@ -2973,6 +3103,11 @@ function UsuarioApp() {
                               {d.is_ranked === false && (
                                 <p className="text-[10px] text-slate-400">
                                   {lang === 'en' ? 'Unranked' : 'Sin rankeo'}
+                                </p>
+                              )}
+                              {d.elo_delta != null && (
+                                <p className={`text-[11px] font-bold tabular-nums ${d.elo_delta >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                                  {d.elo_delta >= 0 ? '+' : ''}{d.elo_delta} ELO
                                 </p>
                               )}
                               {companyName && (

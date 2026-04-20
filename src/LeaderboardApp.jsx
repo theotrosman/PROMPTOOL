@@ -56,7 +56,7 @@ function LeaderboardApp() {
     { key: 'mejor_score',          label: lang === 'en' ? 'Best'     : 'Mejor',     suffix: '%', tableOnly: false },
     { key: 'total_intentos',       label: lang === 'en' ? 'Attempts' : 'Intentos',  suffix: '',  tableOnly: false },
     { key: 'porcentaje_aprobacion',label: lang === 'en' ? 'Approval' : 'Aprobación',suffix: '%', tableOnly: false },
-    { key: 'racha_actual',         label: lang === 'en' ? 'Streak'   : 'Racha',     suffix: '',  tableOnly: true },
+    { key: 'racha_actual',         label: lang === 'en' ? 'Streak'   : 'Racha',     suffix: '',  tableOnly: true, hidden: true },
   ]
   const tableCols = cols.filter(c => !c.tableOnly)
 
@@ -388,8 +388,29 @@ function LeaderboardApp() {
 
         {/* Table */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            {/* Header skeleton */}
+            <div className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5.5rem] gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-3 rounded-full bg-slate-200 animate-pulse" />
+              ))}
+            </div>
+            {/* Row skeletons */}
+            {[...Array(10)].map((_, i) => (
+              <div key={i} className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem_5.5rem] gap-3 items-center px-5 py-3.5 border-b border-slate-100 last:border-0">
+                <div className="h-4 w-4 rounded-full bg-slate-200 animate-pulse mx-auto" />
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-3.5 w-28 rounded-full bg-slate-200 animate-pulse" />
+                    <div className="h-2.5 w-16 rounded-full bg-slate-100 animate-pulse" />
+                  </div>
+                </div>
+                {[...Array(4)].map((_, j) => (
+                  <div key={j} className="h-4 w-10 rounded-full bg-slate-100 animate-pulse ml-auto" />
+                ))}
+              </div>
+            ))}
           </div>
         ) : players.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
