@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLang } from '../contexts/LangContext'
+import flameLitGif from '../assets/flame-lit.gif'
 
 const normalizeDifficulty = (difficulty = 'Medium') => difficulty.toLowerCase()
 
@@ -35,13 +36,19 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
 
   const DRAFT_KEY = `promptdraft_${mode}_${imageId || 'noimg'}`
 
-  // Restaurar borrador al montar (solo si hay texto y corresponde a la misma imagen)
+  const DRAFT_TTL = 5 * 60 * 1000 // 5 minutos en ms
+
+  // Restaurar borrador al montar (solo si hay texto, corresponde a la misma imagen y no expiró)
   useEffect(() => {
     if (!imageId || promptUsuario.trim()) return
     try {
       const saved = localStorage.getItem(DRAFT_KEY)
       if (!saved) return
-      const { text, elapsed } = JSON.parse(saved)
+      const { text, elapsed, savedAt } = JSON.parse(saved)
+      if (savedAt && Date.now() - savedAt > DRAFT_TTL) {
+        localStorage.removeItem(DRAFT_KEY)
+        return
+      }
       if (text?.trim()) {
         setPromptUsuario(text)
         if (elapsed > 0) {
@@ -59,7 +66,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
   useEffect(() => {
     if (!imageId || !promptUsuario.trim() || submitted) return
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ text: promptUsuario, elapsed: elapsedSeconds }))
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ text: promptUsuario, elapsed: elapsedSeconds, savedAt: Date.now() }))
     } catch { /* silencioso */ }
   }, [promptUsuario, elapsedSeconds, DRAFT_KEY, imageId, submitted])
 
@@ -143,7 +150,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
         <label className="block text-sm font-medium text-slate-700">{t('writePrompt')}</label>
         {streak >= 2 && (
           <div className="flex items-center gap-0.5">
-            <img src="/media/flame-lit.gif" alt="" className="h-6 w-6 object-contain" />
+            <img src={flameLitGif} alt="" className="h-6 w-6 object-contain" />
             <span className="text-base font-black tabular-nums translate-y-px" style={{ color: '#fb923c', letterSpacing: '-0.02em' }}>{streak}</span>
           </div>
         )}

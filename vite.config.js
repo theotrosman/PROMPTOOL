@@ -9,9 +9,16 @@ module.exports = defineConfig({
     {
       name: 'clean-url-rewrite',
       configureServer(server) {
-        server.middlewares.use((req, _res, next) => {
+        server.middlewares.use((req, res, next) => {
           const url = req.url.split('?')[0]
           const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
+
+          // Bloquear acceso directo a /media/*
+          if (url.startsWith('/media/')) {
+            res.statusCode = 403
+            res.end('Forbidden')
+            return
+          }
 
           if (/^\/user\/[^/]+/.test(url)) {
             req.url = '/user.html' + query
@@ -38,6 +45,7 @@ module.exports = defineConfig({
     },
   ],
   build: {
+    assetsInlineLimit: 1024 * 1024, // inline todo hasta 1MB como base64
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),

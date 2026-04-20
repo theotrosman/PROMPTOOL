@@ -8,6 +8,7 @@ import {
 import Header from './components/Header'
 import Footer from './components/Footer'
 import { useAuth } from './hooks/useAuth'
+import flameLitGif from './assets/flame-lit.gif'
 import { useAdmin } from './hooks/useAdmin'
 import { useLang } from './contexts/LangContext'
 import { supabase } from './supabaseClient'
@@ -2586,7 +2587,7 @@ function UsuarioApp() {
               )}
               {stats.racha > 0 && (
                 <div className="flex items-center gap-2">
-                  <img src="/media/flame-lit.gif" alt="racha" className="h-4 w-4 object-contain" style={{ filter: hexToFilter(chartColor) }} />
+                  <img src={flameLitGif} alt="racha" className="h-4 w-4 object-contain" style={{ filter: hexToFilter(chartColor) }} />
                   <span>{stats.racha} {stats.racha === 1 ? t('streakDay') : t('streak')}</span>
                 </div>
               )}

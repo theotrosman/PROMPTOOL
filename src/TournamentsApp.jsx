@@ -5,6 +5,7 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './hooks/useAuth'
 import { useLang } from './contexts/LangContext'
 import AuthModal from './components/AuthModal'
+import firstAttemptSvg from './assets/medals/first_attempt.svg'
 
 function Countdown({ targetDate }) {
   const [timeLeft, setTimeLeft] = useState({})
@@ -275,7 +276,7 @@ function TournamentsApp() {
                             <div className="space-y-2">
                               {/* Medal highlight */}
                               <div className="flex items-start gap-3 rounded-lg bg-white border border-amber-200 px-3 py-2.5">
-                                <img src="/media/medals/first_attempt.svg" alt="medal" className="h-8 w-8 shrink-0" />
+                                <img src={firstAttemptSvg} alt="medal" className="h-8 w-8 shrink-0" />
                                 <div>
                                   <p className="text-sm font-bold text-slate-900">
                                     {lang === 'en' ? 'Exclusive "Prompt Sprint #1" Medal' : 'Medalla exclusiva "Prompt Sprint #1"'}
