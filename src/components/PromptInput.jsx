@@ -30,6 +30,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
   const [pausedElapsed, setPausedElapsed] = useState(0)
   const [showShortWarning, setShowShortWarning] = useState(false)
   const [restoredDraft, setRestoredDraft] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const timerConfig = useMemo(() => getTimerConfig(mode, difficulty), [mode, difficulty])
 
   const DRAFT_KEY = `promptdraft_${mode}_${imageId || 'noimg'}`
@@ -54,16 +55,17 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageId])
 
-  // Guardar borrador en localStorage continuamente
+  // Guardar borrador en localStorage continuamente (solo si no se ha enviado)
   useEffect(() => {
-    if (!imageId || !promptUsuario.trim()) return
+    if (!imageId || !promptUsuario.trim() || submitted) return
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({ text: promptUsuario, elapsed: elapsedSeconds }))
     } catch { /* silencioso */ }
-  }, [promptUsuario, elapsedSeconds, DRAFT_KEY, imageId])
+  }, [promptUsuario, elapsedSeconds, DRAFT_KEY, imageId, submitted])
 
   // Limpiar borrador al enviar
   const clearDraft = () => {
+    setSubmitted(true)
     try { localStorage.removeItem(DRAFT_KEY) } catch { /* silencioso */ }
   }
 
