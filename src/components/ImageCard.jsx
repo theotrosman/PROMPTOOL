@@ -9,17 +9,16 @@ const ImageCard = ({ mode, data, imageStatus, onPreviewChange }) => {
   const closePreview = () => { setPreviewOpen(false); onPreviewChange?.(false) }
   const imageUrl = data?.url_image || ''
 
+  // Detectar aspect ratio cuando la imagen ya cargó en el <img> — sin doble request
+  const handleLoad = (e) => {
+    const { naturalWidth, naturalHeight } = e.target
+    if (naturalWidth && naturalHeight) setAspectRatio(`${naturalWidth} / ${naturalHeight}`)
+    setImgLoaded(true)
+  }
+
   useEffect(() => {
     if (!imageUrl) return
     setImgLoaded(false)
-    const img = new Image()
-    img.src = imageUrl
-    img.onload = () => {
-      if (img.naturalWidth && img.naturalHeight) {
-        setAspectRatio(`${img.naturalWidth} / ${img.naturalHeight}`)
-      }
-      setImgLoaded(true)
-    }
   }, [imageUrl])
 
   useEffect(() => {
@@ -88,7 +87,8 @@ const ImageCard = ({ mode, data, imageStatus, onPreviewChange }) => {
           draggable={false}
           loading="eager"
           fetchpriority="high"
-          onLoad={() => setImgLoaded(true)}
+          decoding="async"
+          onLoad={handleLoad}
         />
         {/* Overlay hover — cubre toda la imagen */}
         <div

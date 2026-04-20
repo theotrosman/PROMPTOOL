@@ -328,6 +328,15 @@ function App() {
           ? rows[0]
           : rows[Math.floor(Math.random() * rows.length)]
 
+        // Preload la imagen para que el browser la descargue antes del render
+        if (selected?.url_image) {
+          const link = document.createElement('link')
+          link.rel = 'preload'
+          link.as = 'image'
+          link.href = selected.url_image
+          document.head.appendChild(link)
+        }
+
         setImageData(selected)
         setImageStatus('ok')
       } catch (err) {
