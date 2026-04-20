@@ -98,11 +98,12 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
+      onMouseDown={e => { if (e.target === e.currentTarget) e.currentTarget._closeOnMouseUp = true }}
+      onMouseUp={e => { if (e.currentTarget._closeOnMouseUp && e.target === e.currentTarget) onClose(); e.currentTarget._closeOnMouseUp = false }}
     >
       <div
         className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden"
-        onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100">
