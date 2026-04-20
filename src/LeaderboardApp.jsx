@@ -63,14 +63,15 @@ function LeaderboardApp() {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true)
-      // Primero sincronizar total_intentos del usuario logueado
+      // Sincronizar ranked_count del usuario logueado
       if (user) {
         const { count } = await supabase
           .from('intentos')
           .select('id_intento', { count: 'exact', head: true })
           .eq('id_usuario', user.id)
+          .eq('is_ranked', true)
         if (count !== null) {
-          await supabase.from('usuarios').update({ total_intentos: count }).eq('id_usuario', user.id)
+          await supabase.from('usuarios').update({ ranked_count: count }).eq('id_usuario', user.id)
         }
       }
 
@@ -78,7 +79,7 @@ function LeaderboardApp() {
         .from('usuarios')
         .select('id_usuario, nombre, nombre_display, username, avatar_url, promedio_score, mejor_score, total_intentos, porcentaje_aprobacion, racha_actual, rank_anterior, elo_rating')
         .eq('adminstate', false)
-        .gte('total_intentos', 5)
+        .gte('ranked_count', 5)
         .order(sortBy, { ascending: false })
         .limit(100)
 

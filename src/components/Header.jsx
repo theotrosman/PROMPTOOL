@@ -8,7 +8,7 @@ import { supabase } from '../supabaseClient'
 import AuthModal from './AuthModal'
 import CompanyPanel from './CompanyPanel'
 
-const Header = () => {
+const Header = ({ companyRefreshKey = 0 }) => {
   const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } = useAuth()
   const { isAdmin } = useAdmin(user?.id)
   const { isDev } = useDev(user?.id)
@@ -60,7 +60,7 @@ const Header = () => {
           setCompanyData(null)
         }
       })
-  }, [user?.id])
+  }, [user?.id, companyRefreshKey])
 
   const profileHref = profileUsername ? `/user/${profileUsername}` : '/perfil'
 

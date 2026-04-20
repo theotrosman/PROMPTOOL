@@ -429,16 +429,18 @@ function App() {
 
       if (dbError) console.error('[intentos] Error al guardar:', dbError.message)
       else {
-        // Incrementar total_intentos en la BD para que el leaderboard lo refleje inmediatamente
+        // Incrementar total_intentos (y ranked_count si aplica) en la BD
         if (user) {
           supabase.from('usuarios')
-            .select('total_intentos')
+            .select('total_intentos, ranked_count')
             .eq('id_usuario', user.id)
             .maybeSingle()
             .then(({ data }) => {
-              supabase.from('usuarios')
-                .update({ total_intentos: (data?.total_intentos ?? 0) + 1 })
-                .eq('id_usuario', user.id)
+              const updates = { total_intentos: (data?.total_intentos ?? 0) + 1 }
+              if (!challengeId && isRanked) {
+                updates.ranked_count = (data?.ranked_count ?? 0) + 1
+              }
+              supabase.from('usuarios').update(updates).eq('id_usuario', user.id)
             })
         }
 
@@ -715,7 +717,7 @@ function App() {
   // Si es individual, mostrar juego
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-      <Header />
+      <Header companyRefreshKey={inviteState === 'joined' ? 1 : 0} />
 
       {suspensionInfo && (
         <div className="bg-rose-600 px-4 py-3 text-center text-sm font-medium text-white">
