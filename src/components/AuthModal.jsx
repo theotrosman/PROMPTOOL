@@ -91,8 +91,8 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
   const inputClass = "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
 
   const canSubmit = mode === 'signin'
-    ? !loading
-    : !loading && usernameStatus !== 'taken' && acceptTerms
+    ? !loading && !!email
+    : !loading && usernameStatus === 'ok' && acceptTerms
 
   return (
     <div

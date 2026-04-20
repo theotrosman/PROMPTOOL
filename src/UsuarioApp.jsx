@@ -280,7 +280,6 @@ function UsuarioApp() {
 
         if (profError) {
           // Columnas nuevas no existen aún — fallback a columnas básicas
-          console.warn('Usando columnas básicas:', profError.message)
           const { data: profBasic } = await supabase
             .from('usuarios')
             .select('id_usuario, nombre, email, adminstate, fecha_registro')
@@ -343,8 +342,6 @@ function UsuarioApp() {
             .from('intentos')
 .select('id_intento, puntaje_similitud, fecha_hora, prompt_usuario, id_imagen, strengths, improvements, elo_delta, is_ranked, tiempo_respuesta, imagenes_ia(url_image, prompt_original, image_diff, company_id)')            .eq('id_usuario', idToLoad)
             .order('fecha_hora', { ascending: false })
-
-          console.log('[intentos] data:', intentos?.length, 'error:', intentosError?.message)
 
           if (intentos && intentos.length > 0) {
             const total = intentos.length
@@ -486,8 +483,8 @@ function UsuarioApp() {
                       supabase.from('intentos').update({ elo_delta: u.delta }).eq('id_intento', u.id)
                     ))
                   }
-                } catch (eloErr) {
-                  console.warn('[ELO retroactivo] Error:', eloErr.message)
+                } catch {
+                  // ELO retroactivo failed silently
                 }
               }
             }
@@ -627,8 +624,8 @@ function UsuarioApp() {
             })
           }
         }
-      } catch (err) {
-        console.error('fetchData error:', err)
+      } catch {
+        // fetchData error — silently handled
       } finally {
         setLoadingData(false)   
       }
@@ -892,8 +889,7 @@ function UsuarioApp() {
 
       if (error) throw error
       setEnterpriseRequests(data || [])
-    } catch (err) {
-      console.error('Error fetching enterprise requests:', err)
+    } catch {
       setEnterpriseRequests([])
     } finally {
       setEnterpriseLoadingRequests(false)
@@ -914,8 +910,7 @@ function UsuarioApp() {
       if (error) throw error
       setProfile(p => ({ ...p, ...updates }))
       setEnterpriseActionStatus(lang === 'en' ? 'Profile saved' : 'Perfil guardado')
-    } catch (err) {
-      console.error('Error saving enterprise profile:', err)
+    } catch {
       setEnterpriseActionStatus(lang === 'en' ? 'Unable to save profile' : 'No se pudo guardar el perfil')
     } finally {
       setEnterpriseSavingProfile(false)
@@ -941,8 +936,7 @@ function UsuarioApp() {
       setInviteMessage('')
       fetchEnterpriseRequests()
       setEnterpriseActionStatus(lang === 'en' ? 'Invitation sent.' : 'Invitación enviada.')
-    } catch (err) {
-      console.error('Error sending invite:', err)
+    } catch {
       setEnterpriseActionStatus(lang === 'en' ? 'Could not send invitation.' : 'No se pudo enviar la invitación.')
     }
   }
@@ -964,8 +958,7 @@ function UsuarioApp() {
         ? (lang === 'en' ? 'Request accepted.' : 'Solicitud aceptada.')
         : (lang === 'en' ? 'Request rejected.' : 'Solicitud rechazada.'))
       fetchEnterpriseRequests()
-    } catch (err) {
-      console.error('Error updating request status:', err)
+    } catch {
       setEnterpriseActionStatus(lang === 'en' ? 'Could not update request.' : 'No se pudo actualizar la solicitud.')
     }
   }
@@ -1013,8 +1006,7 @@ function UsuarioApp() {
       const { error } = await supabase.from('team_invitations').insert([payload])
       if (error) throw error
       setJoinRequestStatus('sent')
-    } catch (err) {
-      console.error('Error sending join request:', err)
+    } catch {
       setJoinRequestStatus('error')
     }
   }
@@ -1053,8 +1045,7 @@ function UsuarioApp() {
           .limit(24)
         if (error) throw error
         setEnterpriseMembers(data || [])
-      } catch (err) {
-        console.error('Error loading enterprise members:', err)
+      } catch {
         setEnterpriseMembers([])
       } finally {
         setEnterpriseMembersLoading(false)
@@ -1079,8 +1070,8 @@ function UsuarioApp() {
         setIsFollowing(true)
         setFollowersCount(c => c + 1)
       }
-    } catch (err) {
-      console.error(err)
+    } catch {
+      // follow/unfollow failed silently
     } finally {
       setFollowLoading(false)
     }

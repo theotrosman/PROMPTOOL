@@ -68,8 +68,8 @@ const EnterprisePanel = ({ user }) => {
         .order('fecha', { ascending: false })
       if (error) throw error
       setChallenges(data || [])
-    } catch (err) {
-      console.error('Error fetching challenges:', err)
+    } catch {
+      // fetch challenges failed silently
     } finally {
       setLoadingChallenges(false)
     }
@@ -98,8 +98,8 @@ const EnterprisePanel = ({ user }) => {
         grouped[intento.id_imagen].push(intento)
       })
       setChallengeAttempts(grouped)
-    } catch (err) {
-      console.error('Error fetching challenge attempts:', err)
+    } catch {
+      // fetch challenge attempts failed silently
     } finally {
       setLoadingAttempts(false)
     }
@@ -196,8 +196,8 @@ const EnterprisePanel = ({ user }) => {
             setChallengeAttempts(grouped)
           }
         }
-      } catch (err) {
-        console.error('Error fetching company data:', err)
+      } catch {
+        // fetch company data failed silently
       } finally {
         setLoading(false)
       }
@@ -227,8 +227,7 @@ const EnterprisePanel = ({ user }) => {
       } else {
         setEnterpriseRequests(data || [])
       }
-    } catch (err) {
-      console.error('Error fetching enterprise requests:', err)
+    } catch {
       setEnterpriseRequests([])
     } finally {
       setEnterpriseLoadingRequests(false)
@@ -300,8 +299,7 @@ const EnterprisePanel = ({ user }) => {
       setInviteMessage('')
       setEnterpriseActionStatus(lang === 'en' ? 'Invitation sent.' : 'Invitación enviada.')
       fetchEnterpriseRequests()
-    } catch (err) {
-      console.error('Error sending invite:', err)
+    } catch {
       setEnterpriseActionStatus(lang === 'en' ? 'Could not send invitation.' : 'No se pudo enviar la invitación.')
     }
   }
@@ -336,8 +334,7 @@ const EnterprisePanel = ({ user }) => {
       setTeamUsers(members || [])
 
       fetchEnterpriseRequests()
-    } catch (err) {
-      console.error('Error updating request status:', err)
+    } catch {
       setEnterpriseActionStatus(lang === 'en' ? 'Could not update request.' : 'No se pudo actualizar la solicitud.')
     }
   }
@@ -349,8 +346,7 @@ const EnterprisePanel = ({ user }) => {
       if (error) throw error
       setEnterpriseActionStatus(lang === 'en' ? 'Invitation cancelled.' : 'Invitación cancelada.')
       fetchEnterpriseRequests()
-    } catch (err) {
-      console.error('Error cancelling invite:', err)
+    } catch {
       setEnterpriseActionStatus(lang === 'en' ? 'Could not cancel invitation.' : 'No se pudo cancelar la invitación.')
     } finally {
       setCancellingId(null)
@@ -372,8 +368,7 @@ const EnterprisePanel = ({ user }) => {
       setCompanyData(prev => ({ ...prev, ...updates }))
       setSettingsStatus('ok')
       setTimeout(() => setSettingsStatus(null), 2500)
-    } catch (err) {
-      console.error('Error saving settings:', err)
+    } catch {
       setSettingsStatus('error')
     } finally {
       setSavingSettings(false)
@@ -388,8 +383,8 @@ const EnterprisePanel = ({ user }) => {
       })
       if (error) throw error
       setTeamUsers(prev => prev.map(u => u.id_usuario === userId ? { ...u, company_role: role || null } : u))
-    } catch (err) {
-      console.error('Error assigning role:', err)
+    } catch {
+      // assign role failed silently
     }
   }
 
@@ -400,8 +395,8 @@ const EnterprisePanel = ({ user }) => {
       if (error) throw error
       setTeamUsers(prev => prev.filter(u => u.id_usuario !== userId))
       setConfirmRemove(null)
-    } catch (err) {
-      console.error('Error removing member:', err)
+    } catch {
+      // remove member failed silently
     } finally {
       setRemovingId(null)
     }
@@ -420,8 +415,8 @@ const EnterprisePanel = ({ user }) => {
         u.id_usuario === editingName.id ? { ...u, nombre_display: editingName.value.trim() } : u
       ))
       setEditingName(null)
-    } catch (err) {
-      console.error('Error renaming member:', err)
+    } catch {
+      // rename member failed silently
     } finally {
       setSavingName(false)
     }
@@ -493,7 +488,6 @@ const EnterprisePanel = ({ user }) => {
       fetchChallenges()
       setTimeout(() => closeChallengeModal(), 1000)
     } catch (err) {
-      console.error('Error creating challenge:', err)
       setChallengeStatus(err?.message || (lang === 'en' ? 'Could not create challenge.' : 'No se pudo crear el desafío.'))
     } finally {
       setCreatingChallenge(false)

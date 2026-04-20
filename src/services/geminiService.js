@@ -247,7 +247,6 @@ Return ONLY a valid JSON like this:
   "suggestions": "brief summary of improvements in 1 or 2 sentences — in the user's language"
 }`;
 
-    // console.log("🚀 Enviando request a Groq...");
 
     const headers = {
       "Content-Type": "application/json",
@@ -273,7 +272,6 @@ Return ONLY a valid JSON like this:
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("❌ API ERROR:", data);
       throw new Error(data.error?.message || "Error en la API");
     }
 
@@ -318,7 +316,6 @@ Return ONLY a valid JSON like this:
     };
 
   } catch (error) {
-    console.error("❌ ERROR FINAL:", error);
     throw new Error("Error al analizar el prompt.");
   }
 }

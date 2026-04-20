@@ -20,8 +20,8 @@ const ensureUserProfile = async (u) => {
         adminstate: false,
       }])
     }
-  } catch (err) {
-    console.error('ensureUserProfile error:', err)
+  } catch {
+    // profile creation failed silently
   }
 }
 
@@ -49,11 +49,10 @@ export const useAuth = () => {
   }, [])
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
     })
-    if (error) console.error('Error signing in with Google:', error)
   }
 
   const signInWithEmail = async (email, password) => {
@@ -94,15 +93,14 @@ export const useAuth = () => {
         user_type: userType,
         company_name: userType === 'enterprise' ? companyName : null,
       }])
-      if (dbError) console.error('Error creating user profile:', dbError)
+      if (dbError) throw dbError
     }
 
     return data
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) console.error('Error signing out:', error)
+    await supabase.auth.signOut()
   }
 
   return { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut }

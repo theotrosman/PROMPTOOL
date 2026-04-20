@@ -53,9 +53,8 @@ export const checkImageSafe = async (input) => {
     }
 
     return { safe: true, reason: '' }
-  } catch (err) {
-    console.error('NSFW check error:', err)
-    // Si falla la detección, permitir la imagen (fail open)
+  } catch {
+    // fail open — allow image if detection fails
     return { safe: true, reason: '' }
   }
 }

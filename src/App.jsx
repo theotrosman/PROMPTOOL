@@ -126,7 +126,6 @@ function App() {
           setChallengeCompany(co || null)
         }
       } catch (err) {
-        console.error('[challenge] Error:', err)
         setImageStatus('error')
       }
     }
@@ -165,7 +164,6 @@ function App() {
           if (error.message?.includes('Already member')) {
             setInviteState('already')
           } else {
-            console.error('[invite] join error:', error.message)
             setInviteState('error')
           }
         } else {
@@ -174,7 +172,6 @@ function App() {
           window.history.replaceState({}, '', '/')
         }
       } catch (e) {
-        console.error('[invite] exception:', e)
         setInviteState('error')
       }
     }
@@ -341,7 +338,6 @@ function App() {
         setImageStatus('ok')
       } catch (err) {
         if (!cancelled) {
-          console.error('[imagenes_ia] Error:', err)
           setImageStatus('error')
         }
       }
@@ -427,7 +423,7 @@ function App() {
           tiempo_respuesta: timingData.elapsedSeconds > 0 ? timingData.elapsedSeconds : null,
         }])
 
-      if (dbError) console.error('[intentos] Error al guardar:', dbError.message)
+      if (dbError) { /* silencioso — el usuario igual ve el resultado */ }
       else {
         // Incrementar total_intentos (y ranked_count si aplica) en la BD
         if (user) {
@@ -486,7 +482,7 @@ function App() {
 
             // No calcular ELO hasta tener 5 intentos rankeados
             if (totalAttempts < 5) {
-              console.log(`[ELO] Awaiting rank (${totalAttempts}/5 ranked)`)
+              // Awaiting placement — no ELO yet
             } else {
               const { newElo, delta } = calculateElo({
                 userElo: currentElo,
@@ -510,14 +506,14 @@ function App() {
                 .from('intentos')
                 .update({ elo_delta: delta })
                 .eq('id_usuario', user.id)
+                .eq('is_ranked', true)
                 .order('fecha_hora', { ascending: false })
                 .limit(1)
 
               setEloDelta(delta)
-              console.log(`[ELO] ${currentElo} → ${newElo} (${delta > 0 ? '+' : ''}${delta})`)
             }
-          } catch (eloErr) {
-            console.warn('[ELO] Error actualizando:', eloErr.message)
+          } catch {
+            // ELO update failed silently — not critical
           }
         }
       }
@@ -531,14 +527,9 @@ function App() {
           elapsedSeconds: timingData.elapsedSeconds,
           difficulty,
           imageId: imageData.id_imagen,
-        }).then(({ suspicious, severity }) => {
-          if (suspicious && severity === 'high') {
-            console.warn('[antiplagio] Intento sospechoso detectado')
-          }
         })
       }
     } catch (err) {
-      console.error('[handleSubmit] Error:', err)
       setScorePercent(0)
       setAiExplanation('Hubo un error al analizar tu prompt.')
       setSuggestions('')

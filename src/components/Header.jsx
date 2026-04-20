@@ -217,8 +217,7 @@ const Header = ({ companyRefreshKey = 0 }) => {
 
       items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       setNotifications(items)
-    } catch (err) {
-      console.error('Error loading notifications:', err)
+    } catch {
       setNotifications([])
     } finally {
       setLoadingNotifications(false)
@@ -234,8 +233,8 @@ const Header = ({ companyRefreshKey = 0 }) => {
         source_id: item.sourceId,
       }], { onConflict: 'user_id,source_type,source_id' })
       setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n))
-    } catch (err) {
-      console.error('Error marking notification read:', err)
+    } catch {
+      // mark read failed silently
     }
   }
 
@@ -249,8 +248,8 @@ const Header = ({ companyRefreshKey = 0 }) => {
         { onConflict: 'user_id,source_type,source_id' },
       )
       setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-    } catch (err) {
-      console.error('Error marking all as read:', err)
+    } catch {
+      // mark all read failed silently
     }
   }
 
@@ -283,8 +282,8 @@ const Header = ({ companyRefreshKey = 0 }) => {
           ).body }
         : n))
       await markNotificationRead(item)
-    } catch (err) {
-      console.error('Error updating invitation:', err)
+    } catch {
+      // invitation action failed silently
     } finally {
       setNotificationActionLoading(null)
     }

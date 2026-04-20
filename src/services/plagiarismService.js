@@ -154,8 +154,8 @@ export const analyzePlagiarism = async ({
       if (maxFp >= THRESHOLDS.fingerprintFlag)
         reasons.push(`fingerprint:${Math.round(maxFp * 100)}%`)
     }
-  } catch (err) {
-    console.warn('[plagiarism] Error comparing prompts:', err.message)
+  } catch {
+    // fail open — comparison error
   }
 
   if (!reasons.length) return { suspicious: false, reasons: [], severity: 'none' }
@@ -203,8 +203,8 @@ export const analyzePlagiarism = async ({
         suspension_status: 'warned',
       }).eq('id_usuario', userId)
     }
-  } catch (err) {
-    console.warn('[plagiarism] Error saving flag:', err.message)
+  } catch {
+    // fail open — flag save error
   }
 
   return { suspicious: true, reasons, severity }

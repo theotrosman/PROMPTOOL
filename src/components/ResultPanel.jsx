@@ -167,8 +167,8 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
       link.download = `promptool-score-${safeScore}.png`
       link.href = canvas.toDataURL('image/png')
       link.click()
-    } catch (err) {
-      console.error('Share error:', err)
+    } catch {
+      // share/download failed silently
     } finally {
       setSharing(false)
     }

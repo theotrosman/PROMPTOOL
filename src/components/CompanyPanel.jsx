@@ -39,8 +39,8 @@ const CompanyPanel = ({ user, companyData, onClose, onLeft }) => {
         .eq('company_id', companyData.id_usuario)
         .order('elo_rating', { ascending: false })
       setMembers(data || [])
-    } catch (err) {
-      console.error(err)
+    } catch {
+      // fetch members failed silently
     } finally {
       setLoadingMembers(false)
     }
@@ -55,8 +55,8 @@ const CompanyPanel = ({ user, companyData, onClose, onLeft }) => {
         .eq('company_id', companyData.id_usuario)
         .order('fecha', { ascending: false })
       setChallenges(data || [])
-    } catch (err) {
-      console.error(err)
+    } catch {
+      // fetch challenges failed silently
     } finally {
       setLoadingChallenges(false)
     }
@@ -74,8 +74,7 @@ const CompanyPanel = ({ user, companyData, onClose, onLeft }) => {
       if (onLeft) onLeft()
       // Recargar la página para reflejar el cambio en el header
       window.location.reload()
-    } catch (err) {
-      console.error('Error leaving company:', err)
+    } catch {
       setLeaving(false)
       setConfirmLeave(false)
     }

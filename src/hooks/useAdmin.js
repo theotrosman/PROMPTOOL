@@ -31,7 +31,6 @@ export const useAdmin = (userId) => {
           .maybeSingle()
 
         if (error) {
-          console.error('useAdmin table error:', error.message)
           setIsAdmin(false)
           return
         }
@@ -43,8 +42,7 @@ export const useAdmin = (userId) => {
         } else {
           setIsAdmin(false)
         }
-      } catch (err) {
-        console.error('useAdmin error:', err)
+      } catch {
         setIsAdmin(false)
       } finally {
         setLoading(false)
