@@ -1,14 +1,13 @@
 {
-  "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
-    { "source": "/user/(.*)", "destination": "/user.html" },
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/leaderboard", "destination": "/leaderboard.html" },
-    { "source": "/tournaments", "destination": "/tournaments.html" },
-    { "source": "/guides", "destination": "/guides.html" },
-    { "source": "/support", "destination": "/support.html" },
-    { "source": "/terms", "destination": "/terms.html" },
-    { "source": "/privacy", "destination": "/privacy.html" }
+  "routes": [
+    { "src": "^/user/(.*)$", "dest": "/user.html" },
+    { "src": "^/admin$", "dest": "/admin.html" },
+    { "src": "^/leaderboard$", "dest": "/leaderboard.html" },
+    { "src": "^/tournaments$", "dest": "/tournaments.html" },
+    { "src": "^/guides$", "dest": "/guides.html" },
+    { "src": "^/support$", "dest": "/support.html" },
+    { "src": "^/terms$", "dest": "/terms.html" },
+    { "src": "^/privacy$", "dest": "/privacy.html" }
   ]
 }
