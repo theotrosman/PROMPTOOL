@@ -2,8 +2,8 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
+    { "source": "/user/(.*)", "destination": "/user.html" },
     { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/user", "destination": "/user.html" },
     { "source": "/leaderboard", "destination": "/leaderboard.html" },
     { "source": "/tournaments", "destination": "/tournaments.html" },
     { "source": "/guides", "destination": "/guides.html" },
