@@ -238,7 +238,7 @@ const LandingPage = ({ onOpenAuth, onTryApp }) => {
 
             <div className="space-y-4">
               <h1 className="text-5xl font-black tracking-tight sm:text-6xl lg:text-7xl">
-                Adiviná el prompt.{' '}
+                Descifrá el prompt.{' '}
                 <span className="text-violet-500">Domina la IA.</span>
               </h1>
               <p className={`max-w-md text-base leading-7 ${dark ? 'text-slate-300/80' : 'text-slate-500'}`}>
