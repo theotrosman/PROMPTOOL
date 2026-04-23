@@ -24,7 +24,7 @@ const formatTime = (seconds = 0) => {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`
 }
 
-const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null, streak = 0, imageId = null }) => {
+const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null, streak = 0, imageId = null, onDifficultyChange = null, availableDiffs = [] }) => {
   const { t, lang } = useLang()
   const [startedAt, setStartedAt] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -178,12 +178,40 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
       <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-500">
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5">
           <span className="text-slate-400">{t('mode')}</span>
-          <span className="text-slate-700 font-semibold">{mode === 'daily' ? t('daily') : t('random')}</span>
+          <span className="text-slate-700 font-semibold">{mode === 'daily' ? t('daily') : mode === 'challenge' ? (lang === 'en' ? 'Challenge' : 'Desafío') : t('random')}</span>
         </span>
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5">
-          <span className="text-slate-400">{t('difficulty')}</span>
-          <span className="text-slate-700 font-semibold">{difficulty}</span>
-        </span>
+        {onDifficultyChange && availableDiffs.length > 1 ? (
+          <button
+            type="button"
+            onClick={() => {
+              const diffs = availableDiffs
+              const current = diffs.findIndex(d => d.toLowerCase() === (difficulty || 'Medium').toLowerCase())
+              const next = diffs[(current + 1) % diffs.length]
+              onDifficultyChange(next)
+            }}
+            title={lang === 'en' ? 'Click to change difficulty' : 'Click para cambiar dificultad'}
+            className="group inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 transition hover:bg-slate-200 cursor-pointer"
+          >
+            <span className="text-slate-400">{t('difficulty')}</span>
+            <span className={`font-semibold transition ${
+              normalizeDifficulty(difficulty) === 'easy' ? 'text-emerald-600' :
+              normalizeDifficulty(difficulty) === 'hard' ? 'text-rose-600' :
+              'text-amber-600'
+            }`}>{difficulty}</span>
+            <svg className="h-3 w-3 text-slate-400 group-hover:text-slate-600 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5">
+            <span className="text-slate-400">{t('difficulty')}</span>
+            <span className={`font-semibold ${
+              normalizeDifficulty(difficulty) === 'easy' ? 'text-emerald-600' :
+              normalizeDifficulty(difficulty) === 'hard' ? 'text-rose-600' :
+              'text-amber-600'
+            }`}>{difficulty}</span>
+          </span>
+        )}
         <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${timeBadgeClass}`}>
           <span className="font-semibold">{formatTime(remainingSeconds)}</span>
         </span>

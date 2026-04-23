@@ -251,10 +251,7 @@ const LandingPage = ({ onOpenAuth, onTryApp }) => {
               <button
                 type="button"
                 onClick={onTryApp}
-                className={`inline-flex items-center justify-center rounded-full px-7 py-3 text-sm font-semibold shadow-lg transition ${dark
-                  ? 'bg-white text-slate-950 hover:bg-slate-100'
-                  : 'bg-slate-900 text-white hover:bg-slate-700'
-                }`}
+                className="inline-flex items-center justify-center rounded-full bg-violet-600 px-7 py-3 text-sm font-semibold text-white shadow-lg hover:bg-violet-500 transition"
               >
                 Probar
               </button>
