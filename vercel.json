@@ -1,0 +1,13 @@
+{
+  "trailingSlash": false,
+  "routes": [
+    { "src": "^/user/(.*)$", "dest": "/user.html" },
+    { "src": "^/admin$", "dest": "/admin.html" },
+    { "src": "^/leaderboard$", "dest": "/leaderboard.html" },
+    { "src": "^/tournaments$", "dest": "/tournaments.html" },
+    { "src": "^/guides$", "dest": "/guides.html" },
+    { "src": "^/support$", "dest": "/support.html" },
+    { "src": "^/terms$", "dest": "/terms.html" },
+    { "src": "^/privacy$", "dest": "/privacy.html" }
+  ]
+}
