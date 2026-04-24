@@ -509,12 +509,19 @@ const Header = ({ companyRefreshKey = 0 }) => {
                     className="relative flex h-9 w-9 items-center justify-center text-slate-500 transition hover:text-slate-700"
                     title={lang === 'en' ? 'Inbox' : 'Bandeja'}
                   >
-                    <img
-                      src="https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/all-icons/inbox-8udb3q03g0n3xc5o64l00d.png/inbox-j8o515ikjwcv92wlvjffl.png?_a=DATAiZAAZAA0"
-                      alt={lang === 'en' ? 'Inbox' : 'Bandeja'}
-                      className="h-5 w-5 object-contain"
-                      style={{ filter: theme === 'dark' ? 'invert(1) brightness(1.7)' : 'none', opacity: theme === 'dark' ? 0.92 : 0.82 }}
-                    />
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.75}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+                      <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" />
+                    </svg>
                     {unreadCount > 0 && (
                       <span className="absolute right-0 top-0 inline-flex min-w-[14px] translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-semibold leading-3 text-white">
                         {unreadCount > 99 ? '99+' : unreadCount}
