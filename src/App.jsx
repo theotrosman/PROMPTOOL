@@ -911,7 +911,7 @@ function App() {
   const remaining = MAX_ATTEMPTS_BEFORE_UNLOCK - imageAttempts
   const unlocked = imageAttempts >= MAX_ATTEMPTS_BEFORE_UNLOCK
 
-  const attemptsIndicator = user && imageData && !promptRevealed && mode !== 'daily' ? (
+  const attemptsIndicator = imageData && !promptRevealed && mode !== 'daily' ? (
     <div className="relative group/attempts">
       <div className={[
         'rounded-xl border px-3 py-2.5 transition-all',
