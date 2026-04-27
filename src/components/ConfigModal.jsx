@@ -68,8 +68,8 @@ const TabBtn = ({ active, onClick, label }) => (
     onClick={onClick}
     className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
       active
-        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200'
+        ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900 shadow-sm'
+        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/80 hover:text-slate-700 dark:hover:text-slate-200'
     }`}
   >
     {label}
@@ -356,10 +356,10 @@ const ConfigModal = ({
                     key={opt.id}
                     type="button"
                     onClick={() => { setReportTarget(opt.id); setReportReason('') }}
-                    className={`rounded-lg border py-2.5 text-sm font-medium transition ${
+                    className={`rounded-lg border py-2.5 text-sm font-semibold transition ${
                       reportTarget === opt.id
-                        ? 'border-slate-800 dark:border-slate-300 bg-slate-800 dark:bg-slate-300 text-white dark:text-slate-900'
-                        : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500 bg-white dark:bg-slate-800/70'
+                        ? 'border-transparent bg-slate-800 dark:bg-white text-white dark:text-slate-900 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500 bg-white dark:bg-slate-800/60'
                     }`}
                   >
                     {opt.label}
@@ -378,12 +378,14 @@ const ConfigModal = ({
                       onClick={() => setReportReason(r.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-sm text-left transition ${
                         reportReason === r.id
-                          ? 'bg-slate-800 dark:bg-slate-300 text-white dark:text-slate-900'
-                          : 'bg-white dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80'
+                          ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900'
+                          : 'bg-white dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/70'
                       }`}
                     >
-                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                        reportReason === r.id ? 'bg-white dark:bg-slate-900' : 'bg-slate-300 dark:bg-slate-500'
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 transition-colors ${
+                        reportReason === r.id
+                          ? 'bg-white dark:bg-slate-800'
+                          : 'bg-slate-300 dark:bg-slate-500'
                       }`} />
                       {r.label}
                     </button>
@@ -393,11 +395,11 @@ const ConfigModal = ({
 
               {/* Send */}
               {reportStatus === 'sent' ? (
-                <div className="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 px-4 py-3">
-                  <svg className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <div className="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 px-4 py-3">
+                  <svg className="h-4 w-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                     {es ? 'Reporte enviado. Gracias.' : 'Report sent. Thank you.'}
                   </p>
                 </div>
@@ -406,7 +408,7 @@ const ConfigModal = ({
                   type="button"
                   disabled={!reportReason || reportStatus === 'sending'}
                   onClick={handleSendReport}
-                  className="w-full rounded-xl bg-slate-800 dark:bg-slate-200 hover:bg-slate-900 dark:hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed text-white dark:text-slate-900 font-semibold py-3 text-sm transition flex items-center justify-center gap-2"
+                  className="w-full rounded-xl bg-slate-800 dark:bg-white hover:bg-slate-900 dark:hover:bg-slate-100 disabled:opacity-25 disabled:cursor-not-allowed text-white dark:text-slate-900 font-semibold py-3 text-sm transition flex items-center justify-center gap-2"
                 >
                   {reportStatus === 'sending' ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
@@ -444,15 +446,19 @@ const ConfigModal = ({
                       onClick={() => setVisualMode(vm.id)}
                       className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left transition ${
                         active
-                          ? 'bg-slate-800 dark:bg-slate-300'
-                          : 'bg-white dark:bg-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-700/80'
+                          ? 'bg-slate-800 dark:bg-white'
+                          : 'bg-white dark:bg-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-700/70'
                       }`}
                     >
                       <div>
-                        <p className={`text-sm font-semibold leading-snug ${active ? 'text-white dark:text-slate-900' : 'text-slate-800 dark:text-slate-100'}`}>
+                        <p className={`text-sm font-semibold leading-snug ${
+                          active ? 'text-white dark:text-slate-900' : 'text-slate-800 dark:text-slate-100'
+                        }`}>
                           {vm.label}
                         </p>
-                        <p className={`text-xs mt-0.5 leading-relaxed ${active ? 'text-slate-400 dark:text-slate-600' : 'text-slate-500 dark:text-slate-400'}`}>
+                        <p className={`text-xs mt-0.5 leading-relaxed ${
+                          active ? 'text-slate-300 dark:text-slate-500' : 'text-slate-500 dark:text-slate-400'
+                        }`}>
                           {vm.desc[lang] || vm.desc.es}
                         </p>
                       </div>
