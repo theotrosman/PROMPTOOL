@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLang } from '../contexts/LangContext'
 import flameLitGif from '../assets/flame-lit.gif'
 import { sanitizePrompt } from '../utils/inputSanitizer'
+import { useTypingBehavior } from '../hooks/useTypingBehavior'
 
 const normalizeDifficulty = (difficulty = 'Medium') => difficulty.toLowerCase()
 
@@ -52,6 +53,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
   const [submitted, setSubmitted] = useState(false)
   const [incognitoActive, setIncognitoActive] = useState(getIncognitoActive)
   const timerConfig = useMemo(() => getTimerConfig(mode, difficulty, personalizedTime), [mode, difficulty, personalizedTime])
+  const { onTextChange: trackTyping, getReport: getTypingReport, reset: resetTyping } = useTypingBehavior()
 
   // Listen for privacy changes from ConfigModal
   useEffect(() => {
@@ -118,8 +120,8 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
   }, [paused])
 
   useEffect(() => {
-    if (!promptUsuario.trim()) { setStartedAt(null); setElapsedSeconds(0); setPausedElapsed(0) }
-  }, [promptUsuario])
+    if (!promptUsuario.trim()) { setStartedAt(null); setElapsedSeconds(0); setPausedElapsed(0); resetTyping() }
+  }, [promptUsuario, resetTyping])
 
   const estimatedSeconds = timerConfig.recommendedSeconds
   const remainingSeconds = Math.max(0, estimatedSeconds - elapsedSeconds)
@@ -145,6 +147,95 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
     : remainingRatio > 0.33 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
     : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
 
+  // ── Tech terms detection ──────────────────────────────────────────────────
+  const TECH_TERMS = [
+    { term: 'bokeh',          label: 'Bokeh' },
+    { term: 'cinematic',      label: 'Cinematic' },
+    { term: 'volumetric',     label: 'Volumetric lighting' },
+    { term: 'depth of field', label: 'Depth of field' },
+    { term: '4k',             label: '4K' },
+    { term: '8k',             label: '8K' },
+    { term: 'hdr',            label: 'HDR' },
+    { term: 'photorealistic', label: 'Photorealistic' },
+    { term: 'fotoreal',       label: 'Fotorrealista' },
+    { term: 'render',         label: 'Render' },
+    { term: 'rim light',      label: 'Rim light' },
+    { term: 'god rays',       label: 'God rays' },
+    { term: 'golden hour',    label: 'Golden hour' },
+    { term: 'hora dorada',    label: 'Hora dorada' },
+    { term: 'composition',    label: 'Composition' },
+    { term: 'composición',    label: 'Composición' },
+    { term: 'atmosphere',     label: 'Atmosphere' },
+    { term: 'atmósfera',      label: 'Atmósfera' },
+    { term: 'dramatic',       label: 'Dramatic' },
+    { term: 'ethereal',       label: 'Ethereal' },
+    { term: 'detailed',       label: 'Detailed' },
+    { term: 'detallado',      label: 'Detallado' },
+    { term: 'sharp focus',    label: 'Sharp focus' },
+    { term: 'soft light',     label: 'Soft light' },
+    { term: 'luz suave',      label: 'Luz suave' },
+    { term: 'macro',          label: 'Macro' },
+    { term: 'wide angle',     label: 'Wide angle' },
+    { term: 'gran angular',   label: 'Gran angular' },
+    { term: 'oil painting',   label: 'Oil painting' },
+    { term: 'watercolor',     label: 'Watercolor' },
+    { term: 'acuarela',       label: 'Acuarela' },
+    { term: 'concept art',    label: 'Concept art' },
+    { term: 'unreal engine',  label: 'Unreal Engine' },
+    { term: 'octane',         label: 'Octane render' },
+    { term: 'subsurface',     label: 'Subsurface scattering' },
+  ]
+  const promptLower = promptUsuario.toLowerCase()
+  const techMatched = TECH_TERMS.filter(({ term }) => promptLower.includes(term))
+  const techCount = techMatched.length
+
+  // ── Focus analysis ────────────────────────────────────────────────────────
+  const SUBJECT_WORDS = [
+    'man', 'woman', 'person', 'girl', 'boy', 'child', 'warrior', 'knight', 'wizard',
+    'hombre', 'mujer', 'persona', 'chica', 'chico', 'niño', 'niña', 'guerrero', 'mago',
+    'cat', 'dog', 'animal', 'creature', 'monster', 'dragon', 'robot', 'alien',
+    'gato', 'perro', 'animal', 'criatura', 'monstruo', 'dragón',
+    'face', 'portrait', 'figure', 'character', 'hero', 'villain',
+    'cara', 'retrato', 'figura', 'personaje', 'héroe',
+  ]
+  const ENVIRONMENT_WORDS = [
+    'forest', 'city', 'mountain', 'ocean', 'desert', 'jungle', 'space', 'sky',
+    'bosque', 'ciudad', 'montaña', 'océano', 'desierto', 'selva', 'espacio', 'cielo',
+    'street', 'room', 'building', 'landscape', 'background', 'environment', 'scene',
+    'calle', 'habitación', 'edificio', 'paisaje', 'fondo', 'ambiente', 'escena',
+    'field', 'valley', 'river', 'lake', 'beach', 'cave', 'ruins',
+    'campo', 'valle', 'río', 'lago', 'playa', 'cueva', 'ruinas',
+  ]
+  const VISUAL_WORDS = [
+    'light', 'shadow', 'color', 'bright', 'dark', 'glow', 'neon', 'vivid',
+    'luz', 'sombra', 'color', 'brillante', 'oscuro', 'brillo', 'neón', 'vívido',
+    'style', 'aesthetic', 'mood', 'tone', 'palette', 'texture', 'pattern',
+    'estilo', 'estética', 'ambiente', 'tono', 'paleta', 'textura', 'patrón',
+    'cinematic', 'dramatic', 'ethereal', 'moody', 'vibrant', 'pastel',
+    'cinemático', 'dramático', 'etéreo', 'vibrante',
+  ]
+
+  const words = promptUsuario.toLowerCase().split(/\s+/).filter(Boolean)
+  const subjectScore = words.filter(w => SUBJECT_WORDS.some(s => w.includes(s))).length
+  const envScore = words.filter(w => ENVIRONMENT_WORDS.some(s => w.includes(s))).length
+  const visualScore = words.filter(w => VISUAL_WORDS.some(s => w.includes(s))).length + techCount * 0.5
+
+  const getFocusLabel = () => {
+    const total = subjectScore + envScore + visualScore
+    if (total === 0) return lang === 'en' ? 'No focus yet' : 'Sin foco aún'
+    const max = Math.max(subjectScore, envScore, visualScore)
+    const isBalanced = max <= total * 0.45
+    if (isBalanced) return lang === 'en' ? 'Balanced' : 'Balanceado'
+    if (max === subjectScore) return lang === 'en' ? 'Very focused on subject' : 'Muy centrado en sujeto'
+    if (max === envScore) return lang === 'en' ? 'Very focused on environment' : 'Muy centrado en entorno'
+    return lang === 'en' ? 'Very visual' : 'Muy visual'
+  }
+
+  // Target values from timerConfig
+  const targetWords = timerConfig.targetWords
+  const targetChars = Math.round(targetWords * 6.5) // ~6.5 chars/word average
+  const targetTech = normalizeDifficulty(difficulty) === 'easy' ? 2 : normalizeDifficulty(difficulty) === 'hard' ? 5 : 3
+
   return (
     <form className="space-y-2.5" onSubmit={e => {
       e.preventDefault()
@@ -163,7 +254,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
       
       setShowShortWarning(false)
       clearDraft()
-      onSubmit(e)
+      onSubmit(e, getTypingReport(promptUsuario))
     }}>
       {restoredDraft && (
         <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
@@ -188,9 +279,9 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
               type="button"
               onClick={onOpenConfig}
               title={lang === 'en' ? 'Settings' : 'Configuración'}
-              className="flex items-center justify-center rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+              className="flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -222,17 +313,14 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
         </div>
       )}
 
-      <div className="relative">
+      {/* Textarea + stats footer integrados en un solo contenedor */}
+      <div className={`rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 transition focus-within:border-slate-400 dark:focus-within:border-slate-600 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
         <textarea
           value={promptUsuario}
           onChange={(e) => {
             const newValue = e.target.value
-            
-            // Prevent excessively long inputs
-            if (newValue.length > 2000) {
-              return
-            }
-            
+            if (newValue.length > 2000) return
+            trackTyping(promptUsuario, newValue)
             if (!startedAt && newValue.trim() && !paused) setStartedAt(Date.now())
             setPromptUsuario(newValue)
             if (showShortWarning) setShowShortWarning(false)
@@ -243,10 +331,29 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
           placeholder={t('promptPlaceholder')}
           disabled={disabled}
           maxLength={2000}
-          className="w-full min-h-[100px] resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent px-4 py-3 pr-20 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition focus:border-slate-400 dark:focus:border-slate-500 focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
+          className="w-full min-h-[100px] resize-none rounded-t-xl bg-transparent px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:ring-0 disabled:cursor-not-allowed disabled:text-slate-400"
         />
-        <div className="pointer-events-none absolute right-3 top-3 rounded-md bg-slate-900/5 dark:bg-slate-100/10 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">
-          {wordsCount} {lang === 'en' ? (wordsCount === 1 ? 'word' : 'words') : (wordsCount === 1 ? 'palabra' : 'palabras')}
+        {/* Footer de stats — separado por borde superior, mismo ancho que el textarea */}
+        <div className="flex items-center gap-4 border-t border-slate-100 dark:border-slate-700/60 px-4 py-2">
+          <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+            {lang === 'en' ? 'Words' : 'Palabras'}{' '}
+            <span className="font-semibold text-slate-600 dark:text-slate-300">{wordsCount}</span>
+            <span className="text-slate-300 dark:text-slate-600 select-none"> / {targetWords}</span>
+          </span>
+          <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+            {lang === 'en' ? 'Chars' : 'Caracteres'}{' '}
+            <span className="font-semibold text-slate-600 dark:text-slate-300">{promptUsuario.length}</span>
+            <span className="text-slate-300 dark:text-slate-600 select-none"> / {targetChars}</span>
+          </span>
+          <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+            {lang === 'en' ? 'Tech terms' : 'Términos técnicos'}{' '}
+            <span className="font-semibold text-slate-600 dark:text-slate-300">{techCount}</span>
+            <span className="text-slate-300 dark:text-slate-600 select-none"> / {targetTech}</span>
+          </span>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto">
+            {lang === 'en' ? 'Focus' : 'Foco'}{' '}
+            <span className="font-semibold text-slate-600 dark:text-slate-300">{getFocusLabel()}</span>
+          </span>
         </div>
       </div>
 
