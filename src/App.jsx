@@ -554,7 +554,7 @@ function App() {
 
     const handleBlur = () => {
       blurTimer = setTimeout(() => {
-        if (!document.hasFocus()) handleNewRandom()
+        if (!document.hasFocus()) handleForcedImageChange('blur')
       }, 400)
     }
 
@@ -563,7 +563,7 @@ function App() {
     }
 
     const handleVisibility = () => {
-      if (document.hidden) handleNewRandom()
+      if (document.hidden) handleForcedImageChange('visibility')
     }
 
     window.addEventListener('blur', handleBlur)
@@ -633,7 +633,7 @@ function App() {
         }
         if (fp !== lastFingerprint) {
           lastFingerprint = fp
-          handleNewRandom()
+          handleForcedImageChange('clipboard')
         }
       }, 1500) // cada 1.5s — suficiente para detectar sin saturar
     }
@@ -982,6 +982,17 @@ function App() {
       }
       fetchRandom()
     }
+  }
+
+  // Cambio forzado por anti-trampa — borra el draft antes de cambiar imagen
+  const handleForcedImageChange = (reason = 'blur') => {
+    // Borrar draft del imageId actual para que no se restaure en la nueva imagen
+    if (imageData?.id_imagen) {
+      try {
+        localStorage.removeItem(`promptdraft_${imageData.id_imagen}`)
+      } catch { /* silencioso */ }
+    }
+    handleNewRandom()
   }
 
   const handleRevealOriginalPrompt = () => {
@@ -1507,6 +1518,7 @@ function App() {
                           } : null}
                           personalizedTime={personalizedTime}
                           onOpenConfig={mode !== 'challenge' ? () => setConfigOpen(true) : null}
+                          showAnticheatWarning={mode === 'random' && !challengeId && clipboardPermission === 'granted'}
                         />
                         {progressChart}
                         {attemptsIndicator}
