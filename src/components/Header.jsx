@@ -216,16 +216,21 @@ const Header = ({ companyRefreshKey = 0 }) => {
         const sourceType = 'guide_suggestion'
         const sourceId = String(g.id)
         const sourceKey = `${sourceType}:${sourceId}`
+        // Detectar si es una respuesta a un reporte (enviada desde AdminApp)
+        const isReportResponse = g.title === 'Respuesta a tu reporte' || g.title === 'Report response'
         items.push({
           id: `guide-${g.id}`,
           sourceType,
           sourceId,
           read: readSet.has(sourceKey),
           createdAt: g.created_at,
-          title: g.title || (lang === 'en' ? 'Guide suggestion' : 'Sugerencia de guía'),
+          title: isReportResponse
+            ? (lang === 'en' ? 'Response to your report' : 'Respuesta a tu reporte')
+            : (g.title || (lang === 'en' ? 'Guide suggestion' : 'Sugerencia de guía')),
           body: g.message || (lang === 'en' ? 'You have a recommended guide.' : 'Tienes una guía recomendada.'),
-          actionUrl: g.guide_url || (g.guide_slug ? `/guides#${g.guide_slug}` : '/guides'),
+          actionUrl: g.guide_url || (g.guide_slug ? `/guides#${g.guide_slug}` : null),
           guide: g,
+          isReportResponse,
         })
       })
 
@@ -623,6 +628,13 @@ const Header = ({ companyRefreshKey = 0 }) => {
                                     </span>
                                   )}
                                 </div>
+                              ) : item.isReportResponse ? (
+                                /* Report response icon */
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 mt-0.5">
+                                  <svg className="h-4 w-4 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </div>
                               ) : null}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
@@ -637,7 +649,7 @@ const Header = ({ companyRefreshKey = 0 }) => {
                             </div>
 
                             <div className="mt-2 flex flex-wrap gap-2">
-                              {item.actionUrl && (
+                              {item.actionUrl && !item.isReportResponse && (
                                 <a
                                   href={item.actionUrl}
                                   onClick={() => markNotificationRead(item)}
@@ -649,9 +661,7 @@ const Header = ({ companyRefreshKey = 0 }) => {
                                 >
                                   {item.sourceType === 'challenge_notification'
                                     ? (lang === 'en' ? '🎯 Play challenge' : '🎯 Jugar desafío')
-                                    : item.sourceType === 'guide_suggestion'
-                                      ? (lang === 'en' ? 'Open guide' : 'Abrir guía')
-                                      : (lang === 'en' ? 'Open' : 'Abrir')}
+                                    : (lang === 'en' ? 'Open guide' : 'Abrir guía')}
                                 </a>
                               )}
 

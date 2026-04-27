@@ -45,6 +45,8 @@ function AdminApp() {
   const [addValues, setAddValues] = useState({})
 
   const [search, setSearch] = useState('')
+  const [whereClause, setWhereClause] = useState('') // e.g. "adminstate=eq.true"
+  const [whereError, setWhereError] = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
 
   // SQL runner
@@ -226,24 +228,57 @@ function AdminApp() {
   }, [user, authLoading])
 
   useEffect(() => {
-    if (adminChecked && isAdmin) fetchTableData()
+    if (adminChecked && isAdmin) {
+      setWhereClause('')
+      setWhereError('')
+      fetchTableData('')
+    }
   }, [selectedTable, adminChecked, isAdmin])
 
-  const fetchTableData = async () => {
+  const fetchTableData = async (customWhere = whereClause) => {
     setLoading(true)
     setEditingRow(null)
     setAddingRow(false)
     setSelectedUser(null)
+    setWhereError('')
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from(selectedTable)
         .select('*')
         .order(TABLE_SORT[selectedTable], { ascending: false })
         .limit(300)
+
+      // Apply WHERE filters — format: "col=op.value" comma-separated
+      // e.g. "adminstate=eq.true,total_intentos=gt.10"
+      if (customWhere.trim()) {
+        const filters = customWhere.split(',').map(f => f.trim()).filter(Boolean)
+        for (const filter of filters) {
+          const eqIdx = filter.indexOf('=')
+          if (eqIdx === -1) { setWhereError(`Invalid filter: "${filter}". Use col=op.value`); setLoading(false); return }
+          const col = filter.slice(0, eqIdx).trim()
+          const rest = filter.slice(eqIdx + 1).trim()
+          const dotIdx = rest.indexOf('.')
+          if (dotIdx === -1) { setWhereError(`Invalid operator in: "${filter}". Use eq, gt, lt, gte, lte, like, ilike, neq`); setLoading(false); return }
+          const op = rest.slice(0, dotIdx).trim()
+          const val = rest.slice(dotIdx + 1).trim()
+          const validOps = ['eq','neq','gt','gte','lt','lte','like','ilike','is','in']
+          if (!validOps.includes(op)) { setWhereError(`Unknown operator "${op}". Valid: ${validOps.join(', ')}`); setLoading(false); return }
+          // Convert value types
+          let typedVal = val
+          if (val === 'true') typedVal = true
+          else if (val === 'false') typedVal = false
+          else if (val === 'null') typedVal = null
+          else if (!isNaN(val) && val !== '') typedVal = Number(val)
+          query = query.filter(col, op, typedVal)
+        }
+      }
+
+      const { data, error } = await query
       if (error) throw error
       setTableData(data || [])
       setColumns(data?.length ? Object.keys(data[0]) : Object.keys(DEFAULT_ROW[selectedTable] || {}))
     } catch (err) {
+      setWhereError('Query error: ' + err.message)
       showToast('Error loading: ' + err.message, 'error')
     } finally {
       setLoading(false)
@@ -588,19 +623,60 @@ function AdminApp() {
               <span className="text-xs text-slate-400">{filteredData.length} / {tableData.length} records</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Client-side text search */}
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search all columns..."
-                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm outline-none focus:border-slate-400 w-48" />
+                placeholder="Filter visible rows..."
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm outline-none focus:border-slate-400 w-40" />
+              {/* Server-side WHERE */}
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={whereClause}
+                  onChange={e => { setWhereClause(e.target.value); setWhereError('') }}
+                  onKeyDown={e => e.key === 'Enter' && fetchTableData(whereClause)}
+                  placeholder="WHERE: col=eq.val, col=gt.10"
+                  title="Server-side filter. Format: column=operator.value — operators: eq, neq, gt, gte, lt, lte, like, ilike, is, in. Multiple filters comma-separated."
+                  className={`rounded-lg border px-3 py-1.5 text-sm font-mono outline-none w-56 ${
+                    whereError ? 'border-rose-400 bg-rose-50' : 'border-slate-200 bg-slate-50 focus:border-indigo-400'
+                  }`}
+                />
+                <button
+                  onClick={() => fetchTableData(whereClause)}
+                  title="Apply WHERE filter"
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 transition"
+                >
+                  Filter
+                </button>
+                {whereClause && (
+                  <button
+                    onClick={() => { setWhereClause(''); fetchTableData('') }}
+                    title="Clear filter"
+                    className="rounded-lg bg-slate-200 px-2.5 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-300 transition"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               <button onClick={startAdd}
                 className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 transition">
                 + Add
               </button>
-              <button onClick={fetchTableData}
+              <button onClick={() => fetchTableData(whereClause)}
                 className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition">
                 Reload
               </button>
             </div>
           </div>
+          {whereError && (
+            <div className="px-5 py-2 bg-rose-50 border-b border-rose-200 text-xs text-rose-700 font-mono">
+              {whereError}
+            </div>
+          )}
+          {whereClause && !whereError && (
+            <div className="px-5 py-1.5 bg-indigo-50 border-b border-indigo-100 text-xs text-indigo-600 font-mono">
+              WHERE {whereClause}
+            </div>
+          )}
 
           {loading ? (
             <div className="flex justify-center py-16">
