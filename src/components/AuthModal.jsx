@@ -383,14 +383,14 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
             </button>
           )}
 
-          <p className="text-center text-xs text-slate-400">
+          <p className="text-center text-sm text-slate-500 dark:text-slate-400">
             {mode === 'signin'
               ? (lang === 'en' ? "Don't have an account? " : '¿No tenés cuenta? ')
               : mode === 'signup' && signupStep === 'type'
               ? (lang === 'en' ? 'Already have an account? ' : '¿Ya tenés cuenta? ')
               : null}
             {(mode === 'signin' || (mode === 'signup' && signupStep === 'type')) && (
-              <button onClick={switchMode} className="font-medium text-slate-700 hover:text-slate-900 transition">
+              <button onClick={switchMode} className="font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition">
                 {mode === 'signin'
                   ? (lang === 'en' ? 'Sign up' : 'Registrate')
                   : (lang === 'en' ? 'Sign in' : 'Iniciá sesión')}
