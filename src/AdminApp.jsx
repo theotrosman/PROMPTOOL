@@ -367,6 +367,20 @@ function AdminApp() {
     }
   }
 
+  // ── TOGGLE DEV ──
+  const toggleDev = async (row) => {
+    const newVal = !row.devstate
+    try {
+      const { error } = await supabase.from('usuarios').update({ devstate: newVal }).eq('id_usuario', row.id_usuario)
+      if (error) throw error
+      showToast(newVal ? 'Dev granted' : 'Dev removed')
+      if (selectedUser?.id_usuario === row.id_usuario) setSelectedUser({ ...selectedUser, devstate: newVal })
+      fetchTableData()
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error')
+    }
+  }
+
   // ── SQL RUNNER ──
   const runSql = async () => {
     if (!sqlQuery.trim()) return
@@ -564,6 +578,12 @@ function AdminApp() {
                 }`}>
                 {selectedUser.adminstate ? 'Remove admin' : 'Grant admin'}
               </button>
+              <button onClick={() => toggleDev(selectedUser)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  selectedUser.devstate ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
+                }`}>
+                {selectedUser.devstate ? 'Remove dev' : 'Grant dev'}
+              </button>
               {selectedUser.user_type === 'enterprise' && (
                 <button onClick={() => toggleVerified(selectedUser)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
@@ -737,6 +757,12 @@ function AdminApp() {
                                       row.adminstate ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                                     }`}>
                                     {row.adminstate ? '−Admin' : '+Admin'}
+                                  </button>
+                                  <button onClick={() => toggleDev(row)}
+                                    className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
+                                      row.devstate ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
+                                    }`}>
+                                    {row.devstate ? '−Dev' : '+Dev'}
                                   </button>
                                   {row.user_type === 'enterprise' && (
                                     <button onClick={() => toggleVerified(row)}

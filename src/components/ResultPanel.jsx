@@ -51,7 +51,7 @@ const getDifficultyConfig = (difficulty = 'Medium') => {
   }
 }
 
-const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry, onReset, onNewRandom, mode, eloDelta = null }) => {
+const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry, onReset, onNewRandom, mode, eloDelta = null, aiCheatDetected = null }) => {
   const { t, lang } = useLang()
   const [sharing, setSharing] = useState(false)
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
@@ -186,6 +186,32 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
 
   return (
     <div className="space-y-2.5 animate-in fade-in duration-300">
+
+      {/* ── Penalización por uso de IA detectado ── */}
+      {aiCheatDetected && (
+        <div className="rounded-2xl border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 space-y-1">
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 shrink-0 text-rose-500 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">
+              {lang === 'en' ? 'AI-assisted writing detected' : 'Escritura asistida por IA detectada'}
+            </p>
+          </div>
+          <p className="text-xs text-rose-600 dark:text-rose-500 leading-relaxed">
+            {lang === 'en'
+              ? `Your typing pattern doesn't match natural human writing. A ${aiCheatDetected.penalty}-point penalty was applied to your score.`
+              : `Tu patrón de escritura no coincide con escritura humana natural. Se aplicó una penalización de ${aiCheatDetected.penalty} puntos a tu score.`}
+          </p>
+          {aiCheatDetected.severity === 'high' && (
+            <p className="text-[11px] font-medium text-rose-500 dark:text-rose-400">
+              {lang === 'en'
+                ? 'Repeated detections may result in account restrictions.'
+                : 'Detecciones repetidas pueden resultar en restricciones de cuenta.'}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Score + análisis ── */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">

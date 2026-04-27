@@ -1,9 +1,53 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-const ImageCard = ({ mode, data, imageStatus, onPreviewChange, revealedPrompt = null }) => {
+/**
+ * Aplica un watermark invisible al canvas con el userId.
+ * Usa esteganografía básica: modifica el bit menos significativo
+ * del canal alpha de píxeles específicos para codificar el ID.
+ * Imperceptible a simple vista pero detectable si se analiza la imagen.
+ */
+const applyInvisibleWatermark = (canvas, userId) => {
+  if (!canvas || !userId) return
+  try {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const data = imageData.data
+
+    // Codificar userId como bits en el canal alpha de píxeles distribuidos
+    const idBytes = Array.from(userId.slice(0, 32)).map(c => c.charCodeAt(0))
+    const marker = [0x57, 0x4D] // "WM" como marcador de inicio
+
+    let bitIndex = 0
+    const allBytes = [...marker, ...idBytes]
+
+    for (let byteIdx = 0; byteIdx < allBytes.length; byteIdx++) {
+      const byte = allBytes[byteIdx]
+      for (let bit = 7; bit >= 0; bit--) {
+        // Píxel en posición distribuida (cada 17 píxeles para no ser obvio)
+        const pixelIndex = (bitIndex * 17) % (data.length / 4)
+        const alphaIndex = pixelIndex * 4 + 3
+
+        if (alphaIndex < data.length) {
+          // Modificar solo el LSB del canal alpha
+          const bitValue = (byte >> bit) & 1
+          data[alphaIndex] = (data[alphaIndex] & 0xFE) | bitValue
+        }
+        bitIndex++
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0)
+  } catch {
+    // fail silently — no interrumpir la experiencia
+  }
+}
+
+const ImageCard = ({ mode, data, imageStatus, onPreviewChange, revealedPrompt = null, userId = null }) => {
   const [aspectRatio, setAspectRatio] = useState('4 / 3')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [imgLoaded, setImgLoaded] = useState(false)
+  const canvasRef = useRef(null)
+  const watermarkedRef = useRef(false)
 
   const openPreview = () => { setPreviewOpen(true); onPreviewChange?.(true) }
   const closePreview = () => { 
@@ -20,12 +64,25 @@ const ImageCard = ({ mode, data, imageStatus, onPreviewChange, revealedPrompt = 
     const { naturalWidth, naturalHeight } = e.target
     if (naturalWidth && naturalHeight) setAspectRatio(`${naturalWidth} / ${naturalHeight}`)
     setImgLoaded(true)
+
+    // Aplicar watermark invisible si hay userId
+    if (userId && canvasRef.current && !watermarkedRef.current) {
+      try {
+        const canvas = canvasRef.current
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        canvas.width = e.target.naturalWidth
+        canvas.height = e.target.naturalHeight
+        ctx.drawImage(e.target, 0, 0)
+        applyInvisibleWatermark(canvas, userId)
+        watermarkedRef.current = true
+      } catch { /* fail silently */ }
+    }
   }
 
   useEffect(() => {
     if (!imageUrl) return
     setImgLoaded(false)
-    // Pequeño delay para asegurar que la imagen se recarga
+    watermarkedRef.current = false
     const timer = setTimeout(() => setImgLoaded(true), 10)
     return () => clearTimeout(timer)
   }, [imageUrl])
@@ -142,6 +199,8 @@ const ImageCard = ({ mode, data, imageStatus, onPreviewChange, revealedPrompt = 
 
   return (
     <>
+      {/* Canvas oculto para watermarking — nunca visible */}
+      <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
       <div className="flex w-full flex-col gap-6 text-left h-full">
         <div
           className="group relative w-full h-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/60"

@@ -8,11 +8,13 @@ import ResultPanel from './components/ResultPanel'
 import SplashScreen from './components/SplashScreen'
 import { comparePrompts } from './services/geminiService'
 import { analyzePlagiarism, checkSuspension } from './services/plagiarismService'
+import { detectAIGenerated, checkClipboardForGameImage } from './services/aiDetectionService'
 import { calculateElo } from './services/eloService'
 import { getRecommendedGuides } from './data/guides'
 import { supabase } from './supabaseClient'
 import { useAuth } from './hooks/useAuth'
 import { useLang } from './contexts/LangContext'
+import { useWindowFocus } from './hooks/useWindowFocus'
 import { proxyImg } from './utils/imgProxy'
 import { nowAR } from './utils/dateAR'
 
@@ -138,6 +140,7 @@ const getPersonalizedTime = async (userId, difficulty = 'Medium') => {
 function App() {
   const { user, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth()
   const { t, lang } = useLang()
+  const { start: startFocusTracking, reset: resetFocusTracking, getReport: getFocusReport } = useWindowFocus({ enabled: true })
   const [showLanding, setShowLanding] = useState(true)
   const [showSplash, setShowSplash] = useState(true)
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -180,8 +183,10 @@ function App() {
   const [promptRevealed, setPromptRevealed] = useState(false)
   const [attemptHistory, setAttemptHistory] = useState([]) // [{score, prompt, strengths, improvements}]
   const MAX_ATTEMPTS_BEFORE_UNLOCK = 4
+  const [aiCheatDetected, setAiCheatDetected] = useState(null) // { penalty, severity, confidence }
   const [isRanked, setIsRanked] = useState(true) // toggle modo rankeado
-  const [personalizedTime, setPersonalizedTime] = useState(null) // tiempo personalizado basado en historial
+  const [clipboardPermission, setClipboardPermission] = useState('prompt') // 'granted' | 'denied' | 'prompt' | 'checking'
+  const [personalizedTime, setPersonalizedTime] = useState(null)
   const recommendedGuideIds = getRecommendedGuides(improvements, suggestions)
 
   // Resetear intentos y reveal cuando cambia la imagen
@@ -219,6 +224,7 @@ function App() {
         setDifficulty(data.image_diff || 'Medium')
         setMode('challenge')
         setImageStatus('ok')
+        startFocusTracking()
         // Cargar datos de la empresa
         if (data.company_id) {
           const { data: co } = await supabase
@@ -280,6 +286,41 @@ function App() {
     }
     joinCompany()
   }, [inviteCompanyId, user?.id])
+
+  // Verificar permiso de portapapeles al montar y cuando el usuario vuelve a la pestaña
+  useEffect(() => {
+    const checkClipboardPermission = async () => {
+      setClipboardPermission('checking')
+      try {
+        const result = await navigator.permissions.query({ name: 'clipboard-read' })
+        setClipboardPermission(result.state) // 'granted' | 'denied' | 'prompt'
+        // Escuchar cambios en tiempo real (si el usuario cambia el permiso en config del browser)
+        result.onchange = () => setClipboardPermission(result.state)
+      } catch {
+        // Navegador no soporta permissions API (Firefox) — asumir granted para no bloquear
+        setClipboardPermission('granted')
+      }
+    }
+    checkClipboardPermission()
+  }, [])
+
+  const requestClipboardPermission = async () => {
+    try {
+      // Intentar leer — esto dispara el diálogo si el estado es 'prompt'
+      // Si ya fue denegado, el navegador no muestra diálogo y tira NotAllowedError
+      await navigator.clipboard.readText()
+      setClipboardPermission('granted')
+    } catch (err) {
+      if (err?.name === 'NotAllowedError') {
+        // Permiso ya denegado — el navegador no muestra diálogo de nuevo.
+        // Hay que mandar al usuario a la configuración del sitio manualmente.
+        setClipboardPermission('denied_hard')
+      } else {
+        // Cualquier otro error (clipboard vacío, etc.) = permiso otorgado
+        setClipboardPermission('granted')
+      }
+    }
+  }
 
   // Verificar suspensión al cargar
   useEffect(() => {
@@ -466,6 +507,7 @@ function App() {
 
         setImageData(selected)
         setImageStatus('ok')
+        startFocusTracking()
       } catch (err) {
         if (!cancelled) {
           setImageStatus('error')
@@ -503,12 +545,112 @@ function App() {
     prefetch()
   }, [mode, challengeId])
 
-  // El modo ya se inicializa correctamente desde localStorage en el useState — no hace falta useEffect
+  // Cambiar imagen cuando el usuario pierde el foco de la ventana (anti-trampa)
+  // Solo aplica en modo random, antes de enviar el prompt
+  useEffect(() => {
+    if (submitted || mode !== 'random' || challengeId || !imageData) return
+
+    let blurTimer = null
+
+    const handleBlur = () => {
+      blurTimer = setTimeout(() => {
+        if (!document.hasFocus()) handleNewRandom()
+      }, 400)
+    }
+
+    const handleFocus = () => {
+      if (blurTimer) { clearTimeout(blurTimer); blurTimer = null }
+    }
+
+    const handleVisibility = () => {
+      if (document.hidden) handleNewRandom()
+    }
+
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (blurTimer) clearTimeout(blurTimer)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted, mode, challengeId, imageData?.id_imagen])
+
+  // Polling de portapapeles — si cambia el contenido (texto o imagen) en los últimos 3s
+  // mientras el usuario está jugando, cambia la imagen (detecta Win+Shift+S y similares)
+  useEffect(() => {
+    if (submitted || mode !== 'random' || challengeId || !imageData) return
+    if (clipboardPermission !== 'granted') return
+    if (!navigator.clipboard?.read) return
+
+    const getClipboardFingerprint = async () => {
+      try {
+        const items = await navigator.clipboard.read()
+        if (!items.length) return null
+        const item = items[0]
+        const types = [...item.types].sort().join(',')
+        let textSample = ''
+        if (item.types.includes('text/plain')) {
+          try {
+            const blob = await item.getType('text/plain')
+            textSample = (await blob.text()).slice(0, 50)
+          } catch { /* ignorar */ }
+        }
+        let imageSize = 0
+        const imageType = item.types.find(t => t.startsWith('image/'))
+        if (imageType) {
+          try {
+            const blob = await item.getType(imageType)
+            imageSize = blob.size
+          } catch { /* ignorar */ }
+        }
+        return `${types}|${textSample}|${imageSize}`
+      } catch {
+        return null // permiso denegado u otro error — no hacer nada
+      }
+    }
+
+    let lastFingerprint = null
+    let interval = null
+    let active = true
+
+    const startPolling = async () => {
+      // Snapshot inicial — esperar 800ms para que el estado del clipboard se estabilice
+      await new Promise(r => setTimeout(r, 800))
+      if (!active) return
+
+      lastFingerprint = await getClipboardFingerprint()
+
+      interval = setInterval(async () => {
+        if (!active) return
+        const fp = await getClipboardFingerprint()
+        if (fp === null || lastFingerprint === null) {
+          // Error de permiso o clipboard vacío — actualizar sin disparar
+          lastFingerprint = fp
+          return
+        }
+        if (fp !== lastFingerprint) {
+          lastFingerprint = fp
+          handleNewRandom()
+        }
+      }, 1500) // cada 1.5s — suficiente para detectar sin saturar
+    }
+
+    startPolling()
+
+    return () => {
+      active = false
+      if (interval) clearInterval(interval)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted, mode, challengeId, imageData?.id_imagen, clipboardPermission])
 
   const hasImage = imageStatus === 'ok' && imageData !== null
   const isDisabled = !hasImage || (mode === 'daily' && (user ? dailyDone : guestDailyDone))
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event, typingReport = null) => {
     event.preventDefault()
     const submittedPrompt = promptUsuario.trim()
     if (!submittedPrompt || !hasImage) return
@@ -524,11 +666,61 @@ function App() {
 
     setAnalyzing(true)
     setSubmitted(true)
+    setAiCheatDetected(null)
 
     try {
       const result = await comparePrompts(submittedPrompt, promptReferencia, imageData?.image_diff ?? difficulty, lang)
       const timePenalty = getTimePenalty(timingData, imageData?.image_diff ?? difficulty, mode)
-      const finalScore = Math.max(0, (result.score ?? 0) - timePenalty.penalty)
+
+      // ── Detección de IA — bloqueante, antes de calcular score final ──────
+      let aiPenalty = 0
+      let aiDetectionResult = null
+
+      // Detección de imagen en clipboard — corre siempre, independiente del usuario
+      try {
+        if (imageData?.url_image) {
+          const clipCheck = await checkClipboardForGameImage(imageData.url_image)
+          console.debug('[AI Detection] clipCheck:', clipCheck)
+          if (clipCheck.hasImage && clipCheck.similarToGame) {
+            aiPenalty = 40
+            setAiCheatDetected({
+              penalty: 40,
+              severity: 'high',
+              confidence: clipCheck.similarity,
+            })
+          }
+        }
+      } catch (e) {
+        console.debug('[AI Detection] clipCheck error:', e)
+      }
+
+      // Detección por comportamiento — requiere usuario logueado
+      if (user) {
+        try {
+          aiDetectionResult = await detectAIGenerated({
+            userId: user.id,
+            prompt: submittedPrompt,
+            elapsedSeconds: timingData.elapsedSeconds,
+            score: result.score ?? 0,
+            typingReport: typingReport ?? null,
+            focusReport: getFocusReport(),
+          })
+          if (aiDetectionResult.isAI && !aiPenalty) {
+            if (aiDetectionResult.severity === 'high')        aiPenalty = 40
+            else if (aiDetectionResult.severity === 'medium') aiPenalty = 20
+            else                                               aiPenalty = 10
+            setAiCheatDetected({
+              penalty: aiPenalty,
+              severity: aiDetectionResult.severity,
+              confidence: aiDetectionResult.confidence,
+            })
+          }
+        } catch (e) {
+          console.debug('[AI Detection] detectAIGenerated error:', e)
+        }
+      }
+
+      const finalScore = Math.max(0, (result.score ?? 0) - timePenalty.penalty - aiPenalty)
 
       setScorePercent(finalScore)
       setAiExplanation(result.explanation)
@@ -720,12 +912,14 @@ function App() {
     setImprovements([])
     setTimingData({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
     setTimePenaltyMessage('')
+    setAiCheatDetected(null)
     setAnalyzing(false)
     setImageAttempts(0)
     setRevealPrompt(false)
     setPromptRevealed(false)
     setAttemptHistory([])
-    if (!challengeId) setIsRanked(true) // reset a rankeado por defecto
+    if (!challengeId) setIsRanked(true)
+    resetFocusTracking()
   }
 
   // Retry: vuelve al input con el mismo prompt y misma imagen, sin guardar nuevo intento
@@ -739,6 +933,7 @@ function App() {
     setImprovements([])
     setTimingData({ elapsedSeconds: 0, recommendedSeconds: 0, overtimeSeconds: 0 })
     setTimePenaltyMessage('')
+    setAiCheatDetected(null)
     setAnalyzing(false)
     // promptUsuario se mantiene para que el usuario lo vea y mejore
   }
@@ -1214,6 +1409,79 @@ function App() {
                       </div>
                     ) : promptRevealed ? (
                       revealedAnalysisPanel
+                    ) : clipboardPermission === 'denied' || clipboardPermission === 'denied_hard' ? (
+                      /* ── Gate: permiso de portapapeles denegado ── */
+                      <div className="rounded-2xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 p-6 space-y-4 text-center">
+                        <div className="flex justify-center">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/40">
+                            <svg className="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                            {lang === 'en' ? 'Clipboard access required' : 'Se requiere acceso al portapapeles'}
+                          </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed max-w-xs mx-auto">
+                            {lang === 'en'
+                              ? 'PrompTool needs to read your clipboard to detect AI-assisted cheating. This keeps the game fair for everyone.'
+                              : 'PrompTool necesita leer tu portapapeles para detectar trampas con IA. Esto mantiene el juego justo para todos.'}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          {clipboardPermission === 'denied_hard' ? (
+                            /* El navegador ya bloqueó el permiso — hay que ir a configuración */
+                            <>
+                              <div className="rounded-xl bg-amber-100 dark:bg-amber-900/30 px-3 py-2.5 text-left space-y-1.5">
+                                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                                  {lang === 'en' ? 'How to enable it:' : 'Cómo habilitarlo:'}
+                                </p>
+                                <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside leading-relaxed">
+                                  <li>
+                                    {lang === 'en'
+                                      ? 'Look for the clipboard icon with a line through it in the address bar (top right of the browser)'
+                                      : 'Buscá el ícono de portapapeles tachado en la barra de dirección (arriba a la derecha del navegador)'}
+                                  </li>
+                                  <li>
+                                    {lang === 'en'
+                                      ? 'Click it and select "Always allow"'
+                                      : 'Hacé clic en él y seleccioná "Permitir siempre"'}
+                                  </li>
+                                  <li>
+                                    {lang === 'en'
+                                      ? 'Then click the button below to reload'
+                                      : 'Luego hacé clic en el botón de abajo para recargar'}
+                                  </li>
+                                </ol>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => window.location.reload()}
+                                className="w-full rounded-xl border border-amber-300 dark:border-amber-700 px-4 py-2.5 text-sm font-semibold text-amber-800 dark:text-amber-300 transition hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                              >
+                                {lang === 'en' ? 'Reload page' : 'Recargar página'}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={requestClipboardPermission}
+                              className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition"
+                              style={{ backgroundColor: 'rgb(var(--color-accent))' }}
+                              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
+                              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
+                            >
+                              {lang === 'en' ? 'Grant access and play' : 'Dar acceso y jugar'}
+                            </button>
+                          )}
+                          <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
+                            {lang === 'en'
+                              ? 'This permission is only used to detect AI-assisted cheating. We never store your clipboard content.'
+                              : 'Este permiso solo se usa para detectar trampas con IA. Nunca guardamos el contenido de tu portapapeles.'}
+                          </p>
+                        </div>
+                      </div>
                     ) : (
                       <>
                         <PromptInput
@@ -1266,6 +1534,7 @@ function App() {
                           timePenaltyMessage={timePenaltyMessage}
                           recommendedGuideIds={recommendedGuideIds}
                           eloDelta={eloDelta}
+                          aiCheatDetected={aiCheatDetected}
                           onRetry={scorePercent !== null && scorePercent < 60 && mode !== 'daily' ? handleRetry : undefined}
                           onReset={handleReset}
                           onNewRandom={mode !== 'challenge' ? handleNewRandom : undefined}
@@ -1287,6 +1556,7 @@ function App() {
                   imageStatus={imageStatus}
                   onPreviewChange={setImagePreviewOpen}
                   revealedPrompt={promptRevealed ? imageData?.prompt_original : null}
+                  userId={user?.id ?? null}
                 />
                 {/* Overlay imagen vencida */}
                 {submitted && scorePercent > 93 && (
