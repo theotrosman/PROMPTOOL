@@ -59,6 +59,9 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
   const isPass = safeScore >= difficultyConfig.minPassScore
   const recommendedGuides = GUIDE_LIBRARY.filter(g => recommendedGuideIds?.includes(g.id))
 
+  // Filtrar strengths que no tienen sentido con scores muy bajos
+  const filteredStrengths = safeScore < 20 ? [] : strengths
+
   const handleShare = async () => {
     setSharing(true)
     try {
@@ -134,11 +137,11 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
       ctx.fillText(difficultyConfig.label, rx + 14, 148)
 
       // Strengths
-      if (strengths.length > 0) {
+      if (filteredStrengths.length > 0) {
         ctx.fillStyle = 'rgba(255,255,255,0.5)'
         ctx.font = 'bold 11px system-ui, sans-serif'
         ctx.fillText(lang === 'en' ? 'STRENGTHS' : 'FORTALEZAS', rx, 195)
-        strengths.slice(0, 2).forEach((s, i) => {
+        filteredStrengths.slice(0, 2).forEach((s, i) => {
           ctx.fillStyle = '#10b981' + '33'
           ctx.beginPath()
           ctx.roundRect(rx, 205 + i * 38, Math.min(s.length * 8 + 24, 360), 30, 15)
@@ -151,7 +154,7 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
 
       // Improvements
       if (improvements.length > 0) {
-        const iy = strengths.length > 0 ? 295 : 195
+        const iy = filteredStrengths.length > 0 ? 295 : 195
         ctx.fillStyle = 'rgba(255,255,255,0.5)'
         ctx.font = 'bold 11px system-ui, sans-serif'
         ctx.fillText(lang === 'en' ? 'TO IMPROVE' : 'A MEJORAR', rx, iy)
@@ -269,14 +272,14 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
       </div>
 
       {/* ── Fortalezas + Mejoras + Guías en una sola card ── */}
-      {(strengths.length > 0 || improvements.length > 0 || recommendedGuides.length > 0) && (
+      {(filteredStrengths.length > 0 || improvements.length > 0 || recommendedGuides.length > 0) && (
         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 space-y-2.5">
-          {strengths.length > 0 && (
+          {filteredStrengths.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 mb-1">{t('strengths')}</p>
               <div className="flex flex-wrap gap-1">
-                {strengths.map((s, i) => (
-                  <span key={i} className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">{s}</span>
+                {filteredStrengths.map((s, i) => (
+                  <span key={i} className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 capitalize">{s}</span>
                 ))}
               </div>
             </div>
@@ -286,7 +289,7 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
               <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-1">{t('improvements')}</p>
               <div className="flex flex-wrap gap-1">
                 {improvements.map((m, i) => (
-                  <span key={i} className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">{m}</span>
+                  <span key={i} className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 capitalize">{m}</span>
                 ))}
               </div>
             </div>

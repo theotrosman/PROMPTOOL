@@ -1066,7 +1066,7 @@ function App() {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#475569' : '#cbd5e1'} vertical={false} />
             <XAxis dataKey="n" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }} tickLine={false} axisLine={false}
-              tickFormatter={v => 'Intento #' + v} />
+              tickFormatter={v => (lang === 'en' ? 'Attempt ' : 'Intento ') + v} />
             <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: isDark ? '#e2e8f0' : '#334155', fontWeight: 700 }} tickLine={false} axisLine={false}
               tickFormatter={v => v + '%'} ticks={[0, 25, 50, 75, 100]} width={35} />
             <Tooltip
@@ -1695,6 +1695,16 @@ function App() {
             setDifficulty(newDiff)
             handleReset?.()
           }}
+        />
+
+        {/* Auth Modal - disponible siempre */}
+        <AuthModal
+          open={authModalOpen}
+          onClose={handleCloseAuth}
+          onSignInWithGoogle={signInWithGoogle}
+          onSignInWithEmail={signInWithEmail}
+          onSignUpWithEmail={signUpWithEmail}
+          inviteCompany={inviteState === 'prompt_login' ? inviteCompany : null}
         />
       </Suspense>
     </div>
