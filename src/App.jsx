@@ -1411,79 +1411,90 @@ function App() {
                       </div>
                     ) : promptRevealed ? (
                       revealedAnalysisPanel
-                    ) : clipboardPermission === 'denied' || clipboardPermission === 'denied_hard' ? (
-                      /* ── Gate: permiso de portapapeles denegado ── */
-                      <div className="rounded-2xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 p-6 space-y-4 text-center">
-                        <div className="flex justify-center">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/40">
-                            <svg className="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-                            </svg>
+                    ) : clipboardPermission !== 'granted' ? (
+                      /* ── Gate: permiso de portapapeles no otorgado ── */
+                      clipboardPermission === 'checking' ? (
+                        /* Verificando permiso — spinner */
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6 flex flex-col items-center gap-3">
+                          <div className="h-7 w-7 animate-spin rounded-full border-4 border-slate-200 dark:border-slate-700 border-t-cyan-500" />
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            {lang === 'en' ? 'Checking permissions…' : 'Verificando permisos…'}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 p-6 space-y-4 text-center">
+                          <div className="flex justify-center">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/40">
+                              <svg className="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                              </svg>
+                            </div>
                           </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                            {lang === 'en' ? 'Clipboard access required' : 'Se requiere acceso al portapapeles'}
-                          </p>
-                          <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed max-w-xs mx-auto">
-                            {lang === 'en'
-                              ? 'PrompTool needs to read your clipboard to detect AI-assisted cheating. This keeps the game fair for everyone.'
-                              : 'PrompTool necesita leer tu portapapeles para detectar trampas con IA. Esto mantiene el juego justo para todos.'}
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          {clipboardPermission === 'denied_hard' ? (
-                            /* El navegador ya bloqueó el permiso — hay que ir a configuración */
-                            <>
-                              <div className="rounded-xl bg-amber-100 dark:bg-amber-900/30 px-3 py-2.5 text-left space-y-1.5">
-                                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-                                  {lang === 'en' ? 'How to enable it:' : 'Cómo habilitarlo:'}
-                                </p>
-                                <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside leading-relaxed">
-                                  <li>
-                                    {lang === 'en'
-                                      ? 'Look for the clipboard icon with a line through it in the address bar (top right of the browser)'
-                                      : 'Buscá el ícono de portapapeles tachado en la barra de dirección (arriba a la derecha del navegador)'}
-                                  </li>
-                                  <li>
-                                    {lang === 'en'
-                                      ? 'Click it and select "Always allow"'
-                                      : 'Hacé clic en él y seleccioná "Permitir siempre"'}
-                                  </li>
-                                  <li>
-                                    {lang === 'en'
-                                      ? 'Then click the button below to reload'
-                                      : 'Luego hacé clic en el botón de abajo para recargar'}
-                                  </li>
-                                </ol>
-                              </div>
+                          <div className="space-y-1.5">
+                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                              {lang === 'en' ? 'Clipboard access required' : 'Se requiere acceso al portapapeles'}
+                            </p>
+                            <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed max-w-xs mx-auto">
+                              {lang === 'en'
+                                ? 'PrompTool needs to read your clipboard to detect AI-assisted cheating. This keeps the game fair for everyone.'
+                                : 'PrompTool necesita leer tu portapapeles para detectar trampas con IA. Esto mantiene el juego justo para todos.'}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            {clipboardPermission === 'denied_hard' ? (
+                              /* El navegador ya bloqueó el permiso — hay que ir a configuración */
+                              <>
+                                <div className="rounded-xl bg-amber-100 dark:bg-amber-900/30 px-3 py-2.5 text-left space-y-1.5">
+                                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                                    {lang === 'en' ? 'How to enable it:' : 'Cómo habilitarlo:'}
+                                  </p>
+                                  <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside leading-relaxed">
+                                    <li>
+                                      {lang === 'en'
+                                        ? 'Look for the clipboard icon with a line through it in the address bar (top right of the browser)'
+                                        : 'Buscá el ícono de portapapeles tachado en la barra de dirección (arriba a la derecha del navegador)'}
+                                    </li>
+                                    <li>
+                                      {lang === 'en'
+                                        ? 'Click it and select "Always allow"'
+                                        : 'Hacé clic en él y seleccioná "Permitir siempre"'}
+                                    </li>
+                                    <li>
+                                      {lang === 'en'
+                                        ? 'Then click the button below to reload'
+                                        : 'Luego hacé clic en el botón de abajo para recargar'}
+                                    </li>
+                                  </ol>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => window.location.reload()}
+                                  className="w-full rounded-xl border border-amber-300 dark:border-amber-700 px-4 py-2.5 text-sm font-semibold text-amber-800 dark:text-amber-300 transition hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                                >
+                                  {lang === 'en' ? 'Reload page' : 'Recargar página'}
+                                </button>
+                              </>
+                            ) : (
+                              /* Estado 'prompt' o 'denied' — mostrar botón para pedir permiso */
                               <button
                                 type="button"
-                                onClick={() => window.location.reload()}
-                                className="w-full rounded-xl border border-amber-300 dark:border-amber-700 px-4 py-2.5 text-sm font-semibold text-amber-800 dark:text-amber-300 transition hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                                onClick={requestClipboardPermission}
+                                className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition"
+                                style={{ backgroundColor: 'rgb(var(--color-accent))' }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
                               >
-                                {lang === 'en' ? 'Reload page' : 'Recargar página'}
+                                {lang === 'en' ? 'Grant access and play' : 'Dar acceso y jugar'}
                               </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={requestClipboardPermission}
-                              className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition"
-                              style={{ backgroundColor: 'rgb(var(--color-accent))' }}
-                              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
-                              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
-                            >
-                              {lang === 'en' ? 'Grant access and play' : 'Dar acceso y jugar'}
-                            </button>
-                          )}
-                          <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
-                            {lang === 'en'
-                              ? 'This permission is only used to detect AI-assisted cheating. We never store your clipboard content.'
-                              : 'Este permiso solo se usa para detectar trampas con IA. Nunca guardamos el contenido de tu portapapeles.'}
-                          </p>
+                            )}
+                            <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
+                              {lang === 'en'
+                                ? 'This permission is only used to detect AI-assisted cheating. We never store your clipboard content.'
+                                : 'Este permiso solo se usa para detectar trampas con IA. Nunca guardamos el contenido de tu portapapeles.'}
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )
                     ) : (
                       <>
                         <PromptInput
