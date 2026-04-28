@@ -167,8 +167,22 @@ const ImageCard = ({ mode, data, imageStatus, onPreviewChange, revealedPrompt = 
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">Prompt original</p>
-                <p className="text-sm text-slate-100 leading-relaxed font-medium">
-                  "{revealedPrompt}"
+                {/* Texto partido en spans individuales — imposible copiar como string continuo */}
+                <p
+                  className="text-sm text-slate-100 leading-relaxed font-medium select-none"
+                  onCopy={e => e.preventDefault()}
+                  onContextMenu={e => e.preventDefault()}
+                  aria-label="Prompt original"
+                >
+                  "
+                  {revealedPrompt.split('').map((char, i) => (
+                    <span
+                      key={i}
+                      data-c=""
+                      style={{ unicodeBidi: 'plaintext' }}
+                    >{char}</span>
+                  ))}
+                  "
                 </p>
               </div>
             </div>
