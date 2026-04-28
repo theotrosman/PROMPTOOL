@@ -36,7 +36,7 @@ const normalizeImageData = (row) => {
   return {
     id_imagen: row.id_imagen ?? null,
     url_image: row.url_image ? proxyImg(row.url_image) : null,
-    prompt_original: row.prompt_original ?? '',
+    // prompt_original NO se guarda en estado — se fetcha al momento del submit
     seed: row.seed ?? null,
     fecha: row.fecha ?? null,
     image_diff: row.image_diff ?? 'Medium',
@@ -181,6 +181,7 @@ function App() {
   const [imageAttempts, setImageAttempts] = useState(0)
   const [revealPrompt, setRevealPrompt] = useState(false)
   const [promptRevealed, setPromptRevealed] = useState(false)
+  const [revealedPromptText, setRevealedPromptText] = useState('') // se llena solo al revelar, nunca antes
   const [attemptHistory, setAttemptHistory] = useState([]) // [{score, prompt, strengths, improvements}]
   const MAX_ATTEMPTS_BEFORE_UNLOCK = 4
   const [aiCheatDetected, setAiCheatDetected] = useState(null) // { penalty, severity, confidence }
@@ -194,8 +195,29 @@ function App() {
     setImageAttempts(0)
     setRevealPrompt(false)
     setPromptRevealed(false)
+    setRevealedPromptText('')
     setAttemptHistory([])
   }, [imageData?.id_imagen])
+
+  // Detectar DevTools abierto — limpiar prompt revelado de memoria si se abre
+  useEffect(() => {
+    const threshold = 160
+    let devtoolsOpen = false
+    const check = () => {
+      const widthDiff = window.outerWidth - window.innerWidth > threshold
+      const heightDiff = window.outerHeight - window.innerHeight > threshold
+      const isOpen = widthDiff || heightDiff
+      if (isOpen && !devtoolsOpen) {
+        devtoolsOpen = true
+        setRevealedPromptText('')
+      } else if (!isOpen) {
+        devtoolsOpen = false
+      }
+    }
+    const interval = setInterval(check, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
   useEffect(() => {
     if (!user?.id || !imageData) return
     
@@ -216,7 +238,7 @@ function App() {
       try {
         const { data, error } = await supabase
           .from('imagenes_ia')
-          .select('*, company_id')
+          .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
           .eq('id_imagen', challengeId)
           .maybeSingle()
         if (error || !data) { setImageStatus('error'); return }
@@ -454,7 +476,10 @@ function App() {
       setImageStatus('loading')
 
       try {
-        let query = supabase.from('imagenes_ia').select('*').is('company_id', null)
+        // No traer prompt_original en la carga inicial — se fetcha al submit
+        let query = supabase.from('imagenes_ia')
+          .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
+          .is('company_id', null)
 
         if (mode === 'daily') {
           const hoy = new Date()
@@ -655,7 +680,16 @@ function App() {
     const submittedPrompt = promptUsuario.trim()
     if (!submittedPrompt || !hasImage) return
 
-    const promptReferencia = imageData?.prompt_original
+    // Fetch del prompt original en el momento del submit — nunca está en el estado visible
+    let promptReferencia = ''
+    try {
+      const { data: promptData } = await supabase
+        .from('imagenes_ia')
+        .select('prompt_original')
+        .eq('id_imagen', imageData.id_imagen)
+        .maybeSingle()
+      promptReferencia = promptData?.prompt_original ?? ''
+    } catch { /* silencioso */ }
     if (!promptReferencia) return
 
     // Verificar suspensión antes de procesar
@@ -898,6 +932,7 @@ function App() {
     setImageAttempts(0)
     setRevealPrompt(false)
     setPromptRevealed(false)
+    setRevealedPromptText('')
     setAttemptHistory([])
     if (!challengeId) setIsRanked(true)
     resetFocusTracking()
@@ -930,7 +965,9 @@ function App() {
       setImageData(null)
       const fetchRandom = async () => {
         try {
-          let query = supabase.from('imagenes_ia').select('*').is('company_id', null)
+          let query = supabase.from('imagenes_ia')
+            .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
+            .is('company_id', null)
           if (difficulty) query = query.eq('image_diff', difficulty)
           const { data } = await query
           if (!data || data.length === 0) { setImageStatus('empty'); return }
@@ -976,7 +1013,16 @@ function App() {
     handleNewRandom()
   }
 
-  const handleRevealOriginalPrompt = () => {
+  const handleRevealOriginalPrompt = async () => {
+    // Fetch puntual — el prompt nunca estuvo en el estado antes de este momento
+    try {
+      const { data } = await supabase
+        .from('imagenes_ia')
+        .select('prompt_original')
+        .eq('id_imagen', imageData.id_imagen)
+        .maybeSingle()
+      setRevealedPromptText(data?.prompt_original ?? '')
+    } catch { /* silencioso */ }
     setPromptRevealed(true)
     setRevealPrompt(false)
     setSubmitted(false)
@@ -1077,7 +1123,7 @@ function App() {
 
   // Panel de análisis completo post-reveal
   // Panel de análisis completo post-reveal - ELIMINADO, solo se muestra en la imagen
-  const revealedAnalysisPanel = promptRevealed && imageData?.prompt_original ? (
+  const revealedAnalysisPanel = promptRevealed && revealedPromptText ? (
     <div className="space-y-3 animate-in fade-in duration-300">
       {/* Gráfico de progresión */}
       {progressChart}
@@ -1552,7 +1598,7 @@ function App() {
                   data={imageData ?? {}}
                   imageStatus={imageStatus}
                   onPreviewChange={setImagePreviewOpen}
-                  revealedPrompt={promptRevealed ? imageData?.prompt_original : null}
+                  revealedPrompt={promptRevealed ? revealedPromptText : null}
                   userId={user?.id ?? null}
                 />
                 {/* Overlay imagen vencida */}
