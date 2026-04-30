@@ -51,12 +51,13 @@ const getDifficultyConfig = (difficulty = 'Medium') => {
   }
 }
 
-const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry, onReset, onNewRandom, mode, eloDelta = null, aiCheatDetected = null, user = null, onOpenAuth = null }) => {
+const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry, onReset, onNewRandom, onRevealPrompt, mode, eloDelta = null, aiCheatDetected = null, user = null, onOpenAuth = null }) => {
   const { t, lang } = useLang()
   const [sharing, setSharing] = useState(false)
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
   const difficultyConfig = getDifficultyConfig(difficulty)
   const isPass = safeScore >= difficultyConfig.minPassScore
+  const isMastered = safeScore >= 93
   const recommendedGuides = GUIDE_LIBRARY.filter(g => recommendedGuideIds?.includes(g.id))
 
   // Filtrar strengths que no tienen sentido con scores muy bajos
@@ -311,52 +312,94 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
       )}
 
       {/* ── Acciones ── */}
-      <div className="flex gap-2">
-        {!user ? (
-          /* Usuario no logueado - mostrar botones de sign in */
-          <>
-            {safeScore < 93 && (
-              <button type="button" onClick={onOpenAuth}
-                className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700">
-                {lang === 'en' ? 'Sign in to retry' : 'Inicia sesión para reintentar'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onOpenAuth}
-              className="flex-1 rounded-xl px-3 py-2 text-sm font-semibold text-white transition"
-              style={{ backgroundColor: 'rgb(var(--color-accent))' }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
-            >
-              {lang === 'en' ? 'Sign in for new image' : 'Inicia sesión para nueva imagen'}
-            </button>
-          </>
-        ) : (
-          /* Usuario logueado - botones normales */
-          <>
-            {onRetry && safeScore < 93 && (
-              <button type="button" onClick={onRetry}
-                className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700">
-                {lang === 'en' ? 'Retry' : 'Reintentar'}
-              </button>
-            )}
-            {(onNewRandom || (onReset && !onNewRandom)) && (
+      <div className="flex flex-col gap-2">
+
+        {/* Cuando vence la imagen (≥93%): opciones especiales */}
+        {isMastered && (
+          <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
+              <svg className="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+              {lang === 'en' ? 'Image mastered!' : '¡Imagen dominada!'}
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {!user ? (
+            /* Usuario no logueado */
+            <>
+              {safeScore < 93 && (
+                <button type="button" onClick={onOpenAuth}
+                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700">
+                  {lang === 'en' ? 'Sign in to retry' : 'Inicia sesión para reintentar'}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={onNewRandom || onReset}
+                onClick={onOpenAuth}
                 className="flex-1 rounded-xl px-3 py-2 text-sm font-semibold text-white transition"
                 style={{ backgroundColor: 'rgb(var(--color-accent))' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
               >
-                {onNewRandom
-                  ? (lang === 'en' ? 'New image' : 'Nueva imagen')
-                  : (lang === 'en' ? 'Play again' : 'Jugar de nuevo')}
+                {lang === 'en' ? 'Sign in for new image' : 'Inicia sesión para nueva imagen'}
               </button>
-            )}
-          </>
-        )}
+            </>
+          ) : isMastered ? (
+            /* Venció la imagen — dos opciones */
+            <>
+              {onRevealPrompt && (
+                <button
+                  type="button"
+                  onClick={onRevealPrompt}
+                  className="flex-1 rounded-xl border-2 border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400 transition hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                >
+                  {lang === 'en' ? 'See original prompt' : 'Ver prompt original'}
+                </button>
+              )}
+              {(onNewRandom || (onReset && !onNewRandom)) && (
+                <button
+                  type="button"
+                  onClick={onNewRandom || onReset}
+                  className="flex-1 rounded-xl px-3 py-2 text-sm font-semibold text-white transition"
+                  style={{ backgroundColor: 'rgb(var(--color-accent))' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
+                >
+                  {lang === 'en' ? 'New image' : 'Nueva imagen'}
+                </button>
+              )}
+            </>
+          ) : (
+            /* Usuario logueado, no venció aún */
+            <>
+              {onRetry && safeScore < 93 && (
+                <button type="button" onClick={onRetry}
+                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700">
+                  {lang === 'en' ? 'Retry' : 'Reintentar'}
+                </button>
+              )}
+              {(onNewRandom || (onReset && !onNewRandom)) && (
+                <button
+                  type="button"
+                  onClick={onNewRandom || onReset}
+                  className="flex-1 rounded-xl px-3 py-2 text-sm font-semibold text-white transition"
+                  style={{ backgroundColor: 'rgb(var(--color-accent))' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
+                >
+                  {onNewRandom
+                    ? (lang === 'en' ? 'New image' : 'Nueva imagen')
+                    : (lang === 'en' ? 'Play again' : 'Jugar de nuevo')}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
     </div>

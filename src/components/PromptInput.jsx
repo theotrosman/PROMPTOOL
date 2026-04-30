@@ -6,6 +6,51 @@ import { useTypingBehavior } from '../hooks/useTypingBehavior'
 
 const normalizeDifficulty = (difficulty = 'Medium') => difficulty.toLowerCase()
 
+// ── Sistema de tiempo progresivo ─────────────────────────────────────────────
+// T(i) = T_max - ((i-1)/(N-1))^α * (T_max - T_min)
+// N=5, α=1.3 (caída suave), i=1..5
+const N_ATTEMPTS = 5
+const ALPHA = 1.3
+
+const ATTEMPT_TIME_CONFIG = {
+  //           T_max  T_min  targetWords  graceRatio
+  easy:   { tMax: 150, tMin: 75,  targetWords: 14, graceRatio: 0.22 },
+  medium: { tMax: 210, tMin: 100, targetWords: 20, graceRatio: 0.20 },
+  hard:   { tMax: 270, tMin: 120, targetWords: 28, graceRatio: 0.18 },
+}
+
+/**
+ * Calcula el tiempo recomendado para el intento i (1-based) según la fórmula progresiva.
+ * @param {number} attemptNumber - Intento actual (1..N)
+ * @param {string} difficulty
+ * @returns {number} segundos
+ */
+export const getProgressiveTime = (attemptNumber = 1, difficulty = 'Medium') => {
+  const nd = normalizeDifficulty(difficulty)
+  const cfg = ATTEMPT_TIME_CONFIG[nd] || ATTEMPT_TIME_CONFIG.medium
+  const i = Math.max(1, Math.min(attemptNumber, N_ATTEMPTS))
+  if (N_ATTEMPTS === 1) return cfg.tMax
+  const t = cfg.tMax - Math.pow((i - 1) / (N_ATTEMPTS - 1), ALPHA) * (cfg.tMax - cfg.tMin)
+  return Math.round(t)
+}
+
+const getTimerConfig = (mode = 'random', difficulty = 'Medium', personalizedTime = null, attemptNumber = 1) => {
+  const nd = normalizeDifficulty(difficulty)
+  const cfg = ATTEMPT_TIME_CONFIG[nd] || ATTEMPT_TIME_CONFIG.medium
+
+  // Tiempo personalizado: escalar proporcionalmente al intento
+  if (personalizedTime && personalizedTime > 0) {
+    const ratio = getProgressiveTime(attemptNumber, difficulty) / cfg.tMax
+    const recommended = Math.round(personalizedTime * ratio)
+    const graceSeconds = Math.round(recommended * cfg.graceRatio)
+    return { recommendedSeconds: recommended, targetWords: cfg.targetWords, graceSeconds, attemptNumber }
+  }
+
+  const recommended = getProgressiveTime(attemptNumber, difficulty)
+  const graceSeconds = Math.round(recommended * cfg.graceRatio)
+  return { recommendedSeconds: recommended, targetWords: cfg.targetWords, graceSeconds, attemptNumber }
+}
+
 // Read incognito state from localStorage (set by ConfigModal)
 const getIncognitoActive = () => {
   try {
@@ -14,36 +59,12 @@ const getIncognitoActive = () => {
   } catch { return false }
 }
 
-const getTimerConfig = (mode = 'random', difficulty = 'Medium', personalizedTime = null) => {
-  // Si hay tiempo personalizado, usarlo
-  if (personalizedTime && personalizedTime > 0) {
-    const normalized = normalizeDifficulty(difficulty)
-    const targetWords = normalized === 'easy' ? 12 : normalized === 'hard' ? 24 : 18
-    const graceSeconds = Math.round(personalizedTime * 0.25) // 25% del tiempo como gracia
-    return { recommendedSeconds: personalizedTime, targetWords, graceSeconds }
-  }
-  
-  // Tiempos por defecto
-  const normalized = normalizeDifficulty(difficulty)
-  const isDaily = mode === 'daily'
-  if (normalized === 'easy') return isDaily
-    ? { recommendedSeconds: 120, targetWords: 12, graceSeconds: 30 }
-    : { recommendedSeconds: 150, targetWords: 14, graceSeconds: 40 }
-  if (normalized === 'hard') return isDaily
-    ? { recommendedSeconds: 240, targetWords: 24, graceSeconds: 60 }
-    : { recommendedSeconds: 270, targetWords: 28, graceSeconds: 60 }
-  // Medium
-  return isDaily
-    ? { recommendedSeconds: 180, targetWords: 18, graceSeconds: 45 }
-    : { recommendedSeconds: 210, targetWords: 20, graceSeconds: 50 }
-}
-
 const formatTime = (seconds = 0) => {
   const safe = Math.max(0, Math.floor(seconds))
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`
 }
 
-const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null, streak = 0, imageId = null, onDifficultyChange = null, onModeChange = null, onNewRandom = null, availableDiffs = [], personalizedTime = null, onOpenConfig = null, showAnticheatWarning = false, attemptsIndicator = null }) => {
+const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null, streak = 0, imageId = null, onDifficultyChange = null, onModeChange = null, onNewRandom = null, availableDiffs = [], personalizedTime = null, attemptNumber = 1, onOpenConfig = null, showAnticheatWarning = false, attemptsIndicator = null }) => {
   const { t, lang } = useLang()
   const [startedAt, setStartedAt] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -52,7 +73,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
   const [restoredDraft, setRestoredDraft] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [incognitoActive, setIncognitoActive] = useState(getIncognitoActive)
-  const timerConfig = useMemo(() => getTimerConfig(mode, difficulty, personalizedTime), [mode, difficulty, personalizedTime])
+  const timerConfig = useMemo(() => getTimerConfig(mode, difficulty, personalizedTime, attemptNumber), [mode, difficulty, personalizedTime, attemptNumber])
   const { onTextChange: trackTyping, getReport: getTypingReport, reset: resetTyping } = useTypingBehavior()
 
   // Listen for privacy changes from ConfigModal
@@ -630,8 +651,13 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span className="font-semibold">{formatTime(remainingSeconds)}</span>
+            {attemptNumber > 1 && (
+              <span className="opacity-60 text-[10px] font-bold">
+                #{attemptNumber}
+              </span>
+            )}
           </span>
-          <div className="pointer-events-none absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-64">
+          <div className="pointer-events-none absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-72">
             <div className="rounded-xl bg-slate-900 px-3 py-2.5 text-xs text-white shadow-xl space-y-1.5">
               <p className="font-semibold text-sky-300">{lang === 'en' ? 'Recommended time' : 'Tiempo recomendado'}</p>
               <p className="text-slate-300 leading-relaxed">
@@ -639,6 +665,13 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
                   ? `You have ${formatTime(estimatedSeconds)} to write your prompt. Going over starts a grace period, then a score penalty kicks in.`
                   : `Tenés ${formatTime(estimatedSeconds)} para escribir tu prompt. Si te pasás, hay un período de gracia y luego se aplica una penalización al score.`}
               </p>
+              {attemptNumber > 1 && (
+                <p className="text-cyan-400 font-medium">
+                  {lang === 'en'
+                    ? `Attempt ${attemptNumber}/5 — time decreases progressively to add pressure.`
+                    : `Intento ${attemptNumber}/5 — el tiempo baja progresivamente para agregar presión.`}
+                </p>
+              )}
               {overtimeSeconds > 0 && penaltyOvertimeSeconds === 0 && (
                 <p className="text-amber-400 font-medium">
                   {lang === 'en'
