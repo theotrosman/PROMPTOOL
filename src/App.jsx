@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState, useRef, lazy, Suspense } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import Header from './components/Header'
 import Footer from './components/Footer'
@@ -11,6 +11,7 @@ import { analyzePlagiarism, checkSuspension } from './services/plagiarismService
 import { detectAIGenerated, checkClipboardForGameImage } from './services/aiDetectionService'
 import { calculateElo } from './services/eloService'
 import { getRecommendedGuides } from './data/guides'
+import { getProgressiveTime } from './components/PromptInput'
 import { supabase } from './supabaseClient'
 import { useAuth } from './hooks/useAuth'
 import { useLang } from './contexts/LangContext'
@@ -188,6 +189,13 @@ function App() {
   const [isRanked, setIsRanked] = useState(true) // toggle modo rankeado
   const [clipboardPermission, setClipboardPermission] = useState('prompt') // 'granted' | 'denied' | 'prompt' | 'checking'
   const [personalizedTime, setPersonalizedTime] = useState(null)
+  const [showAnticheatWarning, setShowAnticheatWarning] = useState(false)
+  const anticheatTimerRef = useRef(null)
+
+  // Limpiar timer al desmontar
+  useEffect(() => () => {
+    if (anticheatTimerRef.current) clearTimeout(anticheatTimerRef.current)
+  }, [])
   const recommendedGuideIds = getRecommendedGuides(improvements, suggestions)
 
   // Resetear intentos y reveal cuando cambia la imagen
@@ -328,20 +336,28 @@ function App() {
 
   const requestClipboardPermission = async () => {
     try {
-      // Intentar leer — esto dispara el diálogo si el estado es 'prompt'
-      // Si ya fue denegado, el navegador no muestra diálogo y tira NotAllowedError
       await navigator.clipboard.readText()
       setClipboardPermission('granted')
+      // Mostrar aviso 15s al otorgar permiso por primera vez
+      flashAnticheatWarning(15000)
     } catch (err) {
       if (err?.name === 'NotAllowedError') {
-        // Permiso ya denegado — el navegador no muestra diálogo de nuevo.
-        // Hay que mandar al usuario a la configuración del sitio manualmente.
         setClipboardPermission('denied_hard')
       } else {
-        // Cualquier otro error (clipboard vacío, etc.) = permiso otorgado
         setClipboardPermission('granted')
+        flashAnticheatWarning(15000)
       }
     }
+  }
+
+  // Muestra el aviso antitrampa por `ms` milisegundos y luego lo oculta
+  const flashAnticheatWarning = (ms = 9000) => {
+    if (anticheatTimerRef.current) clearTimeout(anticheatTimerRef.current)
+    setShowAnticheatWarning(true)
+    anticheatTimerRef.current = setTimeout(() => {
+      setShowAnticheatWarning(false)
+      anticheatTimerRef.current = null
+    }, ms)
   }
 
   // Verificar suspensión al cargar
@@ -579,7 +595,10 @@ function App() {
 
     const handleBlur = () => {
       blurTimer = setTimeout(() => {
-        if (!document.hasFocus()) handleForcedImageChange('blur')
+        if (!document.hasFocus()) {
+          flashAnticheatWarning(9000)
+          handleForcedImageChange('blur')
+        }
       }, 400)
     }
 
@@ -588,7 +607,10 @@ function App() {
     }
 
     const handleVisibility = () => {
-      if (document.hidden) handleForcedImageChange('visibility')
+      if (document.hidden) {
+        flashAnticheatWarning(9000)
+        handleForcedImageChange('visibility')
+      }
     }
 
     window.addEventListener('blur', handleBlur)
@@ -658,6 +680,7 @@ function App() {
         }
         if (fp !== lastFingerprint) {
           lastFingerprint = fp
+          flashAnticheatWarning(9000)
           handleForcedImageChange('clipboard')
         }
       }, 1500) // cada 1.5s — suficiente para detectar sin saturar
@@ -766,6 +789,24 @@ function App() {
         improvements: result.improvements ?? [],
       }])
 
+      // ── Verificar si es una mejora real respecto al mejor score previo ──
+      // Solo cuenta para estadísticas si supera el mejor score anterior en esta imagen
+      let isImprovement = true
+      if (user && imageData?.id_imagen) {
+        try {
+          const { data: bestData } = await supabase
+            .from('intentos')
+            .select('puntaje_similitud')
+            .eq('id_usuario', user.id)
+            .eq('id_imagen', imageData.id_imagen)
+            .order('puntaje_similitud', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          const bestPrev = bestData?.puntaje_similitud ?? -1
+          isImprovement = finalScore > bestPrev
+        } catch { /* fail open — asumir mejora */ }
+      }
+
       const { error: dbError } = await supabase
         .from('intentos')
         .insert([{
@@ -777,9 +818,15 @@ function App() {
           strengths: result.strengths ?? [],
           improvements: result.improvements ?? [],
           modo: mode === 'challenge' ? 'challenge' : mode,
-          elo_delta: null, // se actualiza abajo si hay usuario
-          is_ranked: !challengeId && isRanked,
+          elo_delta: null,
+          is_ranked: !challengeId && isRanked && isImprovement,
           tiempo_respuesta: timingData.elapsedSeconds > 0 ? timingData.elapsedSeconds : null,
+          // ── Métricas de eficiencia del sistema progresivo ──
+          attempt_number: imageAttempts + 1,
+          tiempo_asignado: getProgressiveTime(imageAttempts + 1, imageData?.image_diff ?? difficulty),
+          eficiencia: timingData.elapsedSeconds > 0
+            ? Math.round((finalScore / timingData.elapsedSeconds) * 100) / 100
+            : null,
         }])
 
       if (dbError) { /* silencioso — el usuario igual ve el resultado */ }
@@ -802,8 +849,8 @@ function App() {
             sessionStorage.setItem('guestAttempts', JSON.stringify(existing))
           } catch { /* silencioso */ }
         }
-        // Incrementar total_intentos (y ranked_count si aplica) en la BD
-        if (user) {
+        // Incrementar total_intentos (y ranked_count si aplica) — solo si es mejora real
+        if (user && isImprovement) {
           supabase.from('usuarios')
             .select('total_intentos, ranked_count')
             .eq('id_usuario', user.id)
@@ -837,8 +884,8 @@ function App() {
           }
         }
 
-        // Actualizar ELO del usuario logueado — fire-and-forget, no bloquea la UI
-        if (user && !challengeId && isRanked) {
+        // Actualizar ELO — fire-and-forget, solo si es mejora real
+        if (user && !challengeId && isRanked && isImprovement) {
           ;(async () => {
             try {
               // Las dos queries de ELO corren en paralelo
@@ -1042,6 +1089,8 @@ function App() {
     if (i < imageAttempts) return base + ' bg-cyan-500 flex-1'
     return base + ' bg-slate-200 dark:bg-slate-700 flex-1'
   }
+
+  const scColor = (score) => score >= 70 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444'
 
   // Gráfico de progresión con recharts — mismo estilo que el perfil
   const progressChart = attemptHistory.length > 0 ? (() => {
@@ -1546,8 +1595,9 @@ function App() {
                             handleReset()
                           } : null}
                           personalizedTime={personalizedTime}
+                          attemptNumber={imageAttempts + 1}
                           onOpenConfig={mode !== 'challenge' ? () => setConfigOpen(true) : null}
-                          showAnticheatWarning={mode === 'random' && !challengeId && clipboardPermission === 'granted'}
+                          showAnticheatWarning={showAnticheatWarning && mode === 'random' && !challengeId && clipboardPermission === 'granted'}
                           attemptsIndicator={attemptsIndicator}
                         />
                         {progressChart}
@@ -1580,6 +1630,7 @@ function App() {
                           onRetry={scorePercent !== null && scorePercent < 60 && mode !== 'daily' && user ? handleRetry : undefined}
                           onReset={user ? handleReset : undefined}
                           onNewRandom={mode !== 'challenge' && user ? handleNewRandom : undefined}
+                          onRevealPrompt={scorePercent >= 93 && mode !== 'daily' && user ? handleRevealOriginalPrompt : undefined}
                           mode={mode}
                           user={user}
                           onOpenAuth={handleOpenAuth}
