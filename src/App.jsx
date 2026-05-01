@@ -31,6 +31,21 @@ import('./components/ConfigModal').then(({ loadVisualMode, applyVisualMode }) =>
   // Store the mode but don't apply yet — landing is always clean
 })
 
+// ── Imagen demo para guests ───────────────────────────────────────────────────
+// Imagen fácil y conocida para que los usuarios sin cuenta puedan probar la app.
+// El prompt es simple y descriptivo para que sea alcanzable en pocos intentos.
+const DEMO_IMAGE = {
+  id_imagen: 'demo',
+  url_image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&q=80',
+  seed: null,
+  fecha: null,
+  image_diff: 'Easy',
+  image_theme: 'animals',
+  // prompt se fetcha igual que las reales — guardado aquí solo como referencia interna
+  _prompt: 'a cute orange tabby cat sitting on a windowsill, soft natural light, cozy atmosphere, shallow depth of field',
+}
+const GUEST_MAX_ATTEMPTS = 4
+
 // Columnas reales: id_imagen, url_image, prompt_original, seed, fecha, image_diff, image_theme
 const normalizeImageData = (row) => {
   if (!row) return null
@@ -173,6 +188,11 @@ function App() {
     const stored = sessionStorage.getItem('guestDailyDate')
     return stored === new Date().toDateString()
   })
+  // Contador de intentos del guest en la imagen demo (0-4)
+  const [guestAttemptCount, setGuestAttemptCount] = useState(() => {
+    return parseInt(sessionStorage.getItem('guestDemoAttempts') || '0', 10)
+  })
+  const guestDemoLocked = !user && guestAttemptCount >= GUEST_MAX_ATTEMPTS
   // Modo desafío de empresa
   const [challengeCompany, setChallengeCompany] = useState(null) // { company_name, avatar_url, verified }
   const challengeId = new URLSearchParams(window.location.search).get('challenge')
@@ -486,6 +506,15 @@ function App() {
     // Si hay un desafío de empresa activo, no cargar imagen normal
     if (challengeId) return
 
+    // Guest sin cuenta — siempre usar la imagen demo
+    if (!user) {
+      setImageData(DEMO_IMAGE)
+      setDifficulty('Easy')
+      setImageStatus('ok')
+      startFocusTracking()
+      return
+    }
+
     let cancelled = false
 
     const fetchImageData = async () => {
@@ -703,16 +732,21 @@ function App() {
     const submittedPrompt = promptUsuario.trim()
     if (!submittedPrompt || !hasImage) return
 
-    // Fetch del prompt original en el momento del submit — nunca está en el estado visible
+    // Fetch del prompt original en el momento del submit
+    // Para la imagen demo (guest), usar el prompt hardcodeado directamente
     let promptReferencia = ''
-    try {
-      const { data: promptData } = await supabase
-        .from('imagenes_ia')
-        .select('prompt_original')
-        .eq('id_imagen', imageData.id_imagen)
-        .maybeSingle()
-      promptReferencia = promptData?.prompt_original ?? ''
-    } catch { /* silencioso */ }
+    if (!user && imageData?.id_imagen === 'demo') {
+      promptReferencia = DEMO_IMAGE._prompt
+    } else {
+      try {
+        const { data: promptData } = await supabase
+          .from('imagenes_ia')
+          .select('prompt_original')
+          .eq('id_imagen', imageData.id_imagen)
+          .maybeSingle()
+        promptReferencia = promptData?.prompt_original ?? ''
+      } catch { /* silencioso */ }
+    }
     if (!promptReferencia) return
 
     // Verificar suspensión antes de procesar
@@ -782,6 +816,12 @@ function App() {
       setImprovements(result.improvements ?? [])
       setTimePenaltyMessage(timePenalty.message)
       setImageAttempts(prev => prev + 1)
+      // Incrementar contador de intentos demo para guests
+      if (!user) {
+        const next = guestAttemptCount + 1
+        setGuestAttemptCount(next)
+        sessionStorage.setItem('guestDemoAttempts', String(next))
+      }
       setAttemptHistory(prev => [...prev, {
         score: finalScore,
         prompt: submittedPrompt,
@@ -1476,6 +1516,41 @@ function App() {
                 )}
                 {!submitted ? (
                   <>
+                    {/* Banner demo para guests — muestra intentos restantes */}
+                    {!user && !guestDemoLocked && (
+                      <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 dark:border-violet-800/60 dark:bg-violet-950/40 px-4 py-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/40">
+                          <svg className="h-4 w-4 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-violet-800 dark:text-violet-300">
+                            {lang === 'en' ? 'Demo mode' : 'Modo demo'}
+                            {' · '}
+                            <span className="font-bold">
+                              {GUEST_MAX_ATTEMPTS - guestAttemptCount}
+                            </span>
+                            {' '}
+                            {lang === 'en'
+                              ? `attempt${GUEST_MAX_ATTEMPTS - guestAttemptCount !== 1 ? 's' : ''} left`
+                              : `intento${GUEST_MAX_ATTEMPTS - guestAttemptCount !== 1 ? 's' : ''} restante${GUEST_MAX_ATTEMPTS - guestAttemptCount !== 1 ? 's' : ''}`}
+                          </p>
+                          <p className="text-[11px] text-violet-600 dark:text-violet-400 leading-relaxed">
+                            {lang === 'en'
+                              ? 'Sign up to unlock unlimited images and track your progress.'
+                              : 'Registrate para desbloquear imágenes ilimitadas y ver tu progreso.'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleOpenAuth}
+                          className="shrink-0 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 transition"
+                        >
+                          {lang === 'en' ? 'Sign up' : 'Registrarse'}
+                        </button>
+                      </div>
+                    )}
                     {mode === 'daily' && dailyDone ? (
                       <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-6 text-center">
                         <p className="text-base font-semibold text-emerald-800">{t('dailyDoneTitle')}</p>
@@ -1487,8 +1562,8 @@ function App() {
                       </div>
                     ) : promptRevealed ? (
                       revealedAnalysisPanel
-                    ) : clipboardPermission !== 'granted' ? (
-                      /* ── Gate: permiso de portapapeles no otorgado ── */
+                    ) : clipboardPermission !== 'granted' && user ? (
+                      /* ── Gate: permiso de portapapeles no otorgado (solo usuarios con cuenta) ── */
                       clipboardPermission === 'checking' ? (
                         /* Verificando permiso — spinner */
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6 flex flex-col items-center gap-3">
@@ -1627,13 +1702,15 @@ function App() {
                           recommendedGuideIds={recommendedGuideIds}
                           eloDelta={eloDelta}
                           aiCheatDetected={aiCheatDetected}
-                          onRetry={scorePercent !== null && scorePercent < 60 && mode !== 'daily' && user ? handleRetry : undefined}
+                          onRetry={scorePercent !== null && scorePercent < 93 && mode !== 'daily' && !guestDemoLocked ? handleRetry : undefined}
                           onReset={user ? handleReset : undefined}
                           onNewRandom={mode !== 'challenge' && user ? handleNewRandom : undefined}
                           onRevealPrompt={scorePercent >= 93 && mode !== 'daily' && user ? handleRevealOriginalPrompt : undefined}
                           mode={mode}
                           user={user}
                           onOpenAuth={handleOpenAuth}
+                          isGuestLastAttempt={!user && guestAttemptCount >= GUEST_MAX_ATTEMPTS}
+                          guestDemoPrompt={!user && guestAttemptCount >= GUEST_MAX_ATTEMPTS ? DEMO_IMAGE._prompt : undefined}
                         />
                       </>
                     )}
