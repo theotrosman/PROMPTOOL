@@ -51,9 +51,10 @@ const getDifficultyConfig = (difficulty = 'Medium') => {
   }
 }
 
-const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry, onReset, onNewRandom, onRevealPrompt, mode, eloDelta = null, aiCheatDetected = null, user = null, onOpenAuth = null }) => {
+const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, strengths = [], improvements = [], recommendedGuideIds = [], onRetry, onReset, onNewRandom, onRevealPrompt, mode, eloDelta = null, aiCheatDetected = null, user = null, onOpenAuth = null, isGuestLastAttempt = false, guestDemoPrompt = undefined }) => {
   const { t, lang } = useLang()
   const [sharing, setSharing] = useState(false)
+  const [showDemoPrompt, setShowDemoPrompt] = useState(false)
   const safeScore = Math.max(0, Math.min(100, Number(scorePercent) || 0))
   const difficultyConfig = getDifficultyConfig(difficulty)
   const isPass = safeScore >= difficultyConfig.minPassScore
@@ -315,7 +316,7 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
       <div className="flex flex-col gap-2">
 
         {/* Cuando vence la imagen (≥93%): opciones especiales */}
-        {isMastered && (
+        {isMastered && user && (
           <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 flex items-center gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
               <svg className="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -328,14 +329,47 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
           </div>
         )}
 
+        {/* Guest — último intento (4to): registrarse o ver prompt */}
+        {isGuestLastAttempt && (
+          <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800/60 bg-cyan-50 dark:bg-cyan-950/40 px-4 py-3 space-y-2">
+            <p className="text-sm font-semibold text-cyan-800 dark:text-cyan-300">
+              {lang === 'en' ? 'You used all 4 demo attempts!' : '¡Usaste los 4 intentos de prueba!'}
+            </p>
+            <p className="text-xs text-cyan-700 dark:text-cyan-400 leading-relaxed">
+              {lang === 'en'
+                ? 'Create a free account to keep playing with unlimited images, track your progress and compete on the leaderboard.'
+                : 'Creá una cuenta gratis para seguir jugando con imágenes ilimitadas, ver tu progreso y competir en el ranking.'}
+            </p>
+          </div>
+        )}
+
+        {/* Prompt revelado de la demo */}
+        {isGuestLastAttempt && showDemoPrompt && guestDemoPrompt && (
+          <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              {lang === 'en' ? 'Original prompt' : 'Prompt original'}
+            </p>
+            <p
+              className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed select-none italic"
+              onCopy={e => e.preventDefault()}
+              onContextMenu={e => e.preventDefault()}
+            >
+              "{guestDemoPrompt}"
+            </p>
+          </div>
+        )}
+
         <div className="flex gap-2">
-          {!user ? (
-            /* Usuario no logueado */
+          {isGuestLastAttempt ? (
+            /* Guest en último intento: registrarse o ver prompt */
             <>
-              {safeScore < 93 && (
-                <button type="button" onClick={onOpenAuth}
-                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700">
-                  {lang === 'en' ? 'Sign in to retry' : 'Inicia sesión para reintentar'}
+              {!showDemoPrompt && (
+                <button
+                  type="button"
+                  onClick={() => setShowDemoPrompt(true)}
+                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  {lang === 'en' ? 'See original prompt' : 'Ver prompt original'}
                 </button>
               )}
               <button
@@ -346,11 +380,31 @@ const ResultPanel = ({ scorePercent, explanation, suggestions, difficulty, stren
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
               >
-                {lang === 'en' ? 'Sign in for new image' : 'Inicia sesión para nueva imagen'}
+                {lang === 'en' ? 'Create free account' : 'Crear cuenta gratis'}
+              </button>
+            </>
+          ) : !user ? (
+            /* Guest con intentos restantes — puede reintentar libremente */
+            <>
+              {onRetry && safeScore < 93 && (
+                <button type="button" onClick={onRetry}
+                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700">
+                  {lang === 'en' ? 'Retry' : 'Reintentar'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                className="flex-1 rounded-xl px-3 py-2 text-sm font-semibold text-white transition"
+                style={{ backgroundColor: 'rgb(var(--color-accent))' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent-2))'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))'}
+              >
+                {lang === 'en' ? 'Sign up' : 'Registrarse'}
               </button>
             </>
           ) : isMastered ? (
-            /* Venció la imagen — dos opciones */
+            /* Usuario logueado, venció la imagen */
             <>
               {onRevealPrompt && (
                 <button
