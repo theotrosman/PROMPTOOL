@@ -1,0 +1,70 @@
+PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2024-2025 PrompTool. All Rights Reserved.
+
+NOTICE: This software and all associated files, source code, assets, designs,
+concepts, algorithms, and documentation (collectively, the "Software") are the
+exclusive proprietary property of PrompTool and its authors.
+
+================================================================================
+STRICTLY PROHIBITED — WITHOUT PRIOR WRITTEN AUTHORIZATION:
+================================================================================
+
+1. COPYING & DISTRIBUTION
+   You may not copy, reproduce, duplicate, publish, distribute, sublicense,
+   sell, rent, lease, transfer, or otherwise make available the Software or
+   any portion thereof, in any form or by any means.
+
+2. MODIFICATION & DERIVATIVE WORKS
+   You may not modify, adapt, translate, reverse engineer, decompile,
+   disassemble, or create derivative works based on the Software or any
+   part of it, including but not limited to individual components, modules,
+   UI elements, algorithms, or data structures.
+
+3. PARTIAL USE
+   You may not extract, reuse, or incorporate any portion of the Software —
+   including individual functions, components, design patterns, prompts,
+   scoring logic, or UI/UX concepts — into any other project, product,
+   or service, whether commercial or non-commercial.
+
+4. COMMERCIAL USE
+   You may not use the Software or any part of it for commercial purposes
+   without explicit written permission from the copyright holder.
+
+5. PRIVATE USE
+   You may not use the Software for private or internal purposes beyond
+   what is explicitly permitted in writing by the copyright holder.
+
+================================================================================
+INTELLECTUAL PROPERTY
+================================================================================
+
+The following elements are protected as proprietary intellectual property:
+
+- The PrompTool name, brand, and visual identity
+- The game mechanics, scoring system, and ELO-based ranking logic
+- The prompt comparison and AI evaluation methodology
+- The progressive timer system and attempt-based difficulty scaling
+- The anti-cheat and anti-plagiarism detection systems
+- All source code, including frontend (React/JSX) and backend (Supabase) logic
+- All UI/UX designs, layouts, and visual components
+- All written content, copy, and in-app text
+
+================================================================================
+DISCLAIMER
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. THE AUTHORS
+SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM
+THE USE OR INABILITY TO USE THE SOFTWARE.
+
+================================================================================
+CONTACT
+================================================================================
+
+For licensing inquiries, permissions, or partnership requests, contact:
+promptool.app
+
+Any use of this Software not expressly permitted by this license is strictly
+prohibited and may result in civil and/or criminal penalties under applicable
+intellectual property law.

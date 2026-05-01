@@ -32,18 +32,9 @@ import('./components/ConfigModal').then(({ loadVisualMode, applyVisualMode }) =>
 })
 
 // ── Imagen demo para guests ───────────────────────────────────────────────────
-// Imagen fácil y conocida para que los usuarios sin cuenta puedan probar la app.
-// El prompt es simple y descriptivo para que sea alcanzable en pocos intentos.
-const DEMO_IMAGE = {
-  id_imagen: 'demo',
-  url_image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&q=80',
-  seed: null,
-  fecha: null,
-  image_diff: 'Easy',
-  image_theme: 'animals',
-  // prompt se fetcha igual que las reales — guardado aquí solo como referencia interna
-  _prompt: 'a cute orange tabby cat sitting on a windowsill, soft natural light, cozy atmosphere, shallow depth of field',
-}
+// Imagen de los Beatles — fácil, icónica, buena para que nuevos usuarios prueben la app.
+// El prompt se fetcha de Supabase al momento del submit, igual que las imágenes normales.
+const DEMO_IMAGE_ID = '83e56086-3c79-482e-8761-9c7f412bd8e2'
 const GUEST_MAX_ATTEMPTS = 4
 
 // Columnas reales: id_imagen, url_image, prompt_original, seed, fecha, image_diff, image_theme
@@ -506,12 +497,25 @@ function App() {
     // Si hay un desafío de empresa activo, no cargar imagen normal
     if (challengeId) return
 
-    // Guest sin cuenta — siempre usar la imagen demo
+    // Guest sin cuenta — cargar la imagen demo de Supabase
     if (!user) {
-      setImageData(DEMO_IMAGE)
-      setDifficulty('Easy')
-      setImageStatus('ok')
-      startFocusTracking()
+      setImageStatus('loading')
+      supabase.from('imagenes_ia')
+        .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
+        .eq('id_imagen', DEMO_IMAGE_ID)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            setImageData(normalizeImageData(data))
+            setDifficulty(data.image_diff || 'Easy')
+          } else {
+            setImageStatus('error')
+            return
+          }
+          setImageStatus('ok')
+          startFocusTracking()
+        })
+        .catch(() => setImageStatus('error'))
       return
     }
 
@@ -733,20 +737,15 @@ function App() {
     if (!submittedPrompt || !hasImage) return
 
     // Fetch del prompt original en el momento del submit
-    // Para la imagen demo (guest), usar el prompt hardcodeado directamente
     let promptReferencia = ''
-    if (!user && imageData?.id_imagen === 'demo') {
-      promptReferencia = DEMO_IMAGE._prompt
-    } else {
-      try {
-        const { data: promptData } = await supabase
-          .from('imagenes_ia')
-          .select('prompt_original')
-          .eq('id_imagen', imageData.id_imagen)
-          .maybeSingle()
-        promptReferencia = promptData?.prompt_original ?? ''
-      } catch { /* silencioso */ }
-    }
+    try {
+      const { data: promptData } = await supabase
+        .from('imagenes_ia')
+        .select('prompt_original')
+        .eq('id_imagen', imageData.id_imagen)
+        .maybeSingle()
+      promptReferencia = promptData?.prompt_original ?? ''
+    } catch { /* silencioso */ }
     if (!promptReferencia) return
 
     // Verificar suspensión antes de procesar
@@ -821,6 +820,12 @@ function App() {
         const next = guestAttemptCount + 1
         setGuestAttemptCount(next)
         sessionStorage.setItem('guestDemoAttempts', String(next))
+        // Al llegar al último intento, pre-fetchear el prompt para mostrarlo si lo pide
+        if (next >= GUEST_MAX_ATTEMPTS) {
+          supabase.from('imagenes_ia').select('prompt_original')
+            .eq('id_imagen', imageData.id_imagen).maybeSingle()
+            .then(({ data }) => { if (data?.prompt_original) setRevealedPromptText(data.prompt_original) })
+        }
       }
       setAttemptHistory(prev => [...prev, {
         score: finalScore,
@@ -1710,7 +1715,7 @@ function App() {
                           user={user}
                           onOpenAuth={handleOpenAuth}
                           isGuestLastAttempt={!user && guestAttemptCount >= GUEST_MAX_ATTEMPTS}
-                          guestDemoPrompt={!user && guestAttemptCount >= GUEST_MAX_ATTEMPTS ? DEMO_IMAGE._prompt : undefined}
+                          guestDemoPrompt={!user && guestAttemptCount >= GUEST_MAX_ATTEMPTS ? revealedPromptText || undefined : undefined}
                         />
                       </>
                     )}
