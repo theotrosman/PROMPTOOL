@@ -295,20 +295,33 @@ const ConfigModal = ({
                       <p className="text-sm font-medium text-slate-800 dark:text-slate-100 leading-snug">
                         {es ? 'Modo incógnito' : 'Incognito mode'}
                       </p>
-                      {privacy.incognitoMode && (
+                      {privacy.incognitoMode && mode !== 'challenge' && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700/60 px-1.5 py-0.5 rounded-md">
                           <span className="h-1 w-1 rounded-full bg-amber-500 animate-pulse inline-block" />
                           {es ? 'Activo' : 'On'}
                         </span>
                       )}
+                      {mode === 'challenge' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-700/60 px-1.5 py-0.5 rounded-md">
+                          {es ? 'No disponible en desafíos' : 'Unavailable in challenges'}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                      {es
-                        ? 'No se guarda actividad ni progreso mientras esté activo'
-                        : 'No activity or progress is saved while active'}
+                      {mode === 'challenge'
+                        ? (es
+                            ? 'Los desafíos de empresa siempre registran tu actividad'
+                            : 'Company challenges always record your activity')
+                        : (es
+                            ? 'No se guarda actividad ni progreso mientras esté activo'
+                            : 'No activity or progress is saved while active')}
                     </p>
                   </div>
-                  <Toggle id="toggle-incognito" checked={privacy.incognitoMode} onChange={() => handlePrivacyToggle('incognitoMode')} />
+                  <Toggle
+                    id="toggle-incognito"
+                    checked={mode === 'challenge' ? false : privacy.incognitoMode}
+                    onChange={mode === 'challenge' ? () => {} : () => handlePrivacyToggle('incognitoMode')}
+                  />
                 </div>
 
                 {/* No history */}
