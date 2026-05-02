@@ -201,6 +201,16 @@ export const useAuth = () => {
 
       const { error: dbError } = await supabase.from('usuarios').insert([profileData])
       if (dbError) throw dbError
+
+      // Auto-login después del registro — no pedir que inicie sesión por separado
+      // Si la sesión ya está activa (confirmación de email desactivada), esto la refresca
+      if (!data.session) {
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email: emailResult.sanitized,
+          password: passwordResult.sanitized,
+        })
+        if (loginError) throw loginError
+      }
     }
 
     return data

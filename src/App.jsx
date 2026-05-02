@@ -305,7 +305,10 @@ function App() {
       return
     }
 
-    // Logueado — unirse automáticamente
+    // Logueado (o recién registrado) — unirse automáticamente
+    // Evitar re-ejecutar si ya se unió o está en proceso
+    if (inviteState === 'joined' || inviteState === 'loading') return
+
     const joinCompany = async () => {
       setInviteState('loading')
       try {
