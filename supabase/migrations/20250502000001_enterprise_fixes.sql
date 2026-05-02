@@ -265,7 +265,7 @@ BEGIN
     WHERE id_usuario = target_user_id
       AND company_id = auth.uid()
   ) THEN
-    RAISE EXCEPTION 'User does not belong to your company';
+    RAISE EXCEPTION 'User does not belong to your company';         
   END IF;
 
   UPDATE usuarios
@@ -275,6 +275,43 @@ BEGIN
 END;
 $$;
 
--- ── 12. Indexes for performance ──────────────────────────────────────────────
+-- ── 12. Add dashboard_filters to usuarios for saving filter preferences ──────
+ALTER TABLE usuarios
+  ADD COLUMN IF NOT EXISTS dashboard_filters JSONB DEFAULT '{
+    "timeRange": "30",
+    "selectedMember": "all",
+    "difficulty": "all",
+    "metric": "score"
+  }'::jsonb;
+
+-- ── 13. Add challenge_attempts_detailed view for better stats ─────────────────
+CREATE OR REPLACE VIEW challenge_attempts_detailed AS
+SELECT 
+  i.id_intento,
+  i.id_usuario,
+  i.id_imagen,
+  i.puntaje_similitud,
+  i.prompt_usuario,
+  i.strengths,
+  i.improvements,
+  i.fecha_hora,
+  i.modo,
+  img.image_theme,
+  img.image_diff,
+  img.prompt_original,
+  img.company_id,
+  u.nombre,
+  u.nombre_display,
+  u.company_display_name,
+  u.email,
+  u.avatar_url
+FROM intentos i
+JOIN imagenes_ia img ON i.id_imagen = img.id_imagen
+JOIN usuarios u ON i.id_usuario = u.id_usuario
+WHERE img.company_id IS NOT NULL;
+
+-- ── 14. Indexes for performance ──────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_usuarios_company_id ON usuarios(company_id);
 CREATE INDEX IF NOT EXISTS idx_imagenes_ia_company_id ON imagenes_ia(company_id);
+CREATE INDEX IF NOT EXISTS idx_intentos_id_imagen ON intentos(id_imagen);
+CREATE INDEX IF NOT EXISTS idx_intentos_fecha_hora ON intentos(fecha_hora);
