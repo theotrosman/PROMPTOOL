@@ -310,8 +310,189 @@ JOIN imagenes_ia img ON i.id_imagen = img.id_imagen
 JOIN usuarios u ON i.id_usuario = u.id_usuario
 WHERE img.company_id IS NOT NULL;
 
--- ── 14. Indexes for performance ──────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_usuarios_company_id ON usuarios(company_id);
-CREATE INDEX IF NOT EXISTS idx_imagenes_ia_company_id ON imagenes_ia(company_id);
-CREATE INDEX IF NOT EXISTS idx_intentos_id_imagen ON intentos(id_imagen);
-CREATE INDEX IF NOT EXISTS idx_intentos_fecha_hora ON intentos(fecha_hora);
+-- ── 14. Create custom_roles table for dynamic role management ─────────────────
+CREATE TABLE IF NOT EXISTS custom_roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+  role_name TEXT NOT NULL,
+  role_description TEXT DEFAULT NULL,
+  role_color TEXT DEFAULT '#6b7280', -- Default gray color
+  permissions JSONB DEFAULT '{
+    "canViewAnalytics": true,
+    "canManageTeam": false,
+    "canCreateChallenges": false,
+    "canViewReports": true
+  }'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  UNIQUE(company_id, role_name)
+);
+
+-- ── 15. RLS for custom_roles ─────────────────────────────────────────────────
+ALTER TABLE custom_roles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "custom_roles_company_access"
+  ON custom_roles FOR ALL
+  TO authenticated
+  USING (company_id = auth.uid())
+  WITH CHECK (company_id = auth.uid());
+
+-- ── 16. Insert default roles for existing companies ─────────────────────────
+INSERT INTO custom_roles (company_id, role_name, role_description, role_color, permissions)
+SELECT 
+  id_usuario as company_id,
+  'Manager' as role_name,
+  'Team manager with full permissions' as role_description,
+  '#8b5cf6' as role_color,
+  '{
+    "canViewAnalytics": true,
+    "canManageTeam": true,
+    "canCreateChallenges": true,
+    "canViewReports": true
+  }'::jsonb as permissions
+FROM usuarios 
+WHERE user_type = 'enterprise'
+ON CONFLICT (company_id, role_name) DO NOTHING;
+
+INSERT INTO custom_roles (company_id, role_name, role_description, role_color, permissions)
+SELECT 
+  id_usuario as company_id,
+  'Analyst' as role_name,
+  'Data analyst with reporting access' as role_description,
+  '#3b82f6' as role_color,
+  '{
+    "canViewAnalytics": true,
+    "canManageTeam": false,
+    "canCreateChallenges": false,
+    "canViewReports": true
+  }'::jsonb as permissions
+FROM usuarios 
+WHERE user_type = 'enterprise'
+ON CONFLICT (company_id, role_name) DO NOTHING;
+
+INSERT INTO custom_roles (company_id, role_name, role_description, role_color, permissions)
+SELECT 
+  id_usuario as company_id,
+  'Trainee' as role_name,
+  'Team member in training' as role_description,
+  '#f59e0b' as role_color,
+  '{
+    "canViewAnalytics": false,
+    "canManageTeam": false,
+    "canCreateChallenges": false,
+    "canViewReports": false
+  }'::jsonb as permissions
+FROM usuarios 
+WHERE user_type = 'enterprise'
+ON CONFLICT (company_id, role_name) DO NOTHING;
+
+INSERT INTO custom_roles (company_id, role_name, role_description, role_color, permissions)
+SELECT 
+  id_usuario as company_id,
+  'Observer' as role_name,
+  'Read-only access to team data' as role_description,
+  '#6b7280' as role_color,
+  '{
+    "canViewAnalytics": true,
+    "canManageTeam": false,
+    "canCreateChallenges": false,
+    "canViewReports": false
+  }'::jsonb as permissions
+FROM usuarios 
+WHERE user_type = 'enterprise'
+ON CONFLICT (company_id, role_name) DO NOTHING;
+
+-- ── 17. RPC: create_custom_role ──────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION create_custom_role(
+  role_name TEXT,
+  role_description TEXT DEFAULT NULL,
+  role_color TEXT DEFAULT '#6b7280'
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  new_role_id UUID;
+BEGIN
+  -- Validate role name
+  IF role_name IS NULL OR trim(role_name) = '' THEN
+    RAISE EXCEPTION 'Role name cannot be empty';
+  END IF;
+
+  -- Insert new role
+  INSERT INTO custom_roles (company_id, role_name, role_description, role_color)
+  VALUES (auth.uid(), trim(role_name), role_description, role_color)
+  RETURNING id INTO new_role_id;
+
+  RETURN new_role_id;
+END;
+$;
+
+-- ── 18. RPC: delete_custom_role ──────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION delete_custom_role(
+  role_name TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+BEGIN
+  -- Check if role exists and belongs to company
+  IF NOT EXISTS (
+    SELECT 1 FROM custom_roles
+    WHERE company_id = auth.uid() AND role_name = delete_custom_role.role_name
+  ) THEN
+    RAISE EXCEPTION 'Role not found or access denied';
+  END IF;
+
+  -- Remove role from all users first
+  UPDATE usuarios
+  SET company_role = NULL
+  WHERE company_id = auth.uid() AND company_role = delete_custom_role.role_name;
+
+  -- Delete the role
+  DELETE FROM custom_roles
+  WHERE company_id = auth.uid() AND role_name = delete_custom_role.role_name;
+END;
+$;
+
+-- ── 19. Update assign_company_role to handle custom roles ───────────────────
+CREATE OR REPLACE FUNCTION assign_company_role(
+  target_user_id UUID,
+  role TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+BEGIN
+  -- Verify the target user belongs to the calling user's company
+  IF NOT EXISTS (
+    SELECT 1 FROM usuarios
+    WHERE id_usuario = target_user_id
+      AND company_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'User does not belong to your company';
+  END IF;
+
+  -- If role is provided, validate it exists (either built-in or custom)
+  IF role IS NOT NULL AND role != '' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM custom_roles
+      WHERE company_id = auth.uid() AND role_name = role
+    ) THEN
+      -- Auto-create the role if it doesn't exist
+      PERFORM create_custom_role(role, 'Auto-created role', '#6b7280');
+    END IF;
+  END IF;
+
+  UPDATE usuarios
+  SET company_role = NULLIF(role, '')
+  WHERE id_usuario = target_user_id
+    AND company_id = auth.uid();
+END;
+$;
