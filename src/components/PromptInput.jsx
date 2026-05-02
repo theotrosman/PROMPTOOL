@@ -64,7 +64,7 @@ const formatTime = (seconds = 0) => {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`
 }
 
-const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null, streak = 0, imageId = null, onDifficultyChange = null, onModeChange = null, onNewRandom = null, availableDiffs = [], personalizedTime = null, attemptNumber = 1, onOpenConfig = null, showAnticheatWarning = false, attemptsIndicator = null }) => {
+const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, disabled = false, mode, difficulty, onTimingChange, paused = false, isRanked = true, onToggleRanked = null, streak = 0, imageId = null, onDifficultyChange = null, onModeChange = null, onNewRandom = null, availableDiffs = [], personalizedTime = null, attemptNumber = 1, onOpenConfig = null, showAnticheatWarning = false, attemptsIndicator = null, challengeId = null }) => {
   const { t, lang } = useLang()
   const [startedAt, setStartedAt] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -75,6 +75,9 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
   const [incognitoActive, setIncognitoActive] = useState(getIncognitoActive)
   const timerConfig = useMemo(() => getTimerConfig(mode, difficulty, personalizedTime, attemptNumber), [mode, difficulty, personalizedTime, attemptNumber])
   const { onTextChange: trackTyping, getReport: getTypingReport, reset: resetTyping } = useTypingBehavior()
+
+  // En modo desafío de empresa, el incógnito siempre está desactivado — forzado por prop
+  const effectiveIncognito = (mode === 'challenge' || !!challengeId) ? false : incognitoActive
 
   // Listen for privacy changes from ConfigModal
   useEffect(() => {
@@ -385,7 +388,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
       {attemptsIndicator}
       
       {/* Incognito banner — standalone, above the textarea */}
-      {incognitoActive && (
+      {effectiveIncognito && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-800/70 bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
           <svg className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />

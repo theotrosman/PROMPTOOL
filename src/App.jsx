@@ -1682,6 +1682,7 @@ function App() {
                           onOpenConfig={mode !== 'challenge' ? () => setConfigOpen(true) : null}
                           showAnticheatWarning={showAnticheatWarning && mode === 'random' && !challengeId && clipboardPermission === 'granted'}
                           attemptsIndicator={attemptsIndicator}
+                          challengeId={challengeId || null}
                         />
                         {progressChart}
                         {promptRevealed && revealedAnalysisPanel}
