@@ -1095,6 +1095,27 @@ const EnterprisePanel = ({ user }) => {
 
       if (error) throw error
 
+      // Create notifications for assigned members
+      const notifications = selectedMembersForAssignment.map(memberId => ({
+        target_user_id: memberId,
+        target_email: null,
+        title: lang === 'en' ? 'New Guide Assigned' : 'Nueva Guía Asignada',
+        message: lang === 'en' 
+          ? `You have been assigned the guide "${selectedGuideForAssignment.title}". ${assignmentNotes.trim() ? `Note: ${assignmentNotes.trim()}` : ''}`
+          : `Se te ha asignado la guía "${selectedGuideForAssignment.title}". ${assignmentNotes.trim() ? `Nota: ${assignmentNotes.trim()}` : ''}`,
+        guide_slug: null,
+        guide_url: `/guides?enterprise_guide=${selectedGuideForAssignment.id}`,
+        created_at: new Date().toISOString()
+      }))
+
+      // Insert notifications
+      try {
+        await supabase.from('guide_suggestions').insert(notifications)
+      } catch (notifError) {
+        console.warn('Could not create notifications:', notifError)
+        // Don't fail the assignment if notifications fail
+      }
+
       alert(lang === 'en' 
         ? `Guide assigned to ${data} member${data !== 1 ? 's' : ''}.`
         : `Guía asignada a ${data} miembro${data !== 1 ? 's' : ''}.`
@@ -1163,12 +1184,19 @@ AVAILABLE ACTIONS:
 - Remove: <action>{"action":"remove_member","userId":"<exact id>"}</action>
 - Filter by challenge: <action>{"action":"filter_challenge","challengeId":"<challenge id>"}</action>
 - Show challenge stats: <action>{"action":"show_challenge_stats","challengeId":"<challenge id>"}</action>
+- Create role: <action>{"action":"create_role","roleName":"<role name>","description":"<optional description>","color":"<hex color>"}</action>
+- Delete role: <action>{"action":"delete_role","roleName":"<exact role name>"}</action>
 
 AVAILABLE ROLES:
-${customRoles.map(r => `- ${r.role_name}: ${r.role_description || 'Custom role'}`).join('\n')}
+${customRoles.map(r => `- ${r.role_name}: ${r.role_description || 'Custom role'} (color: ${r.role_color})`).join('\n')}
 ${customRoles.length === 0 ? '- No custom roles defined yet' : ''}
 
-NOTE: You can assign ANY role name. If the role doesn't exist, it will be created automatically.
+ROLE MANAGEMENT RULES:
+- You CAN create new roles with any name (avoid duplicates)
+- You CAN delete existing custom roles (this removes them from all members)
+- You CAN assign any role name (if it doesn't exist, it will be created automatically)
+- Default colors: #8b5cf6 (purple), #3b82f6 (blue), #f59e0b (amber), #ef4444 (red), #10b981 (emerald)
+- When creating roles, suggest appropriate colors based on the role type
 
 TEAM DATA:
 - Company: ${companyName}
@@ -1313,8 +1341,13 @@ RESPONSE RULES:
       if (actionMatch) {
         try {
           const actionData = JSON.parse(actionMatch[1].trim())
+          // Remove action block from content but keep the descriptive text
           const cleanContent = assistantContent.replace(/<action>[\s\S]*?<\/action>/, '').trim()
-          setChatMessages(prev => [...prev, { role: 'assistant', content: cleanContent }])
+          
+          // Only add the message if there's actual content (not just whitespace)
+          if (cleanContent && cleanContent.length > 0) {
+            setChatMessages(prev => [...prev, { role: 'assistant', content: cleanContent }])
+          }
 
           if (actionData.action === 'rename' && actionData.userId && actionData.newName) {
             // Security: verify user belongs to this team
@@ -1365,6 +1398,62 @@ RESPONSE RULES:
             const challenge = challenges.find(ch => ch.id_imagen === actionData.challengeId)
             if (challenge) {
               fetchChallengeStats(actionData.challengeId, challenge.image_theme || 'Challenge')
+            }
+          } else if (actionData.action === 'create_role' && actionData.roleName) {
+            // Create new custom role
+            try {
+              const { error } = await supabase.rpc('create_custom_role', {
+                role_name: actionData.roleName.trim(),
+                role_description: actionData.description?.trim() || null,
+                role_color: actionData.color || '#6b7280'
+              })
+              
+              if (error) throw error
+              
+              // Refresh custom roles
+              await fetchCustomRoles()
+              
+              // Add success message to chat
+              setChatMessages(prev => [...prev, { 
+                role: 'assistant', 
+                content: lang === 'en' 
+                  ? `✅ Role "${actionData.roleName}" created successfully!`
+                  : `✅ Rol "${actionData.roleName}" creado correctamente!`
+              }])
+            } catch (error) {
+              setChatMessages(prev => [...prev, { 
+                role: 'assistant', 
+                content: lang === 'en' 
+                  ? `❌ Could not create role: ${error.message}`
+                  : `❌ No se pudo crear el rol: ${error.message}`
+              }])
+            }
+          } else if (actionData.action === 'delete_role' && actionData.roleName) {
+            // Delete custom role
+            try {
+              const { error } = await supabase.rpc('delete_custom_role', {
+                role_name: actionData.roleName.trim()
+              })
+              
+              if (error) throw error
+              
+              // Refresh custom roles and team users
+              await Promise.all([fetchCustomRoles(), fetchCompanyData()])
+              
+              // Add success message to chat
+              setChatMessages(prev => [...prev, { 
+                role: 'assistant', 
+                content: lang === 'en' 
+                  ? `✅ Role "${actionData.roleName}" deleted successfully!`
+                  : `✅ Rol "${actionData.roleName}" eliminado correctamente!`
+              }])
+            } catch (error) {
+              setChatMessages(prev => [...prev, { 
+                role: 'assistant', 
+                content: lang === 'en' 
+                  ? `❌ Could not delete role: ${error.message}`
+                  : `❌ No se pudo eliminar el rol: ${error.message}`
+              }])
             }
           }
         } catch {
@@ -2117,10 +2206,10 @@ RESPONSE RULES:
                 {[
                   lang === 'en' ? 'Who is my top performer?' : '¿Quién es mi mejor miembro?',
                   lang === 'en' ? 'Who needs coaching?' : '¿Quién necesita apoyo?',
+                  lang === 'en' ? 'Create role "Team Lead"' : 'Crear rol "Team Lead"',
+                  lang === 'en' ? 'Delete role "Observer"' : 'Eliminar rol "Observer"',
                   lang === 'en' ? 'Show team performance summary' : 'Mostrar resumen del equipo',
-                  lang === 'en' ? 'Filter by challenge "Salamanca 32"' : 'Filtrar por desafío "Salamanca 32"',
-                  lang === 'en' ? 'Show stats for challenge ID' : 'Mostrar estadísticas del desafío',
-                  lang === 'en' ? 'Assign role "Team Lead" to @' : 'Asignar rol "Team Lead" a @',
+                  lang === 'en' ? 'Assign role "Manager" to @' : 'Asignar rol "Manager" a @',
                 ].map(suggestion => (
                   <button
                     key={suggestion}
