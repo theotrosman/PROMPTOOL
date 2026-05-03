@@ -4,12 +4,46 @@ import GuidesSection from './components/GuidesSection'
 import { useLang } from './contexts/LangContext'
 import { useAuth } from './hooks/useAuth'
 import AuthModal from './components/AuthModal'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from './supabaseClient'
 
 const GuidesApp = () => {
   const { lang } = useLang()
   const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth()
   const [authOpen, setAuthOpen] = useState(false)
+  const [companyAssignments, setCompanyAssignments] = useState([])
+
+  // Cargar guías asignadas por la empresa del usuario
+  useEffect(() => {
+    if (!user) return
+    const fetchAssignments = async () => {
+      try {
+        // Obtener el company_id del usuario
+        const { data: profile } = await supabase
+          .from('usuarios')
+          .select('company_id')
+          .eq('id_usuario', user.id)
+          .maybeSingle()
+
+        if (!profile?.company_id) return
+
+        // Leer las asignaciones del training_config de la empresa
+        const { data: company } = await supabase
+          .from('usuarios')
+          .select('training_config')
+          .eq('id_usuario', profile.company_id)
+          .maybeSingle()
+
+        const all = company?.training_config?.guide_assignments || []
+        // Filtrar: globales (target_user_id null) + las específicas para este usuario
+        const mine = all.filter(a => !a.target_user_id || a.target_user_id === user.id)
+        setCompanyAssignments(mine)
+      } catch {
+        // silent — si no hay datos, no rompe nada
+      }
+    }
+    fetchAssignments()
+  }, [user?.id])
 
   if (loading) {
     return (
@@ -69,7 +103,7 @@ const GuidesApp = () => {
             </p>
           </div>
         </section>
-        <GuidesSection />
+        <GuidesSection companyAssignments={companyAssignments} />
       </main>
       <Footer />
     </div>

@@ -321,9 +321,31 @@ const ParteBuilder = ({ accent = 'slate', lang = 'es' }) => {
   )
 }
 
-const GuidesSection = ({ recommendedGuideIds = [] }) => {
+const GuidesSection = ({ recommendedGuideIds = [], companyAssignments = [] }) => {
   const { lang } = useLang()
   const recommendedSet = new Set(recommendedGuideIds)
+  // IDs de guías del catálogo asignadas por la empresa
+  const companyAssignedIds = new Set(
+    companyAssignments.filter(a => a.guide_id && a.guide_id !== 'custom').map(a => a.guide_id)
+  )
+  // Guías personalizadas de la empresa (convertidas a objetos compatibles con el renderizador)
+  const customCompanyGuides = companyAssignments
+    .filter(a => a.guide_id === 'custom')
+    .map(a => ({
+      id: `custom-${a.id}`,
+      title: a.custom_title || (lang === 'en' ? 'Company guide' : 'Guía de empresa'),
+      summary: a.custom_body ? a.custom_body.slice(0, 100) + (a.custom_body.length > 100 ? '…' : '') : '',
+      accent: 'violet',
+      _isCustom: true,
+      _customBody: a.custom_body || '',
+      _customUrl: a.custom_url || null,
+      _note: a.note || null,
+      _dueDate: a.due_date || null,
+      lesson: null,
+      steps: [],
+      drills: [],
+      checkpoints: [],
+    }))
 
   // UI strings
   const ui = {
@@ -377,15 +399,18 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
     const match = raw.match(/^#guia-(.+)$/)
     const id = match?.[1]
     if (!id) return false
-    if (GUIDE_LIBRARY.some((g) => g.id === id)) {
+    if (allGuides.some((g) => g.id === id)) {
       setSelectedId(id)
       return true
     }
     return false
   }
 
+  // Catálogo completo: guías del catálogo + guías custom de empresa
+  const allGuides = [...GUIDE_LIBRARY, ...customCompanyGuides]
+
   const selectGuide = (id) => {
-    if (!id || !GUIDE_LIBRARY.some((g) => g.id === id)) return
+    if (!id || !allGuides.some((g) => g.id === id)) return
     setSelectedId((prev) => {
       if (prev === id) return prev
       return id
@@ -482,7 +507,7 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
     [doneMap, lessonAckMap],
   )
 
-  const selectedGuide = GUIDE_LIBRARY.find((g) => g.id === selectedId) || GUIDE_LIBRARY[0]
+  const selectedGuide = allGuides.find((g) => g.id === selectedId) || GUIDE_LIBRARY[0]
   const accent = ACCENTS[selectedGuide?.accent] || ACCENTS.slate
   const selectedProgress = guideProgress[selectedGuide?.id] ?? 0
   const hasLesson = Boolean(selectedGuide?.lesson?.blocks?.length)
@@ -501,11 +526,92 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
             <div className="hidden sm:block text-xs font-semibold text-slate-500">{GUIDE_LIBRARY.length}</div>
           </div>
 
+          {/* Guías asignadas por la empresa */}
+          {(companyAssignedIds.size > 0 || customCompanyGuides.length > 0) && (
+            <div className="mt-4 rounded-[1.5rem] border border-violet-200 bg-violet-50 p-2">
+              <p className="px-2 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-500 flex items-center gap-1.5">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                {lang === 'en' ? 'Assigned by your company' : 'Asignadas por tu empresa'}
+              </p>
+              <nav className="space-y-1">
+                {/* Guías del catálogo asignadas */}
+                {GUIDE_LIBRARY.filter(g => companyAssignedIds.has(g.id)).map((guide) => {
+                  const isActive = guide.id === selectedGuide?.id
+                  const a = ACCENTS[guide.accent] || ACCENTS.slate
+                  const assignment = companyAssignments.find(a => a.guide_id === guide.id)
+                  return (
+                    <button
+                      key={`company-${guide.id}`}
+                      type="button"
+                      onClick={() => selectGuide(guide.id)}
+                      className={`guide-nav group relative flex w-full items-start gap-3 rounded-[1.25rem] border px-3 py-3 text-left transition-all duration-300 ${
+                        isActive ? `bg-white ${a.border} shadow-sm` : 'border-transparent hover:bg-white/70'
+                      }`}
+                    >
+                      <span className={`mt-0.5 h-3 w-3 flex-shrink-0 rounded-full ring-1 ring-violet-200 ${a.pill}`} aria-hidden="true" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900">{guide.title}</span>
+                        {assignment?.note && (
+                          <span className="mt-0.5 block truncate text-xs text-violet-600 italic">"{assignment.note}"</span>
+                        )}
+                        <span className="mt-1.5 flex items-center gap-2">
+                          <span className="rounded-full bg-violet-100 text-violet-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]">
+                            {lang === 'en' ? 'Company' : 'Empresa'}
+                          </span>
+                          {assignment?.due_date && (
+                            <span className="text-[10px] text-slate-400">
+                              {lang === 'en' ? 'Due' : 'Vence'} {new Date(assignment.due_date).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            {guideProgress[guide.id] ?? 0}%
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+                {/* Guías personalizadas de la empresa */}
+                {customCompanyGuides.map((g) => (
+                  <button
+                    key={`custom-${g.id}`}
+                    type="button"
+                    onClick={() => selectGuide(g.id)}
+                    className={`guide-nav group relative flex w-full items-start gap-3 rounded-[1.25rem] border px-3 py-3 text-left transition-all duration-300 ${
+                      selectedId === g.id
+                        ? 'bg-white border-violet-300 shadow-sm'
+                        : 'border-transparent hover:bg-white/70'
+                    }`}
+                  >
+                    <span className="mt-0.5 h-3 w-3 flex-shrink-0 rounded-full ring-1 ring-violet-200 bg-violet-100 text-violet-800" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-900">{g.title}</span>
+                      {g._note && <span className="mt-0.5 block truncate text-xs text-violet-600 italic">"{g._note}"</span>}
+                      <span className="mt-1.5 flex items-center gap-2">
+                        <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]">
+                          {lang === 'en' ? 'Custom' : 'Personalizada'}
+                        </span>
+                        {g._dueDate && (
+                          <span className="text-[10px] text-slate-400">
+                            {lang === 'en' ? 'Due' : 'Vence'} {new Date(g._dueDate).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </nav>
+            </div>
+          )}
+
           <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-2">
             <nav className="space-y-1">
               {GUIDE_LIBRARY.map((guide) => {
                 const isActive = guide.id === selectedGuide?.id
                 const isRecommended = recommendedSet.has(guide.id)
+                const isCompanyAssigned = companyAssignedIds.has(guide.id)
                 const a = ACCENTS[guide.accent] || ACCENTS.slate
                 return (
                   <button
@@ -524,9 +630,15 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
                       <span className="block truncate text-sm font-semibold text-slate-900">{guide.title}</span>
                       <span className="mt-0.5 block truncate text-xs text-slate-500">{guide.summary}</span>
                       <span className="mt-2 flex items-center gap-2">
-                        {isRecommended && (
+                        {isRecommended && !isCompanyAssigned && (
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${a.pill}`}>
-                            {ui.recommended}                          </span>
+                            {ui.recommended}
+                          </span>
+                        )}
+                        {isCompanyAssigned && (
+                          <span className="rounded-full bg-violet-100 text-violet-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]">
+                            {lang === 'en' ? 'Company' : 'Empresa'}
+                          </span>
                         )}
                         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                           {guideProgress[guide.id] ?? 0}%
@@ -572,6 +684,71 @@ const GuidesSection = ({ recommendedGuideIds = [] }) => {
             style={panelMaxHeight ? { maxHeight: panelMaxHeight } : undefined}
             className="mt-4 flex-1 overflow-auto rounded-[1.5rem] bg-slate-50 p-3"
           >
+            {/* ── Guía personalizada de empresa ── */}
+            {selectedGuide._isCustom && (
+              <div className="rounded-[1.25rem] border border-violet-200 bg-white p-5 space-y-4">
+                {/* Badge empresa */}
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 text-violet-700 px-3 py-1 text-xs font-semibold">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    {lang === 'en' ? 'Company guide' : 'Guía de empresa'}
+                  </span>
+                  {selectedGuide._dueDate && (
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      {lang === 'en' ? 'Due' : 'Vence'}: {new Date(selectedGuide._dueDate).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+
+                {/* Nota de la empresa */}
+                {selectedGuide._note && (
+                  <div className="rounded-xl bg-violet-50 border border-violet-100 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-violet-500 mb-1">{lang === 'en' ? 'Note from your company' : 'Nota de tu empresa'}</p>
+                    <p className="text-sm text-slate-700 italic">"{selectedGuide._note}"</p>
+                  </div>
+                )}
+
+                {/* Contenido principal */}
+                {selectedGuide._customBody && (
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">{lang === 'en' ? 'Content' : 'Contenido'}</p>
+                    <div className="prose prose-sm max-w-none text-slate-700 whitespace-pre-line leading-relaxed">
+                      {selectedGuide._customBody}
+                    </div>
+                  </div>
+                )}
+
+                {/* Enlace externo */}
+                {selectedGuide._customUrl && (
+                  <a
+                    href={selectedGuide._customUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-700 hover:bg-violet-100 transition"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    {selectedGuide._customUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                  </a>
+                )}
+
+                {/* Checkbox "leída" */}
+                <label className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white w-fit">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(lessonAckMap[selectedGuide.id])}
+                    onChange={(e) => setLessonAckMap(prev => ({ ...prev, [selectedGuide.id]: e.target.checked }))}
+                    className="h-4 w-4 accent-violet-600"
+                  />
+                  {lang === 'en' ? 'Mark as read' : 'Marcar como leída'}
+                </label>
+              </div>
+            )}
+
             {hasLesson && (
               <div className={`rounded-[1.25rem] border bg-white p-4 ${accent.border}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">

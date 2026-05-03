@@ -11,6 +11,7 @@ import {
 import { proxyImg } from '../utils/imgProxy'
 import { nowAR } from '../utils/dateAR'
 import { sanitizeText } from '../utils/inputSanitizer'
+import GUIDE_LIBRARY from '../data/guides'
 
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions'
@@ -103,6 +104,24 @@ const EnterprisePanel = ({ user }) => {
   // Role assignment feedback
   const [roleError, setRoleError] = useState(null) // { userId, msg }
 
+  // ── Guías asignadas ──────────────────────────────────────────────────────
+  const [guideAssignments, setGuideAssignments] = useState([])
+  const [loadingGuides, setLoadingGuides] = useState(false)
+  const [guideForm, setGuideForm] = useState({
+    type: 'catalog',        // 'catalog' | 'custom'
+    guide_id: '',
+    custom_title: '',
+    custom_body: '',
+    custom_url: '',
+    target: 'all',          // 'all' | user id
+    note: '',
+    due_date: '',
+  })
+  const [savingGuide, setSavingGuide] = useState(false)
+  const [guideStatus, setGuideStatus] = useState(null) // null | 'ok' | 'error'
+  const [guideModalOpen, setGuideModalOpen] = useState(false)
+  const [memberProgress, setMemberProgress] = useState({}) // { user_id: { guide_id: { lesson_ack, quiz_passed, checkpoints } } }
+
   // Filtros del dashboard
   const [dashboardFilters, setDashboardFilters] = useState({
     timeRange: '30', // 7, 30, 90, 'all'
@@ -132,6 +151,158 @@ const EnterprisePanel = ({ user }) => {
   // Chatbot member autocomplete
   const [chatSuggestions, setChatSuggestions] = useState([])
   const [chatSuggestionMode, setChatSuggestionMode] = useState(null) // 'rename' | 'role' | 'remove'
+
+  // ── Guías: fetch, crear, eliminar ────────────────────────────────────────
+  // Las asignaciones se guardan en usuarios.training_config->guide_assignments (JSONB)
+  // para no requerir una tabla nueva.
+
+  const fetchGuideAssignments = async (cid) => {
+    const compId = cid || companyData?.id_usuario
+    if (!compId) return
+    setLoadingGuides(true)
+    try {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('training_config')
+        .eq('id_usuario', compId)
+        .maybeSingle()
+      const assignments = data?.training_config?.guide_assignments || []
+      setGuideAssignments(assignments)
+    } catch { /* silent */ } finally {
+      setLoadingGuides(false)
+    }
+  }
+
+  const fetchMemberProgress = async (memberIds) => {
+    // El progreso de guías se lee de training_config->guide_progress de cada miembro
+    if (!memberIds?.length) return
+    try {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('id_usuario, training_config')
+        .in('id_usuario', memberIds)
+      const map = {}
+      ;(data || []).forEach(row => {
+        const progress = row.training_config?.guide_progress || {}
+        map[row.id_usuario] = progress
+      })
+      setMemberProgress(map)
+    } catch { /* silent */ }
+  }
+
+  const saveGuideAssignment = async () => {
+    if (!companyData?.id_usuario) return
+    if (guideForm.type === 'catalog' && !guideForm.guide_id) {
+      setGuideStatus('validation'); return
+    }
+    if (guideForm.type === 'custom' && !guideForm.custom_title.trim()) {
+      setGuideStatus('validation'); return
+    }
+    setSavingGuide(true)
+    setGuideStatus(null)
+    try {
+      const newAssignment = {
+        id: crypto.randomUUID(),
+        guide_id: guideForm.type === 'catalog' ? guideForm.guide_id : 'custom',
+        custom_title: guideForm.type === 'custom' ? guideForm.custom_title.trim() : null,
+        custom_body: guideForm.type === 'custom' ? guideForm.custom_body.trim() : null,
+        custom_url: guideForm.custom_url.trim() || null,
+        target_user_id: guideForm.target === 'all' ? null : guideForm.target,
+        note: guideForm.note.trim() || null,
+        due_date: guideForm.due_date || null,
+        created_at: new Date().toISOString(),
+      }
+
+      // Leer el training_config actual y agregar la nueva asignación
+      const { data: current } = await supabase
+        .from('usuarios')
+        .select('training_config')
+        .eq('id_usuario', companyData.id_usuario)
+        .maybeSingle()
+
+      const existing = current?.training_config || {}
+      const updatedAssignments = [...(existing.guide_assignments || []), newAssignment]
+
+      const { error } = await supabase
+        .from('usuarios')
+        .update({
+          training_config: { ...existing, guide_assignments: updatedAssignments }
+        })
+        .eq('id_usuario', companyData.id_usuario)
+
+      if (error) throw error
+
+      // ── Enviar notificación a los destinatarios ──────────────────────────
+      const guideTitle = guideForm.type === 'catalog'
+        ? (GUIDE_LIBRARY.find(g => g.id === guideForm.guide_id)?.title || guideForm.guide_id)
+        : guideForm.custom_title.trim()
+
+      const companyName = companyData.company_name || (lang === 'en' ? 'Your company' : 'Tu empresa')
+
+      const notifPayload = []
+
+      if (guideForm.target === 'all') {
+        // Notificar a todos los miembros del equipo
+        teamUsers.forEach(m => {
+          notifPayload.push({
+            target_user_id: m.id_usuario,
+            target_email: m.email || null,
+            title: lang === 'en' ? 'New guide assigned' : 'Nueva guía asignada',
+            message: lang === 'en'
+              ? `${companyName} assigned you the guide: "${guideTitle}"${guideForm.note ? ` — ${guideForm.note}` : ''}`
+              : `${companyName} te asignó la guía: "${guideTitle}"${guideForm.note ? ` — ${guideForm.note}` : ''}`,
+            guide_slug: guideForm.type === 'catalog' ? `guia-${guideForm.guide_id}` : null,
+            guide_url: guideForm.type === 'catalog' ? `/guides#guia-${guideForm.guide_id}` : '/guides',
+          })
+        })
+      } else {
+        const member = teamUsers.find(m => m.id_usuario === guideForm.target)
+        if (member) {
+          notifPayload.push({
+            target_user_id: member.id_usuario,
+            target_email: member.email || null,
+            title: lang === 'en' ? 'New guide assigned' : 'Nueva guía asignada',
+            message: lang === 'en'
+              ? `${companyName} assigned you the guide: "${guideTitle}"${guideForm.note ? ` — ${guideForm.note}` : ''}`
+              : `${companyName} te asignó la guía: "${guideTitle}"${guideForm.note ? ` — ${guideForm.note}` : ''}`,
+            guide_slug: guideForm.type === 'catalog' ? `guia-${guideForm.guide_id}` : null,
+            guide_url: guideForm.type === 'catalog' ? `/guides#guia-${guideForm.guide_id}` : '/guides',
+          })
+        }
+      }
+
+      if (notifPayload.length > 0) {
+        // Insertar en guide_suggestions (tabla existente usada por el sistema de notificaciones)
+        await supabase.from('guide_suggestions').insert(notifPayload)
+      }
+
+      setGuideAssignments(updatedAssignments)
+      setGuideStatus('ok')
+      setGuideForm({ type: 'catalog', guide_id: '', custom_title: '', custom_body: '', custom_url: '', target: 'all', note: '', due_date: '' })
+      setGuideModalOpen(false)
+    } catch (err) {
+      setGuideStatus('db_error:' + (err?.message || 'unknown'))
+    } finally {
+      setSavingGuide(false)
+    }
+  }
+
+  const deleteGuideAssignment = async (id) => {
+    try {
+      const updated = guideAssignments.filter(a => a.id !== id)
+      const { data: current } = await supabase
+        .from('usuarios')
+        .select('training_config')
+        .eq('id_usuario', companyData.id_usuario)
+        .maybeSingle()
+      const existing = current?.training_config || {}
+      await supabase
+        .from('usuarios')
+        .update({ training_config: { ...existing, guide_assignments: updated } })
+        .eq('id_usuario', companyData.id_usuario)
+      setGuideAssignments(updated)
+    } catch { /* silent */ }
+  }
 
   const fetchChallenges = async () => {
     if (!companyData?.id_usuario) return
@@ -291,6 +462,12 @@ const EnterprisePanel = ({ user }) => {
               grouped[intento.id_imagen].push(intento)
             })
             setChallengeAttempts(grouped)
+          }
+
+          // Fetch guide assignments y progreso de miembros
+          await fetchGuideAssignments(company.id_usuario)
+          if ((members || []).length > 0) {
+            await fetchMemberProgress((members || []).map(m => m.id_usuario))
           }
         }
       } catch {
@@ -931,6 +1108,7 @@ PLATFORM: Users practice writing AI image generation prompts. Score = prompt mat
     { id: 'dashboard', label: lang === 'en' ? 'Dashboard' : 'Dashboard', icon: 'dashboard' },
     { id: 'leaderboard', label: lang === 'en' ? 'Leaderboard' : 'Ranking', icon: 'leaderboard' },
     { id: 'users', label: lang === 'en' ? 'Team' : 'Equipo', icon: 'users' },
+    { id: 'guides', label: lang === 'en' ? 'Guides' : 'Guías', icon: 'guides' },
     { id: 'settings', label: lang === 'en' ? 'Settings' : 'Configuración', icon: 'settings' },
     {
       id: 'requests',
@@ -2005,6 +2183,420 @@ PLATFORM: Users practice writing AI image generation prompts. Score = prompt mat
     </div>
   )
 
+  const renderGuides = () => {
+    const ACCENT_COLORS = {
+      indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+      cyan: 'bg-cyan-50 border-cyan-200 text-cyan-700',
+      violet: 'bg-violet-50 border-violet-200 text-violet-700',
+      amber: 'bg-amber-50 border-amber-200 text-amber-700',
+      rose: 'bg-rose-50 border-rose-200 text-rose-700',
+      emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+      fuchsia: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700',
+      orange: 'bg-orange-50 border-orange-200 text-orange-700',
+      red: 'bg-red-50 border-red-200 text-red-700',
+      blue: 'bg-blue-50 border-blue-200 text-blue-700',
+      lime: 'bg-lime-50 border-lime-200 text-lime-700',
+    }
+
+    // Agrupar asignaciones: globales (target_user_id=null) y por usuario
+    const globalAssignments = guideAssignments.filter(a => !a.target_user_id)
+    const userAssignments = guideAssignments.filter(a => !!a.target_user_id)
+
+    // Calcular progreso por guía
+    const getProgressForGuide = (guideId) => {
+      const total = teamUsers.length
+      if (!total) return { done: 0, total: 0, pct: 0 }
+      let done = 0
+      teamUsers.forEach(m => {
+        const p = memberProgress[m.id_usuario]?.[guideId]
+        if (p?.lesson_ack) done++
+      })
+      return { done, total, pct: Math.round((done / total) * 100) }
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+              {lang === 'en' ? 'Guide Assignments' : 'Asignación de Guías'}
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {lang === 'en'
+                ? 'Assign learning guides from the catalog or create custom ones for your team.'
+                : 'Asigná guías del catálogo o creá guías personalizadas para tu equipo.'}
+            </p>
+          </div>
+          <button
+            onClick={() => { setGuideForm({ type: 'catalog', guide_id: '', custom_title: '', custom_body: '', custom_url: '', target: 'all', note: '', due_date: '' }); setGuideStatus(null); setGuideModalOpen(true) }}
+            className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            {lang === 'en' ? 'Assign guide' : 'Asignar guía'}
+          </button>
+        </div>
+
+        {loadingGuides ? (
+          <div className="py-12 text-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-slate-200 border-t-violet-600 mx-auto" />
+          </div>
+        ) : guideAssignments.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-12 text-center">
+            <svg className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+            </svg>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              {lang === 'en' ? 'No guides assigned yet.' : 'Todavía no hay guías asignadas.'}
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              {lang === 'en' ? 'Click "Assign guide" to get started.' : 'Hacé clic en "Asignar guía" para empezar.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Asignaciones globales (para todo el equipo) */}
+            {globalAssignments.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">
+                  {lang === 'en' ? 'For the whole team' : 'Para todo el equipo'}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {globalAssignments.map(a => {
+                    const catalogGuide = GUIDE_LIBRARY.find(g => g.id === a.guide_id)
+                    const isCustom = a.guide_id === 'custom'
+                    const title = isCustom ? a.custom_title : catalogGuide?.title
+                    const accent = catalogGuide?.accent || 'violet'
+                    const accentCls = ACCENT_COLORS[accent] || ACCENT_COLORS.violet
+                    const progress = catalogGuide ? getProgressForGuide(a.guide_id) : null
+
+                    return (
+                      <div key={a.id} className="relative rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 flex flex-col gap-3">
+                        {/* Badge tipo */}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${isCustom ? 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400' : accentCls}`}>
+                            {isCustom ? (lang === 'en' ? 'Custom' : 'Personalizada') : (lang === 'en' ? 'Catalog' : 'Catálogo')}
+                          </span>
+                          <button
+                            onClick={() => deleteGuideAssignment(a.id)}
+                            className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition"
+                            title={lang === 'en' ? 'Remove' : 'Eliminar'}
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">{title}</p>
+                          {catalogGuide && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{catalogGuide.summary}</p>}
+                          {isCustom && a.custom_body && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{a.custom_body}</p>}
+                          {a.custom_url && (
+                            <a href={a.custom_url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-violet-600 hover:underline">
+                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                              {lang === 'en' ? 'Open link' : 'Abrir enlace'}
+                            </a>
+                          )}
+                        </div>
+
+                        {a.note && (
+                          <p className="rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 italic">
+                            "{a.note}"
+                          </p>
+                        )}
+
+                        {a.due_date && (
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            {lang === 'en' ? 'Due' : 'Vence'}: {new Date(a.due_date).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
+
+                        {/* Barra de progreso del equipo */}
+                        {progress && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">{lang === 'en' ? 'Team progress' : 'Progreso del equipo'}</span>
+                              <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{progress.done}/{progress.total}</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-violet-500 transition-all duration-500"
+                                style={{ width: `${progress.pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Asignaciones individuales */}
+            {userAssignments.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">
+                  {lang === 'en' ? 'Individual assignments' : 'Asignaciones individuales'}
+                </p>
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{lang === 'en' ? 'Member' : 'Miembro'}</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{lang === 'en' ? 'Guide' : 'Guía'}</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{lang === 'en' ? 'Progress' : 'Progreso'}</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{lang === 'en' ? 'Due' : 'Vence'}</th>
+                        <th className="px-4 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userAssignments.map(a => {
+                        const member = teamUsers.find(m => m.id_usuario === a.target_user_id)
+                        const catalogGuide = GUIDE_LIBRARY.find(g => g.id === a.guide_id)
+                        const isCustom = a.guide_id === 'custom'
+                        const title = isCustom ? a.custom_title : catalogGuide?.title
+                        const progress = memberProgress[a.target_user_id]?.[a.guide_id]
+                        const memberName = member?.company_display_name || member?.nombre_display || member?.nombre || member?.username || a.target_user_id?.slice(0, 8)
+
+                        return (
+                          <tr key={a.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {member?.avatar_url
+                                  ? <img src={proxyImg(member.avatar_url)} alt="" className="h-6 w-6 rounded-full object-cover" />
+                                  : <div className="h-6 w-6 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center text-[10px] font-bold text-violet-600">{memberName?.slice(0,2).toUpperCase()}</div>
+                                }
+                                <span className="font-medium text-slate-700 dark:text-slate-200 text-xs">{memberName}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-xs font-medium text-slate-700 dark:text-slate-200 line-clamp-1">{title}</p>
+                              {isCustom && <span className="text-[10px] text-amber-600 dark:text-amber-400">{lang === 'en' ? 'Custom' : 'Personalizada'}</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              {progress?.lesson_ack ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>
+                                  {lang === 'en' ? 'Read' : 'Leída'}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 dark:text-slate-500">{lang === 'en' ? 'Pending' : 'Pendiente'}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-[11px] text-slate-400 dark:text-slate-500">
+                              {a.due_date ? new Date(a.due_date).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' }) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => deleteGuideAssignment(a.id)}
+                                className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Modal asignar guía */}
+        {guideModalOpen && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setGuideModalOpen(false)}>
+            <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  {lang === 'en' ? 'Assign a guide' : 'Asignar una guía'}
+                </h3>
+                <button onClick={() => setGuideModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                {/* Tipo */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+                    {lang === 'en' ? 'Guide type' : 'Tipo de guía'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'catalog', label: lang === 'en' ? 'From catalog' : 'Del catálogo', icon: '📚' },
+                      { value: 'custom', label: lang === 'en' ? 'Custom' : 'Personalizada', icon: '✏️' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setGuideForm(f => ({ ...f, type: opt.value, guide_id: '' }))}
+                        className={`rounded-xl border px-4 py-3 text-sm font-medium transition text-left ${
+                          guideForm.type === opt.value
+                            ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="mr-2">{opt.icon}</span>{opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Catálogo */}
+                {guideForm.type === 'catalog' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+                      {lang === 'en' ? 'Select guide' : 'Seleccionar guía'}
+                    </label>
+                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                      {GUIDE_LIBRARY.map(g => (
+                        <button
+                          key={g.id}
+                          onClick={() => setGuideForm(f => ({ ...f, guide_id: g.id }))}
+                          className={`w-full text-left rounded-xl border px-3 py-2.5 transition ${
+                            guideForm.guide_id === g.id
+                              ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/30'
+                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{g.title}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1">{g.summary}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Personalizada */}
+                {guideForm.type === 'custom' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                        {lang === 'en' ? 'Title *' : 'Título *'}
+                      </label>
+                      <input
+                        type="text"
+                        value={guideForm.custom_title}
+                        onChange={e => setGuideForm(f => ({ ...f, custom_title: e.target.value }))}
+                        placeholder={lang === 'en' ? 'e.g. Brand voice guidelines' : 'Ej: Guía de tono de marca'}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-violet-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                        {lang === 'en' ? 'Content (Markdown)' : 'Contenido (Markdown)'}
+                      </label>
+                      <textarea
+                        rows={5}
+                        value={guideForm.custom_body}
+                        onChange={e => setGuideForm(f => ({ ...f, custom_body: e.target.value }))}
+                        placeholder={lang === 'en' ? 'Write the guide content here...' : 'Escribí el contenido de la guía acá...'}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-violet-400 resize-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                        {lang === 'en' ? 'External link (optional)' : 'Enlace externo (opcional)'}
+                      </label>
+                      <input
+                        type="url"
+                        value={guideForm.custom_url}
+                        onChange={e => setGuideForm(f => ({ ...f, custom_url: e.target.value }))}
+                        placeholder="https://..."
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-violet-400"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Destinatario */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+                    {lang === 'en' ? 'Assign to' : 'Asignar a'}
+                  </label>
+                  <select
+                    value={guideForm.target}
+                    onChange={e => setGuideForm(f => ({ ...f, target: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-violet-400"
+                  >
+                    <option value="all">{lang === 'en' ? 'Whole team' : 'Todo el equipo'}</option>
+                    {teamUsers.map(m => (
+                      <option key={m.id_usuario} value={m.id_usuario}>
+                        {m.company_display_name || m.nombre_display || m.nombre || m.username}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Nota */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                    {lang === 'en' ? 'Note for the employee (optional)' : 'Nota para el empleado (opcional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={guideForm.note}
+                    onChange={e => setGuideForm(f => ({ ...f, note: e.target.value }))}
+                    placeholder={lang === 'en' ? 'e.g. Complete before next sprint' : 'Ej: Completar antes del próximo sprint'}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-violet-400"
+                  />
+                </div>
+
+                {/* Fecha límite */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wide">
+                    {lang === 'en' ? 'Due date (optional)' : 'Fecha límite (opcional)'}
+                  </label>
+                  <input
+                    type="date"
+                    value={guideForm.due_date}
+                    onChange={e => setGuideForm(f => ({ ...f, due_date: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-violet-400"
+                  />
+                </div>
+
+                {guideStatus === 'validation' && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400">
+                    {lang === 'en' ? 'Please fill in all required fields.' : 'Completá los campos requeridos.'}
+                  </p>
+                )}
+                {guideStatus?.startsWith('db_error') && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400">
+                    {lang === 'en' ? 'Could not save. The feature may not be set up in the database yet — run the migration first.' : 'No se pudo guardar. Es posible que la migración de base de datos no se haya ejecutado aún.'}
+                    <span className="block mt-0.5 font-mono opacity-60">{guideStatus.replace('db_error:', '')}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setGuideModalOpen(false)}
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                >
+                  {lang === 'en' ? 'Cancel' : 'Cancelar'}
+                </button>
+                <button
+                  onClick={saveGuideAssignment}
+                  disabled={savingGuide}
+                  className="rounded-xl bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition disabled:opacity-50"
+                >
+                  {savingGuide ? '...' : (lang === 'en' ? 'Assign' : 'Asignar')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderChallenges = () => {
     const diffColors = {
       easy: 'text-emerald-700 bg-emerald-50 border-emerald-200',
@@ -2555,6 +3147,7 @@ PLATFORM: Users practice writing AI image generation prompts. Score = prompt mat
               {tab.icon === 'users' && <svg className="inline h-4 w-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
               {tab.icon === 'settings' && <svg className="inline h-4 w-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
               {tab.icon === 'challenges' && <svg className="inline h-4 w-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+              {tab.icon === 'guides' && <svg className="inline h-4 w-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>}
               {tab.label}
               {tab.badge ? (
                 <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
@@ -2570,6 +3163,7 @@ PLATFORM: Users practice writing AI image generation prompts. Score = prompt mat
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'leaderboard' && renderLeaderboard()}
           {activeTab === 'users' && renderUsers()}
+          {activeTab === 'guides' && renderGuides()}
           {activeTab === 'settings' && renderSettings()}
           {activeTab === 'requests' && renderRequests()}
           {activeTab === 'challenges' && renderChallenges()}

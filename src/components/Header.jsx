@@ -635,6 +635,13 @@ const Header = ({ companyRefreshKey = 0 }) => {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
                                 </div>
+                              ) : item.sourceType === 'guide_suggestion' ? (
+                                /* Guide assigned icon */
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-950/50 border border-violet-200 dark:border-violet-800 mt-0.5">
+                                  <svg className="h-4 w-4 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                                  </svg>
+                                </div>
                               ) : null}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
