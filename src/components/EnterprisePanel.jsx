@@ -1224,8 +1224,8 @@ CURRENT FILTERS:
 - Selected Challenge: ${dashboardFilters.selectedChallenge === 'all' ? 'All challenges' : challenges.find(ch => ch.id_imagen === dashboardFilters.selectedChallenge)?.image_theme || dashboardFilters.selectedChallenge}
 
 FILTERED DATA SUMMARY:
-- Filtered Users: ${filteredUsers.length}
-- Filtered Attempts: ${memberFilteredAttempts.length}
+- Filtered Users: ${dashboardFilters.selectedMember === 'all' ? teamUsers.length : teamUsers.filter(u => u.id_usuario === dashboardFilters.selectedMember).length}
+- Filtered Attempts: ${Object.values(challengeAttempts).flat().filter(a => teamUsers.some(u => u.id_usuario === a.id_usuario)).length}
 - Challenge-specific attempts: ${dashboardFilters.selectedChallenge !== 'all' ? (challengeAttempts[dashboardFilters.selectedChallenge] || []).length : 'N/A'}
 
 RESPONSE RULES:
