@@ -1,16 +1,15 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { useLang } from '../contexts/LangContext'
 
 const INDUSTRIES = [
-  { id: 'marketing', label: 'Marketing', emoji: '📣' },
-  { id: 'tech', label: 'Tecnología', emoji: '💻' },
-  { id: 'design', label: 'Diseño', emoji: '🎨' },
-  { id: 'data', label: 'Data / BI', emoji: '📊' },
-  { id: 'sales', label: 'Ventas', emoji: '🤝' },
-  { id: 'education', label: 'Educación', emoji: '🎓' },
-  { id: 'finance', label: 'Finanzas', emoji: '💰' },
-  { id: 'other', label: 'Otro', emoji: '✨' },
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'tech', label: 'Tecnología' },
+  { id: 'design', label: 'Diseño' },
+  { id: 'data', label: 'Data / BI' },
+  { id: 'sales', label: 'Ventas' },
+  { id: 'education', label: 'Educación' },
+  { id: 'finance', label: 'Finanzas' },
+  { id: 'other', label: 'Otro' },
 ]
 
 const USE_CASES = [
@@ -25,7 +24,6 @@ const USE_CASES = [
 const TEAM_SIZES = ['1-5', '6-15', '16-50', '50+']
 
 const EnterpriseOnboarding = ({ user, onDone }) => {
-  const { lang } = useLang()
   const [step, setStep] = useState(0)
   const [industry, setIndustry] = useState('')
   const [teamSize, setTeamSize] = useState('')
@@ -43,7 +41,7 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
   const saveAndNext = async () => {
     if (step === 1) {
       setSaving(true)
-      await supabase.from('usuarios').update({ industry_type: industry }).eq('id_usuario', user.id).catch(() => {})
+      await supabase.from('usuarios').update({ industry_type: industry }).eq('id_usuario', user.id)
       setSaving(false)
     }
     setStep(s => s + 1)
@@ -56,7 +54,7 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
       company_id: user.id,
       user_email: inviteEmail.trim(),
       status: 'pending',
-    }]).catch(() => {})
+    }])
     setSaving(false)
     setInviteSent(true)
     setTimeout(() => setStep(s => s + 1), 1000)
@@ -67,26 +65,29 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
     onDone()
   }
 
-  const progress = ((step) / (STEPS - 1)) * 100
+  const progress = (step / (STEPS - 1)) * 100
+
+  const Check = () => (
+    <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 12 12">
+      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
       <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden">
-        {/* Progress bar */}
         <div className="h-1 bg-slate-100">
           <div className="h-full bg-violet-500 transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
 
         <div className="p-8">
+
           {/* Step 0: Bienvenida */}
           {step === 0 && (
-            <div className="text-center space-y-5">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-50">
-                <span className="text-3xl">🚀</span>
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">¡Bienvenido a PrompTool Empresa!</h2>
-                <p className="mt-2 text-slate-500 text-sm leading-relaxed">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-slate-900">Bienvenido a PrompTool Empresa</h2>
+                <p className="text-slate-500 text-sm leading-relaxed">
                   En 3 pasos configuramos tu espacio para que tu equipo empiece a entrenar con IA desde hoy.
                 </p>
               </div>
@@ -119,14 +120,13 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
                   <button
                     key={ind.id}
                     onClick={() => setIndustry(ind.id)}
-                    className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-xs font-medium transition ${
+                    className={`rounded-xl border-2 p-2.5 text-xs font-medium transition ${
                       industry === ind.id
                         ? 'border-violet-500 bg-violet-50 text-violet-700'
                         : 'border-slate-200 text-slate-600 hover:border-violet-300'
                     }`}
                   >
-                    <span className="text-xl">{ind.emoji}</span>
-                    <span>{ind.label}</span>
+                    {ind.label}
                   </button>
                 ))}
               </div>
@@ -179,11 +179,7 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
                     <span className={`h-4 w-4 rounded border-2 flex items-center justify-center shrink-0 ${
                       useCases.includes(uc.id) ? 'border-violet-500 bg-violet-500' : 'border-slate-300'
                     }`}>
-                      {useCases.includes(uc.id) && (
-                        <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 12 12">
-                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      )}
+                      {useCases.includes(uc.id) && <Check />}
                     </span>
                     {uc.label}
                   </button>
@@ -212,7 +208,7 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <p className="font-semibold text-slate-900">¡Invitación enviada!</p>
+                  <p className="font-semibold text-slate-900">Invitación enviada</p>
                   <p className="text-sm text-slate-500">Pasando al último paso...</p>
                 </div>
               ) : (
@@ -220,7 +216,7 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
                   <div>
                     <h2 className="text-xl font-bold text-slate-900">Invitá a tu primer miembro</h2>
                     <p className="text-sm text-slate-500 mt-1">
-                      Podés invitar a todo el equipo desde el panel de empresa. Esto es opcional.
+                      Podés invitar a todo el equipo desde el panel. Esto es opcional.
                     </p>
                   </div>
                   <input
@@ -247,25 +243,21 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
 
           {/* Step 4: Listo */}
           {step === 4 && (
-            <div className="text-center space-y-5">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50">
-                <span className="text-3xl">🎉</span>
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">¡Todo listo!</h2>
-                <p className="mt-2 text-slate-500 text-sm leading-relaxed">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-slate-900">Todo listo</h2>
+                <p className="text-slate-500 text-sm leading-relaxed">
                   Tu espacio de empresa está configurado. Desde el panel podés crear challenges,
-                  invitar miembros y ver el progreso de tu equipo en tiempo real.
+                  invitar miembros y ver el progreso de tu equipo.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center text-xs">
                 {[
-                  { emoji: '🎯', label: 'Crear challenges' },
-                  { emoji: '👥', label: 'Invitar equipo' },
-                  { emoji: '📈', label: 'Ver analytics' },
-                ].map(({ emoji, label }) => (
-                  <div key={label} className="rounded-xl bg-slate-50 p-3 space-y-1">
-                    <div className="text-xl">{emoji}</div>
+                  { label: 'Crear challenges' },
+                  { label: 'Invitar equipo' },
+                  { label: 'Ver analytics' },
+                ].map(({ label }) => (
+                  <div key={label} className="rounded-xl bg-slate-50 p-3">
                     <div className="text-slate-600 font-medium">{label}</div>
                   </div>
                 ))}
@@ -280,7 +272,6 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
           )}
         </div>
 
-        {/* Dots */}
         {step < 4 && (
           <div className="flex justify-center gap-1.5 pb-5">
             {[0, 1, 2, 3].map(i => (
