@@ -1130,9 +1130,7 @@ function UsuarioApp() {
 
   const getAvatar = () =>
     resolveProfileMediaUrl(profile?.avatar_url) ||
-    user?.user_metadata?.avatar_url ||
-    user?.user_metadata?.picture ||
-    null
+    (ownProfile ? (user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null) : null)
   const bannerUrl = resolveProfileMediaUrl(profile?.banner_url)
   const showcaseUrl = resolveProfileMediaUrl(profile?.showcase_url)
   const getScoreColor = (s) => s >= 70 ? 'text-emerald-600' : s >= 50 ? 'text-amber-500' : 'text-rose-500'
@@ -1286,7 +1284,7 @@ function UsuarioApp() {
                       <div className="h-36 w-36 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800 ring-4 ring-white dark:ring-slate-900 shadow-lg"
                         style={{ boxShadow: `0 0 0 4px white, 0 0 0 6px ${chartColor}40` }}>
                         {(avatarPreview || getAvatar()) ? (
-                          <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
+                          <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover scale-[1.08]" />
                         ) : (
                           <span className="flex h-full w-full items-center justify-center text-5xl font-bold text-slate-400">
                             {displayName?.substring(0, 1).toUpperCase()}
@@ -2143,7 +2141,7 @@ function UsuarioApp() {
                   <div className={`h-28 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center ring-4`}
                     style={{ '--tw-ring-color': chartColor, boxShadow: `0 0 0 4px ${chartColor}` }}>
                     {(avatarPreview || getAvatar()) ? (
-                      <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover" />
+                      <img src={avatarPreview || getAvatar()} alt="Avatar" className="h-full w-full object-cover scale-[1.08]" />
                     ) : (
                       <span className="text-4xl font-bold text-slate-400">
                         {getDisplayName().substring(0, 1).toUpperCase()}
@@ -2775,46 +2773,98 @@ function UsuarioApp() {
                     {compareWith && (() => {
                       const them = stats
                       const me = compareWith.stats
+                      const cmpColor = '#6366f1'
                       const rows = [
-                        { label: lang === 'en' ? 'Average' : 'Promedio',    a: them.promedioScore,       b: me.promedioScore,       suffix: '%' },
-                        { label: lang === 'en' ? 'Best' : 'Mejor',          a: them.mejorScore,          b: me.mejorScore,          suffix: '%' },
-                        { label: lang === 'en' ? 'Approval' : 'Aprobación', a: them.porcentajeAprobacion,b: me.porcentajeAprobacion, suffix: '%' },
-                        { label: lang === 'en' ? 'Attempts' : 'Intentos',   a: them.totalIntentos,       b: me.totalIntentos,       suffix: '' },
-                        { label: lang === 'en' ? 'Streak' : 'Racha',        a: them.racha,               b: me.racha,               suffix: '' },
+                        { label: lang === 'en' ? 'Average' : 'Promedio',    a: them.promedioScore,        b: me.promedioScore,        suffix: '%' },
+                        { label: lang === 'en' ? 'Best' : 'Mejor',          a: them.mejorScore,           b: me.mejorScore,           suffix: '%' },
+                        { label: lang === 'en' ? 'Approval' : 'Aprobación', a: them.porcentajeAprobacion, b: me.porcentajeAprobacion,  suffix: '%' },
+                        { label: lang === 'en' ? 'Attempts' : 'Intentos',   a: them.totalIntentos,        b: me.totalIntentos,        suffix: '' },
+                        { label: lang === 'en' ? 'Streak' : 'Racha',        a: them.racha,                b: me.racha,                suffix: '' },
                       ]
+                      const aWinsTotal = rows.filter(r => r.a > r.b).length
+                      const bWinsTotal = rows.filter(r => r.b > r.a).length
+                      const overallWinner = aWinsTotal > bWinsTotal ? 'a' : bWinsTotal > aWinsTotal ? 'b' : 'tie'
+                      const themName = profile?.nombre_display || profile?.nombre || '—'
                       return (
-                        <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-                          {/* Headers */}
-                          <div className="grid grid-cols-[1fr_5rem_1fr] text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
-                            <span className="truncate">{profile?.nombre_display || profile?.nombre || '—'}</span>
-                            <span className="text-center"></span>
-                            <span className="text-right truncate">{compareWith.name}</span>
-                          </div>
-                          {rows.map(({ label, a, b, suffix }) => {
-                            const max = Math.max(a, b, 1)
-                            const aWins = a > b, bWins = b > a
-                            return (
-                              <div key={label} className="grid grid-cols-[1fr_5rem_1fr] items-center gap-2 px-4 py-2.5 border-b border-slate-50 dark:border-slate-800 last:border-0">
-                                <div className="flex items-center gap-2 justify-end">
-                                  <span className={`text-sm font-bold tabular-nums ${aWins ? '' : 'text-slate-400 dark:text-slate-500'}`} style={aWins ? { color: chartColor } : {}}>
-                                    {a}{suffix}
-                                  </span>
-                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex justify-end">
-                                    <div className="h-full rounded-full transition-all" style={{ width: `${(a/max)*100}%`, backgroundColor: aWins ? chartColor : '#cbd5e1' }} />
-                                  </div>
+                        <div className="space-y-4">
+                          {/* VS header */}
+                          <div className="flex items-center gap-2">
+                            {/* Side A */}
+                            <div className="flex flex-1 flex-col items-center gap-1.5">
+                              <div className="relative">
+                                <div className="h-14 w-14 overflow-hidden rounded-full ring-2" style={{ ringColor: chartColor, boxShadow: `0 0 0 2px ${chartColor}` }}>
+                                  {getAvatar()
+                                    ? <img src={getAvatar()} alt="" className="h-full w-full object-cover scale-[1.08]" />
+                                    : <div className="flex h-full w-full items-center justify-center text-xl font-bold text-white" style={{ backgroundColor: chartColor }}>{themName[0]?.toUpperCase()}</div>
+                                  }
                                 </div>
-                                <p className="text-xs font-medium text-center text-slate-400 dark:text-slate-500">{label}</p>
-                                <div className="flex items-center gap-2">
-                                  <div className="h-1.5 w-20 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
-                                    <div className="h-full rounded-full transition-all" style={{ width: `${(b/max)*100}%`, backgroundColor: bWins ? chartColor : '#cbd5e1' }} />
-                                  </div>
-                                  <span className={`text-sm font-bold tabular-nums ${bWins ? '' : 'text-slate-400 dark:text-slate-500'}`} style={bWins ? { color: chartColor } : {}}>
-                                    {b}{suffix}
-                                  </span>
-                                </div>
+                                {overallWinner === 'a' && (
+                                  <span className="absolute -top-1.5 -right-1.5 text-sm" title="Ganador">👑</span>
+                                )}
                               </div>
-                            )
-                          })}
+                              <span className="max-w-[90px] truncate text-center text-xs font-semibold text-slate-700 dark:text-slate-200">{themName}</span>
+                              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: chartColor }}>
+                                {aWinsTotal} {lang === 'en' ? 'wins' : 'ganados'}
+                              </span>
+                            </div>
+
+                            {/* VS badge */}
+                            <div className="flex flex-col items-center gap-0.5 shrink-0">
+                              <span className="text-lg font-black text-slate-200 dark:text-slate-700 leading-none">VS</span>
+                            </div>
+
+                            {/* Side B */}
+                            <div className="flex flex-1 flex-col items-center gap-1.5">
+                              <div className="relative">
+                                <div className="h-14 w-14 overflow-hidden rounded-full" style={{ boxShadow: `0 0 0 2px ${cmpColor}` }}>
+                                  {compareWith.avatar
+                                    ? <img src={proxyImg(compareWith.avatar)} alt="" className="h-full w-full object-cover" />
+                                    : <div className="flex h-full w-full items-center justify-center text-xl font-bold text-white" style={{ backgroundColor: cmpColor }}>{compareWith.name[0]?.toUpperCase()}</div>
+                                  }
+                                </div>
+                                {overallWinner === 'b' && (
+                                  <span className="absolute -top-1.5 -right-1.5 text-sm" title="Ganador">👑</span>
+                                )}
+                              </div>
+                              <span className="max-w-[90px] truncate text-center text-xs font-semibold text-slate-700 dark:text-slate-200">{compareWith.name}</span>
+                              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: cmpColor }}>
+                                {bWinsTotal} {lang === 'en' ? 'wins' : 'ganados'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Rows */}
+                          <div className="space-y-2">
+                            {rows.map(({ label, a, b, suffix }) => {
+                              const max = Math.max(a, b, 1)
+                              const aWins = a > b, bWins = b > a
+                              return (
+                                <div key={label} className="grid grid-cols-[1fr_5rem_1fr] items-center gap-1">
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <span className={`text-sm font-bold tabular-nums ${aWins ? '' : 'text-slate-300 dark:text-slate-600'}`} style={aWins ? { color: chartColor } : {}}>
+                                      {a}{suffix}
+                                    </span>
+                                    <div className="h-2 w-16 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex justify-end">
+                                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(a/max)*100}%`, backgroundColor: aWins ? chartColor : '#e2e8f0' }} />
+                                    </div>
+                                  </div>
+                                  <p className="text-[11px] font-semibold text-center uppercase tracking-wide text-slate-400">{label}</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-2 w-16 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(b/max)*100}%`, backgroundColor: bWins ? cmpColor : '#e2e8f0' }} />
+                                    </div>
+                                    <span className={`text-sm font-bold tabular-nums ${bWins ? '' : 'text-slate-300 dark:text-slate-600'}`} style={bWins ? { color: cmpColor } : {}}>
+                                      {b}{suffix}
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {overallWinner === 'tie' && (
+                            <p className="text-center text-xs text-slate-400 font-medium">{lang === 'en' ? 'It\'s a tie!' : '¡Empate!'}</p>
+                          )}
                         </div>
                       )
                     })()}
