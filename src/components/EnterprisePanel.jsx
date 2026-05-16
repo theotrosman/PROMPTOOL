@@ -129,6 +129,7 @@ const EnterprisePanel = ({ user }) => {
   const [roleError, setRoleError] = useState(null) // { userId, msg }
 
   // ── Guías asignadas ──────────────────────────────────────────────────────
+  const [enterpriseGuides, setEnterpriseGuides] = useState([])
   const [guideAssignments, setGuideAssignments] = useState([])
   const [loadingGuides, setLoadingGuides] = useState(false)
   const [guideForm, setGuideForm] = useState(EMPTY_GUIDE_FORM)
