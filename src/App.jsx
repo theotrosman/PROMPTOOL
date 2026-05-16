@@ -265,7 +265,7 @@ function App() {
       try {
         const { data, error } = await supabase
           .from('imagenes_ia')
-          .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
+          .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id, challenge_eval_instructions')
           .eq('id_imagen', challengeId)
           .maybeSingle()
         if (error || !data) { setImageStatus('error'); return }
@@ -782,7 +782,7 @@ function App() {
       const timePenalty = getTimePenalty(timingData, imageData?.image_diff ?? difficulty, mode)
 
       const [result, clipCheck] = await Promise.all([
-        comparePrompts(submittedPrompt, promptReferencia, imageData?.image_diff ?? difficulty, lang),
+        comparePrompts(submittedPrompt, promptReferencia, imageData?.image_diff ?? difficulty, lang, imageData?.challenge_eval_instructions || null),
         // Clipboard check corre en paralelo con el LLM — falla silencioso
         (imageData?.url_image
           ? checkClipboardForGameImage(imageData.url_image).catch(() => ({ hasImage: false, similarToGame: false, similarity: 0 }))
