@@ -20,8 +20,8 @@ const AdSenseUnit = ({ slot, format = 'auto', style = {} }) => {
   if (!isReady) {
     return (
       <div
-        className="flex items-center justify-center rounded border border-dashed border-slate-200 text-slate-400 text-[10px] text-center leading-tight p-2"
-        style={{ width: 160, height: 600, ...style }}
+        className="flex items-center justify-center rounded border border-dashed border-slate-200 text-slate-400 text-[10px] text-center leading-tight p-2 w-full h-full min-h-[250px]"
+        style={style}
       >
         Ad<br />160×600
       </div>
@@ -32,10 +32,11 @@ const AdSenseUnit = ({ slot, format = 'auto', style = {} }) => {
     <ins
       ref={ref}
       className="adsbygoogle"
-      style={{ display: 'block', width: 160, height: 600, ...style }}
+      style={{ display: 'block', width: '100%', height: '100%', minHeight: 250, ...style }}
       data-ad-client={PUBLISHER_ID}
       data-ad-slot={slot}
-      data-ad-format={format}
+      data-ad-format="autorelaxed"
+      data-full-width-responsive="true"
     />
   )
 }

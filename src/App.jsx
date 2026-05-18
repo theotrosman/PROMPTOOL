@@ -1491,7 +1491,7 @@ function App() {
       <main className="flex-1 py-2 px-2 sm:px-4">
         <div className="mx-auto flex max-w-screen-2xl gap-3 items-start">
           {/* Left ad */}
-          <aside className="hidden xl:flex shrink-0 flex-col items-center self-start sticky top-4">
+          <aside className="hidden xl:flex shrink-0 flex-col self-start sticky top-4 w-40 h-[calc(100vh-2rem)]">
             <AdSenseUnit slot={import.meta.env.VITE_ADSENSE_SLOT_LEFT || 'LEFT'} />
           </aside>
 
@@ -1821,7 +1821,7 @@ function App() {
           </div>{/* /game area */}
 
           {/* Right ad */}
-          <aside className="hidden xl:flex shrink-0 flex-col items-center self-start sticky top-4">
+          <aside className="hidden xl:flex shrink-0 flex-col self-start sticky top-4 w-40 h-[calc(100vh-2rem)]">
             <AdSenseUnit slot={import.meta.env.VITE_ADSENSE_SLOT_RIGHT || 'RIGHT'} />
           </aside>
         </div>{/* /flex wrapper */}
