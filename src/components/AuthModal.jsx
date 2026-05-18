@@ -160,6 +160,8 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
                   ? (lang === 'en' ? 'Sign in' : 'Iniciar sesión')
                   : mode === 'signup' && signupStep === 'type'
                   ? (lang === 'en' ? 'Choose your plan' : 'Elige tu plan')
+                  : mode === 'signup' && userType === 'enterprise'
+                  ? (lang === 'en' ? 'Create your Enterprise account' : 'Crea tu cuenta Enterprise')
                   : (lang === 'en' ? 'Create your account' : 'Crea tu cuenta')}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
