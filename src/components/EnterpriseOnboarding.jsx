@@ -14,11 +14,17 @@ const INDUSTRIES = [
 
 const USE_CASES = [
   { id: 'content', label: 'Generar contenido' },
+  { id: 'images', label: 'Crear imágenes con IA' },
+  { id: 'writing', label: 'Redacción y copywriting' },
+  { id: 'marketing', label: 'Campañas de marketing' },
   { id: 'code', label: 'Asistencia en código' },
   { id: 'analysis', label: 'Análisis de datos' },
-  { id: 'automation', label: 'Automatización' },
+  { id: 'automation', label: 'Automatización de tareas' },
+  { id: 'presentations', label: 'Presentaciones' },
   { id: 'support', label: 'Soporte al cliente' },
   { id: 'research', label: 'Investigación' },
+  { id: 'training', label: 'Capacitación de equipos' },
+  { id: 'other', label: 'Otros' },
 ]
 
 const TEAM_SIZES = ['1-5', '6-15', '16-50', '50+']
@@ -50,11 +56,39 @@ const EnterpriseOnboarding = ({ user, onDone }) => {
   const sendInvite = async () => {
     if (!inviteEmail.trim()) { setStep(s => s + 1); return }
     setSaving(true)
+    const email = inviteEmail.trim()
+
+    const { data: existingUser } = await supabase
+      .from('usuarios')
+      .select('id_usuario')
+      .eq('email', email)
+      .maybeSingle()
+
     await supabase.from('team_invitations').insert([{
       company_id: user.id,
-      user_email: inviteEmail.trim(),
+      user_email: email,
       status: 'pending',
     }])
+
+    const companyName = user.user_metadata?.nombre_display || user.user_metadata?.nombre || user.email
+    const joinUrl = existingUser?.id_usuario
+      ? `https://promptool.app/?join=${user.id}`
+      : `https://promptool.app/?invite=${user.id}&email=${encodeURIComponent(email)}`
+
+    try {
+      await fetch('/api/send-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientEmail: email,
+          companyName,
+          inviterName: companyName,
+          joinUrl,
+          isExistingUser: !!existingUser?.id_usuario,
+        }),
+      })
+    } catch (_) {}
+
     setSaving(false)
     setInviteSent(true)
     setTimeout(() => setStep(s => s + 1), 1000)

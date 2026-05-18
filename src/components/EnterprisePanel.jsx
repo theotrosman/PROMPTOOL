@@ -781,6 +781,25 @@ const EnterprisePanel = ({ user }) => {
       const { error } = await supabase.from('team_invitations').insert([payload])
       if (error) throw error
 
+      const companyName = companyData?.company_name || user.user_metadata?.nombre_display || user.email
+      const joinUrl = existingUser?.id_usuario
+        ? `https://promptool.app/?join=${user.id}`
+        : `https://promptool.app/?invite=${user.id}&email=${encodeURIComponent(inviteEmail.trim())}`
+
+      try {
+        await fetch('/api/send-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientEmail: inviteEmail.trim(),
+            companyName,
+            inviterName: companyName,
+            joinUrl,
+            isExistingUser: !!existingUser?.id_usuario,
+          }),
+        })
+      } catch (_) {}
+
       setInviteEmail('')
       setInviteMessage('')
       setEnterpriseActionStatus(lang === 'en' ? 'Invitation sent.' : 'Invitación enviada.')

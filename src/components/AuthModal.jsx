@@ -281,7 +281,7 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
             </div>
           ) : null}
 
-          {mode === 'signin' || (mode === 'signup' && signupStep === 'info') ? (
+          {mode === 'signin' || (mode === 'signup' && signupStep === 'info' && userType !== 'enterprise') ? (
             <>
               {/* Google */}
               <button type="button" onClick={onSignInWithGoogle}
