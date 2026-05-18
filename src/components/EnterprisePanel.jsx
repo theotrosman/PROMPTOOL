@@ -613,15 +613,13 @@ const EnterprisePanel = ({ user }) => {
 
   // Función para enviar mensaje de revisión al chatbot
   const sendReviewMessage = (memberName, context) => {
-    const message = lang === 'en' 
+    const message = lang === 'en'
       ? `Please provide more information about ${memberName}'s performance. ${context}`
       : `Por favor proporciona más información sobre el rendimiento de ${memberName}. ${context}`
-    
+
     setChatInput(message)
-    // Auto-enviar el mensaje
-    setTimeout(() => {
-      sendChatMessage()
-    }, 100)
+    // Pass message directly to avoid stale closure issue with chatInput state
+    sendChatMessage(message)
   }
 
   // Obtener roles personalizados de la empresa
@@ -1488,8 +1486,8 @@ RESPONSE RULES:
 - Keep responses concise and data-focused`
   }
 
-  const sendChatMessage = async () => {
-    const raw = chatInput.trim()
+  const sendChatMessage = async (messageOverride = null) => {
+    const raw = (messageOverride !== null ? messageOverride : chatInput).trim()
     if (!raw || chatLoading) return
 
     // Rate limiting check
@@ -1753,9 +1751,16 @@ RESPONSE RULES:
       : teamUsers.filter(u => u.id_usuario === dashboardFilters.selectedMember)
 
     // Filtrar intentos por desafío específico si está seleccionado
-    const filteredAttempts = dashboardFilters.selectedChallenge === 'all'
-      ? Object.values(challengeAttempts).flat()
-      : (challengeAttempts[dashboardFilters.selectedChallenge] || [])
+    const timeCutoff = dashboardFilters.timeRange !== 'all'
+      ? new Date(Date.now() - parseInt(dashboardFilters.timeRange, 10) * 86400000).toISOString()
+      : null
+
+    const filteredAttempts = (() => {
+      const base = dashboardFilters.selectedChallenge === 'all'
+        ? Object.values(challengeAttempts).flat()
+        : (challengeAttempts[dashboardFilters.selectedChallenge] || [])
+      return timeCutoff ? base.filter(a => a.fecha_hora && a.fecha_hora >= timeCutoff) : base
+    })()
 
     // Filtrar intentos por miembros seleccionados
     const memberFilteredAttempts = filteredAttempts.filter(a =>
@@ -1988,7 +1993,7 @@ RESPONSE RULES:
     const belowTargetPct = activeMembers > 0 ? Math.round(belowTarget / activeMembers * 100) : 0
 
     return (
-    <div className="flex gap-6 items-start">
+    <div className="flex flex-col xl:flex-row gap-6 items-start">
       <div className="flex-1 min-w-0 space-y-4">
 
         {/* ── Filters row ── */}
@@ -2003,6 +2008,7 @@ RESPONSE RULES:
               <option value="7">{lang === 'en' ? 'Last 7 days' : 'Últimos 7 días'}</option>
               <option value="30">{lang === 'en' ? 'Last 30 days' : 'Últimos 30 días'}</option>
               <option value="90">{lang === 'en' ? 'Last 90 days' : 'Últimos 90 días'}</option>
+              <option value="all">{lang === 'en' ? 'All time' : 'Todo el tiempo'}</option>
             </select>
           </div>
           <div className="flex items-center gap-1.5">
@@ -2363,7 +2369,7 @@ RESPONSE RULES:
 
         {/* ── ZONE 4: Ranking — Top performers + At risk (side by side, clickable) ── */}
         {(visibleCharts.topPerformers || visibleCharts.needsCoaching) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${visibleCharts.topPerformers && visibleCharts.needsCoaching ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
             {visibleCharts.topPerformers && (
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -2468,7 +2474,7 @@ RESPONSE RULES:
 
         {/* ── ZONE 5: Activity + Distribution + Challenge reach ── */}
         {(visibleCharts.distribution||visibleCharts.weeklyActivity||visibleCharts.challengeParticipation)&&(
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid gap-4 grid-cols-1 ${[visibleCharts.distribution&&scoreDist.length>0, visibleCharts.weeklyActivity, visibleCharts.challengeParticipation&&challengeParticipation.length>0].filter(Boolean).length >= 3 ? 'md:grid-cols-3' : [visibleCharts.distribution&&scoreDist.length>0, visibleCharts.weeklyActivity, visibleCharts.challengeParticipation&&challengeParticipation.length>0].filter(Boolean).length === 2 ? 'md:grid-cols-2' : ''}`}>
             {scoreDist.length>0&&visibleCharts.distribution&&(
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-3">{lang==='en'?'Score Distribution':'Distribución'}</p>
@@ -2533,8 +2539,8 @@ RESPONSE RULES:
         )}
       </div>
       {/* RIGHT COLUMN: AI Chatbot */}
-      <div className="w-80 xl:w-96 shrink-0 sticky top-6">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col" style={{ height: '680px' }}>
+      <div className="w-full xl:w-96 shrink-0 xl:sticky xl:top-6">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col" style={{ height: '560px' }}>
           <div className="px-4 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2.5 shrink-0">
             <div className="h-8 w-8 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
               <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2580,17 +2586,21 @@ RESPONSE RULES:
               </div>
             )}
 
-            {chatMessages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'bg-violet-600 text-white rounded-br-sm'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm'
-                }`}>
-                  {msg.content}
+            {chatMessages.map((msg, idx) => {
+              const displayContent = msg.content.replace(/<action>[\s\S]*?<\/action>/g, '').trim()
+              if (!displayContent) return null
+              return (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                    msg.role === 'user'
+                      ? 'bg-violet-600 text-white rounded-br-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm'
+                  }`}>
+                    {displayContent}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {chatLoading && (
               <div className="flex justify-start">
