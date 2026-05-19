@@ -167,6 +167,7 @@ module.exports = defineConfig({
         support: resolve(__dirname, 'support.html'),
         terms: resolve(__dirname, 'terms.html'),
         privacy: resolve(__dirname, 'privacy.html'),
+        '404': resolve(__dirname, '404.html'),
       },
       output: {
         manualChunks: {
