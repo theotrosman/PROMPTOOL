@@ -1,40 +1,4 @@
-import { useEffect, useState } from 'react'
-
-// Isotipo SVG inline — mismo gradiente que el favicon
-const Isotipo = ({ className = 'w-16 h-16' }) => (
-  <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="iso-g" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%"   stopColor="#2dd4bf" />
-        <stop offset="50%"  stopColor="#38bdf8" />
-        <stop offset="100%" stopColor="#818cf8" />
-      </linearGradient>
-    </defs>
-    {/* Hexágono superior izquierdo */}
-    <polygon points="28,18 50,18 50,38 28,38" fill="url(#iso-g)" opacity="0.9" />
-    <polygon points="28,18 50,18 28,38"        fill="white"        opacity="0.18" />
-    {/* Hexágono superior derecho */}
-    <polygon points="50,18 72,18 72,38 50,38"  fill="url(#iso-g)" opacity="0.85" />
-    <polygon points="72,18 72,38 50,18"        fill="white"        opacity="0.18" />
-    {/* Triángulos centrales */}
-    <polygon points="28,38 50,38 28,52"        fill="url(#iso-g)" opacity="0.9" />
-    <polygon points="50,38 72,38 72,52"        fill="url(#iso-g)" opacity="0.85" />
-    <polygon points="28,38 72,38 72,52 28,52"  fill="url(#iso-g)" opacity="0.65" />
-    {/* Estrella de 4 puntas */}
-    <polygon points="50,20 52,28 50,36 48,28"  fill="white" opacity="0.95" />
-    <polygon points="42,28 50,26 58,28 50,30"  fill="white" opacity="0.95" />
-    {/* Líneas divisorias */}
-    <line x1="50" y1="18" x2="50" y2="52" stroke="white" strokeWidth="1.5" opacity="0.5" />
-    <line x1="28" y1="38" x2="72" y2="38" stroke="white" strokeWidth="1.5" opacity="0.5" />
-    <line x1="28" y1="18" x2="72" y2="52" stroke="white" strokeWidth="1"   opacity="0.3" />
-    <line x1="72" y1="18" x2="28" y2="52" stroke="white" strokeWidth="1"   opacity="0.3" />
-    {/* Arcos wifi */}
-    <path d="M 34,58 A 16,16 0 0,1 66,58" fill="none" stroke="url(#iso-g)" strokeWidth="4" strokeLinecap="round" />
-    <path d="M 39,64 A 11,11 0 0,1 61,64" fill="none" stroke="url(#iso-g)" strokeWidth="4" strokeLinecap="round" />
-    <path d="M 44,70 A  6, 6 0 0,1 56,70" fill="none" stroke="url(#iso-g)" strokeWidth="4" strokeLinecap="round" />
-    <circle cx="50" cy="76" r="3" fill="url(#iso-g)" />
-  </svg>
-)
+import React from 'react'
 
 // Partículas flotantes de fondo
 const Particle = ({ style }) => (
@@ -56,14 +20,6 @@ const PARTICLES = [
 ]
 
 export default function NotFound() {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    // Pequeño delay para que la animación de entrada se vea
-    const t = setTimeout(() => setMounted(true), 50)
-    return () => clearTimeout(t)
-  }, [])
-
   return (
     <div className="relative min-h-screen bg-[rgb(var(--color-canvas))] flex flex-col overflow-hidden">
 
@@ -122,7 +78,7 @@ export default function NotFound() {
       <header className="relative z-10 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-6 py-3">
           <a href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-            <Isotipo className="w-7 h-7" />
+            <img src="/favicon.png" alt="PrompTool" className="w-7 h-7 object-contain" />
             <span className="text-lg font-bold tracking-tight text-slate-900">
               Promp<span style={{ color: 'rgb(var(--color-accent))' }}>Tool</span>
             </span>
@@ -137,9 +93,9 @@ export default function NotFound() {
           style={{ animationDelay: '0.1s' }}
         >
 
-          {/* Isotipo con pulse ring */}
+          {/* Logo con pulse ring */}
           <div className="pulse-ring mb-8 rounded-2xl p-4 bg-white border border-slate-200/80 shadow-xl">
-            <Isotipo className="w-14 h-14" />
+            <img src="/favicon.png" alt="PrompTool" className="w-14 h-14 object-contain" />
           </div>
 
           {/* 404 con efecto glitch */}
@@ -155,7 +111,6 @@ export default function NotFound() {
             Página no encontrada
           </p>
           <p className="mt-2 text-sm text-slate-500 leading-relaxed max-w-sm">
-            Parece que este prompt no generó ninguna imagen.
             La página que buscás no existe o fue movida.
           </p>
 
