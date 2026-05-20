@@ -7,6 +7,7 @@ import { useLang } from '../contexts/LangContext'
 import { supabase } from '../supabaseClient'
 import AuthModal from './AuthModal'
 import CompanyPanel from './CompanyPanel'
+import SettingsModal from './SettingsModal'
 import { proxyImg } from '../utils/imgProxy'
 
 const BrandedAvatar = ({ className = 'h-full w-full' }) => (
@@ -51,6 +52,7 @@ const Header = ({ companyRefreshKey = 0 }) => {
   const [notificationActionLoading, setNotificationActionLoading] = useState(null)
   const [companyData, setCompanyData] = useState(null)   // empresa a la que pertenece el usuario
   const [companyPanelOpen, setCompanyPanelOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [dbAvatarUrl, setDbAvatarUrl] = useState(null)
   const notificationRef = useRef(null)
   const closeTimer = useRef(null)
@@ -752,7 +754,7 @@ const Header = ({ companyRefreshKey = 0 }) => {
                             <Icon d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             {t('viewProfile')}
                           </a>
-                          <button onClick={() => setActiveSection('settings')}
+                          <button onClick={() => { setSettingsOpen(true); setUserMenuOpen(false) }}
                             className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50">
                             <span className="flex items-center gap-3">
                               <Icon d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -778,106 +780,6 @@ const Header = ({ companyRefreshKey = 0 }) => {
                       </>
                     )}
 
-                    {activeSection === 'settings' && (
-                      <>
-                        <div className="flex items-center gap-2 border-b border-slate-100 p-3">
-                          <button onClick={() => setActiveSection('main')}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100">
-                            <Icon d="M15 19l-7-7 7-7" className="h-4 w-4" />
-                          </button>
-                          <p className="text-sm font-semibold text-slate-800">{t('settingsTitle')}</p>
-                        </div>
-
-                        <div className="p-3 space-y-4">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('theme')}</p>
-                            <div className="flex gap-2">
-                              {['light', 'dark'].map(th => (
-                                <button key={th} onClick={() => setTheme(th)}
-                                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold transition ${theme === th ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                                  {th === 'light'
-                                    ? <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
-                                    : <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-                                  }
-                                  {t(th)}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('language')}</p>
-                            <div className="flex gap-2">
-                              {[['es', 'Español'], ['en', 'English']].map(([l, label]) => (
-                                <button key={l} onClick={() => changeLang(l)}
-                                  className={`flex-1 rounded-xl border py-2 text-xs font-semibold transition ${lang === l ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <button type="button" onClick={() => { setShowPwForm(f => !f); setPwStatus(null) }}
-                              className="flex w-full items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 hover:text-slate-700 transition">
-                              <span>{t('changePassword')}</span>
-                              <Icon d={showPwForm ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} className="h-3.5 w-3.5" />
-                            </button>
-                            {showPwForm && (
-                              <form onSubmit={handleChangePassword} className="space-y-2">
-                                <input type="password" placeholder={t('newPassword')} value={pwForm.newPw}
-                                  onChange={e => setPwForm(f => ({ ...f, newPw: e.target.value }))}
-                                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-400"
-                                  minLength={6} required />
-                                <input type="password" placeholder={t('confirmPassword')} value={pwForm.confirmPw}
-                                  onChange={e => setPwForm(f => ({ ...f, confirmPw: e.target.value }))}
-                                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-400"
-                                  minLength={6} required />
-                                {pwStatus === 'mismatch' && <p className="text-xs text-rose-600">{t('passwordMismatch')}</p>}
-                                {pwStatus === 'short' && <p className="text-xs text-rose-600">{t('passwordShort')}</p>}
-                                {pwStatus === 'error' && <p className="text-xs text-rose-600">{t('passwordError')}</p>}
-                                {pwStatus === 'ok' && <p className="text-xs text-emerald-600">{t('passwordChanged')}</p>}
-                                <button type="submit" disabled={pwStatus === 'saving'}
-                                  className="w-full rounded-xl bg-slate-900 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50">
-                                  {pwStatus === 'saving' ? '...' : t('save')}
-                                </button>
-                              </form>
-                            )}
-                          </div>
-
-                          <div>
-                            <button type="button" onClick={() => { setShowEmailForm(f => !f); setEmailStatus(null) }}
-                              className="flex w-full items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 hover:text-slate-700 transition">
-                              <span>{lang === 'en' ? 'Change email' : 'Cambiar email'}</span>
-                              <Icon d={showEmailForm ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} className="h-3.5 w-3.5" />
-                            </button>
-                            {showEmailForm && (
-                              <form onSubmit={handleChangeEmail} className="space-y-2">
-                                <input type="email" placeholder={lang === 'en' ? 'New email address' : 'Nuevo email'} value={newEmail}
-                                  onChange={e => setNewEmail(e.target.value)}
-                                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-400"
-                                  required />
-                                {emailStatus === 'invalid' && <p className="text-xs text-rose-600">{lang === 'en' ? 'Invalid email' : 'Email inválido'}</p>}
-                                {emailStatus === 'error' && <p className="text-xs text-rose-600">{lang === 'en' ? 'Error updating email' : 'Error al actualizar el email'}</p>}
-                                {emailStatus === 'ok' && <p className="text-xs text-emerald-600">{lang === 'en' ? 'Check your inbox to confirm.' : 'Revisá tu bandeja para confirmar.'}</p>}
-                                <button type="submit" disabled={emailStatus === 'saving'}
-                                  className="w-full rounded-xl bg-slate-900 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50">
-                                  {emailStatus === 'saving' ? '...' : t('save')}
-                                </button>
-                              </form>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="border-t border-slate-100 p-1.5">
-                          <button onClick={() => { signOut(); setUserMenuOpen(false) }}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-rose-600 transition hover:bg-rose-50">
-                            <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            {t('signOut')}
-                          </button>
-                        </div>
-                      </>
-                    )}
                   </div>
                 )}
                 </div>
@@ -908,6 +810,13 @@ const Header = ({ companyRefreshKey = 0 }) => {
           onClose={() => setCompanyPanelOpen(false)}
         />
       )}
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user}
+        signOut={signOut}
+      />
     </>
   )
 }

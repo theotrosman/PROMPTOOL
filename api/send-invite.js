@@ -1,6 +1,7 @@
 const ALLOWED_ORIGINS = [
   'https://promptool.app',
   'https://www.promptool.app',
+  'https://promptool.vercel.app',
 ]
 
 function getCorsOrigin(origin) {
