@@ -748,6 +748,7 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
   }, [])
   const [lang] = useState(detectLang)
   const [currentSection, setCurrentSection] = useState(0)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const containerRef = useRef(null)
   const sectionRefs = useRef([])
   const isScrolling = useRef(false)
@@ -756,9 +757,16 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
 
   const TOTAL_SECTIONS = 9
 
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
   const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
   const animateScrollTo = (targetIdx) => {
+    if (isMobile) return
     const container = containerRef.current
     if (!container || isScrolling.current) return
     const from = container.scrollTop
@@ -785,8 +793,9 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
     requestAnimationFrame(step)
   }
 
-  // Wheel: una sección por evento
+  // Wheel: una sección por evento (solo desktop)
   useEffect(() => {
+    if (isMobile) return
     const container = containerRef.current
     if (!container) return
     let wheelTimeout = null
@@ -803,10 +812,11 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
     }
     container.addEventListener('wheel', onWheel, { passive: false })
     return () => { container.removeEventListener('wheel', onWheel); clearTimeout(wheelTimeout) }
-  }, [])
+  }, [isMobile])
 
-  // Touch: swipe vertical — prevent native scroll, JS-only navigation
+  // Touch: swipe vertical — solo en desktop
   useEffect(() => {
+    if (isMobile) return
     const container = containerRef.current
     if (!container) return
     let touchStartY = 0
@@ -816,7 +826,6 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
       touchStartX = e.touches[0].clientX
     }
     const onTouchMove = (e) => {
-      // Only prevent default for vertical swipes to keep horizontal interactions working
       const dy = Math.abs(e.touches[0].clientY - touchStartY)
       const dx = Math.abs(e.touches[0].clientX - touchStartX)
       if (dy > dx && dy > 5) e.preventDefault()
@@ -825,7 +834,6 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
       if (isScrolling.current) return
       const delta = touchStartY - e.changedTouches[0].clientY
       const deltaX = Math.abs(touchStartX - e.changedTouches[0].clientX)
-      // Ignore if mostly horizontal (e.g. button tap with slight drift)
       if (Math.abs(delta) < 50 || deltaX > Math.abs(delta)) return
       const next = delta > 0
         ? Math.min(currentIdx.current + 1, TOTAL_SECTIONS - 1)
@@ -840,7 +848,7 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
       container.removeEventListener('touchmove', onTouchMove)
       container.removeEventListener('touchend', onTouchEnd)
     }
-  }, [])
+  }, [isMobile])
 
   const scrollTo = (i) => animateScrollTo(i)
 
@@ -850,55 +858,57 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
   const subtle = dark ? 'text-slate-500' : 'text-slate-500'
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
-      {/* Dots de navegación lateral */}
-      <div className="fixed right-5 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2.5">
-        {(lang === 'en'
-          ? ['Start', 'How it works', 'Your progress', 'Community', 'Tournaments', 'Guides', 'For teams', 'Profiles', 'Get started']
-          : ['Inicio', 'Cómo funciona', 'Tu progreso', 'Comunidad', 'Torneos', 'Guías', 'Para equipos', 'Perfiles', 'Empezar']
-        ).map((label, i) => (
-          <div key={i} className="group relative flex items-center justify-end">
-            <span className="pointer-events-none absolute right-6 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 shadow-lg">
-              {label}
-            </span>
-            <button
-              onClick={() => scrollTo(i)}
-              aria-label={label}
-              className={`rounded-full transition-all duration-300 ${
-                i === currentSection
-                  ? 'h-6 w-2 bg-cyan-500'
-                  : `h-2 w-2 ${dark ? 'bg-slate-600 hover:bg-slate-400' : 'bg-slate-300 hover:bg-slate-500'}`
-              }`}
-            />
-          </div>
-        ))}
-      </div>
+    <div className={isMobile ? 'min-h-screen overflow-hidden' : 'fixed inset-0 overflow-hidden'}>
+      {/* Dots de navegación lateral — solo desktop */}
+      {!isMobile && (
+        <div className="fixed right-5 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2.5">
+          {(lang === 'en'
+            ? ['Start', 'How it works', 'Your progress', 'Community', 'Tournaments', 'Guides', 'For teams', 'Profiles', 'Get started']
+            : ['Inicio', 'Cómo funciona', 'Tu progreso', 'Comunidad', 'Torneos', 'Guías', 'Para equipos', 'Perfiles', 'Empezar']
+          ).map((label, i) => (
+            <div key={i} className="group relative flex items-center justify-end">
+              <span className="pointer-events-none absolute right-6 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 shadow-lg">
+                {label}
+              </span>
+              <button
+                onClick={() => scrollTo(i)}
+                aria-label={label}
+                className={`rounded-full transition-all duration-300 ${
+                  i === currentSection
+                    ? 'h-6 w-2 bg-cyan-500'
+                    : `h-2 w-2 ${dark ? 'bg-slate-600 hover:bg-slate-400' : 'bg-slate-300 hover:bg-slate-500'}`
+                }`}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Contenedor — scroll controlado por JS */}
+      {/* Contenedor — scroll controlado por JS en desktop, nativo en mobile */}
       <div
         ref={containerRef}
-        className={`h-full overflow-y-scroll ${base}`}
-        style={{ overscrollBehavior: 'none', scrollSnapType: 'y mandatory', touchAction: 'none' }}
+        className={`${isMobile ? 'overflow-y-auto' : 'h-full overflow-y-scroll'} ${base}`}
+        style={isMobile ? {} : { overscrollBehavior: 'none', scrollSnapType: 'y mandatory', touchAction: 'none' }}
       >
 
         {/* ── HERO ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="relative flex items-center px-6 py-20 lg:px-8">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="relative flex items-center px-6 py-14 lg:py-20 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
-            <div className="grid items-center gap-16 lg:grid-cols-2">
-              <div className="space-y-8">
-                <div className="space-y-6">
+            <div className="grid items-center gap-10 lg:gap-16 lg:grid-cols-2">
+              <div className="space-y-6 lg:space-y-8">
+                <div className="space-y-4 lg:space-y-6">
                   <div className="flex flex-wrap gap-2">
                     <span className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold ${dark ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' : 'border-cyan-200 bg-cyan-50 text-cyan-600'}`}>
                       {c.badge}
                     </span>
                   </div>
-                  <h1 className="text-5xl font-black leading-tight tracking-tight sm:text-6xl lg:text-7xl">
+                  <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-7xl">
                     {c.h1a}{' '}<span className="text-cyan-500">{c.h1b}</span>
                   </h1>
-                  <p className={`max-w-md text-lg leading-relaxed ${muted}`}>{c.sub}</p>
+                  <p className={`max-w-md text-base lg:text-lg leading-relaxed ${muted}`}>{c.sub}</p>
                 </div>
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap gap-3 lg:gap-4">
                   <button type="button" onClick={onTryApp} className="inline-flex items-center justify-center rounded-lg bg-cyan-600 px-8 py-3.5 text-sm font-semibold text-white hover:bg-cyan-700 transition">
                     {c.cta1}
                   </button>
@@ -934,8 +944,8 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
                 </div>
               </div>
             </div>
-            {/* Flecha hacia abajo */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5">
+            {/* Flecha hacia abajo — solo desktop */}
+            <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 flex-col items-center gap-1.5 ${isMobile ? 'hidden' : 'flex'}`}>
               <button
                 onClick={() => scrollTo(1)}
                 aria-label={lang === 'en' ? 'Scroll down' : 'Bajar'}
@@ -950,26 +960,26 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── HOW IT WORKS ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-20 lg:px-8">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
-            <div className="text-center mb-12">
-              <p className={`text-xs font-semibold uppercase tracking-widest mb-4 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.howTag}</p>
-              <h2 className="text-4xl font-bold mb-4">{c.howTitle}</h2>
-              <p className={`text-lg leading-relaxed max-w-2xl mx-auto ${muted}`}>{c.howDesc}</p>
+            <div className="text-center mb-8 lg:mb-12">
+              <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.howTag}</p>
+              <h2 className="text-3xl lg:text-4xl font-bold mb-3">{c.howTitle}</h2>
+              <p className={`text-base lg:text-lg leading-relaxed max-w-2xl mx-auto ${muted}`}>{c.howDesc}</p>
             </div>
             <InteractiveDemo dark={dark} lang={lang} />
           </div>
         </section>
 
         {/* ── PROGRESS ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-20 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl grid gap-20 lg:grid-cols-2 items-center">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl grid gap-10 lg:gap-20 lg:grid-cols-2 items-center">
             <div>
-              <p className={`text-xs font-semibold uppercase tracking-widest mb-4 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.progressTag}</p>
-              <h2 className="text-4xl font-bold mb-6">{c.progressTitle}</h2>
-              <p className={`text-lg leading-relaxed mb-10 ${muted}`}>{c.progressDesc}</p>
+              <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.progressTag}</p>
+              <h2 className="text-3xl lg:text-4xl font-bold mb-4">{c.progressTitle}</h2>
+              <p className={`text-base lg:text-lg leading-relaxed mb-6 ${muted}`}>{c.progressDesc}</p>
               <AnimatedStats stats={[
                 { value: '74%', label: c.statsLabels[0], color: 'text-emerald-500', desc: lang === 'en' ? 'Average similarity across all attempts' : 'Similitud promedio en todos los intentos' },
                 { value: '12d', label: c.statsLabels[1], color: 'text-amber-500', desc: lang === 'en' ? 'Consecutive days playing' : 'Días consecutivos jugando' },
@@ -986,13 +996,13 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── COMMUNITY ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-20 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl grid gap-20 lg:grid-cols-2 items-center">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl grid gap-10 lg:gap-20 lg:grid-cols-2 items-center">
             <div>
-              <p className={`text-xs font-semibold uppercase tracking-widest mb-4 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.communityTag}</p>
-              <h2 className="text-4xl font-bold mb-6">{c.communityTitle}</h2>
-              <p className={`text-lg leading-relaxed mb-8 ${muted}`}>{c.communityDesc}</p>
+              <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.communityTag}</p>
+              <h2 className="text-3xl lg:text-4xl font-bold mb-4">{c.communityTitle}</h2>
+              <p className={`text-base lg:text-lg leading-relaxed mb-6 ${muted}`}>{c.communityDesc}</p>
               <ul className="space-y-4">
                 {c.communityItems.map(item => (
                   <li key={item} className="flex items-center gap-3 text-base leading-relaxed">
@@ -1017,9 +1027,9 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── TOURNAMENTS ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-20 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl grid gap-20 lg:grid-cols-2 items-center">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl grid gap-10 lg:gap-20 lg:grid-cols-2 items-center">
             <div className={`rounded-2xl border p-8 space-y-5 ${card}`}>
               <div className="flex items-center justify-between">
                 <span className="rounded-full bg-cyan-500/15 text-cyan-500 text-xs font-semibold px-3 py-1">{c.tourLive}</span>
@@ -1037,9 +1047,9 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
               </div>
             </div>
             <div>
-              <p className={`text-xs font-semibold uppercase tracking-widest mb-4 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.tourTag}</p>
-              <h2 className="text-4xl font-bold mb-6">{c.tourTitle}</h2>
-              <p className={`text-lg leading-relaxed mb-8 ${muted}`}>{c.tourDesc}</p>
+              <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.tourTag}</p>
+              <h2 className="text-3xl lg:text-4xl font-bold mb-4">{c.tourTitle}</h2>
+              <p className={`text-base lg:text-lg leading-relaxed mb-6 ${muted}`}>{c.tourDesc}</p>
               <ul className="space-y-4">
                 {c.tourItems.map(item => (
                   <li key={item} className="flex items-center gap-3 text-base leading-relaxed">
@@ -1053,9 +1063,9 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── GUIDES ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-20 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl grid gap-16 lg:grid-cols-2 items-center">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl grid gap-10 lg:gap-16 lg:grid-cols-2 items-center">
             <div>
               <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.guidesTag}</p>
               <h2 className="text-3xl font-bold mb-4">{c.guidesTitle}</h2>
@@ -1096,22 +1106,22 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── ORGANIZATIONS ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-20 lg:px-8">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
-            <div className="max-w-2xl mb-12">
+            <div className="max-w-2xl mb-8 lg:mb-12">
               <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.orgTag}</p>
-              <h2 className="text-3xl font-bold mb-4">{c.orgTitle}</h2>
-              <p className={`text-base leading-7 ${muted}`}>{c.orgDesc}</p>
+              <h2 className="text-2xl lg:text-3xl font-bold mb-3">{c.orgTitle}</h2>
+              <p className={`text-sm lg:text-base leading-7 ${muted}`}>{c.orgDesc}</p>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
               {c.orgCards.map(({ icon, t, d }) => (
-                <div key={t} className={`rounded-2xl border p-6 h-full ${card}`}>
-                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-4 ${dark ? 'bg-cyan-500/15' : 'bg-cyan-100'}`}>
+                <div key={t} className={`rounded-xl border p-4 lg:p-6 h-full ${card}`}>
+                  <div className={`h-8 w-8 lg:h-10 lg:w-10 rounded-lg lg:rounded-xl flex items-center justify-center mb-3 ${dark ? 'bg-cyan-500/15' : 'bg-cyan-100'}`}>
                     <OrgIcon type={icon} dark={dark} />
                   </div>
-                  <p className="font-semibold mb-2">{t}</p>
-                  <p className={`text-sm leading-6 ${muted}`}>{d}</p>
+                  <p className="font-semibold text-sm lg:text-base mb-1.5">{t}</p>
+                  <p className={`text-xs lg:text-sm leading-5 lg:leading-6 ${muted}`}>{d}</p>
                 </div>
               ))}
             </div>
@@ -1119,9 +1129,9 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── PROFILES ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-20 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl grid gap-16 lg:grid-cols-2 items-center">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl grid gap-10 lg:gap-16 lg:grid-cols-2 items-center">
             <div>
               <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.profileTag}</p>
               <h2 className="text-3xl font-bold mb-4">{c.profileTitle}</h2>
@@ -1162,8 +1172,8 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── CTA ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center justify-center px-6 py-20 lg:px-8">
+        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
+          className="flex items-center justify-center px-6 py-12 lg:py-20 lg:px-8">
           <div className="mx-auto max-w-4xl text-center space-y-6">
             <h2 className="text-4xl sm:text-5xl font-black tracking-tight">{c.ctaTitle}</h2>
             <p className={`text-lg max-w-md mx-auto ${muted}`}>{c.ctaDesc}</p>

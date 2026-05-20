@@ -34,6 +34,7 @@ const Header = ({ companyRefreshKey = 0 }) => {
   const { lang, changeLang, t } = useLang()
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState('main')
   const [showPwForm, setShowPwForm] = useState(false)
   const [pwForm, setPwForm] = useState({ newPw: '', confirmPw: '' })
@@ -527,6 +528,18 @@ const Header = ({ companyRefreshKey = 0 }) => {
             ))}
           </nav>
 
+          {/* Hamburger — solo mobile */}
+          <button
+            onClick={() => setMobileMenuOpen(f => !f)}
+            className="flex md:hidden h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition"
+            aria-label="Menu"
+          >
+            {mobileMenuOpen
+              ? <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              : <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            }
+          </button>
+
           {/* Avatar o login */}
           <div className="flex shrink-0 items-center gap-2">
             {loading ? (
@@ -794,6 +807,28 @@ const Header = ({ companyRefreshKey = 0 }) => {
           </div>
         </div>
       </header>
+
+      {/* Mobile menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 space-y-1">
+          {navLinks.map(({ href, label, className: cls }) => (
+            <a key={href} href={href}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center rounded-xl px-3 py-2.5 text-sm transition hover:bg-slate-50 hover:text-slate-900 ${cls || 'text-slate-700'}`}>
+              {label}
+            </a>
+          ))}
+          {!user && (
+            <button
+              onClick={() => { setMobileMenuOpen(false); setAuthModalOpen(true) }}
+              className="flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition hover:bg-slate-50"
+              style={{ color: 'rgb(var(--color-accent))' }}
+            >
+              {t('signIn')}
+            </button>
+          )}
+        </div>
+      )}
 
       <AuthModal
         open={authModalOpen}
