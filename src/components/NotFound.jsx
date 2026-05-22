@@ -72,6 +72,7 @@ export default function NotFound() {
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <a href="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <img src="/favicon.png" alt="PrompTool" style={{ width: 28, height: 28, objectFit: 'contain' }} />
             <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px', color: '#0f172a' }}>
               Promp<span style={{ color: '#06b6d4' }}>Tool</span>
             </span>
@@ -91,16 +92,16 @@ export default function NotFound() {
           <div className="float" style={{ marginBottom: 32, display: 'inline-block' }}>
             <div className="pulse" style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 160, height: 160,
+              width: 96, height: 96,
               background: '#fff',
-              borderRadius: 36,
+              borderRadius: 24,
               border: '1.5px solid #e2e8f0',
-              boxShadow: '0 12px 48px rgba(6,182,212,0.18), 0 4px 16px rgba(0,0,0,0.08)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
             }}>
               <img
                 src="/favicon.png"
                 alt="PrompTool"
-                style={{ width: 120, height: 120, objectFit: 'contain' }}
+                style={{ width: 64, height: 64, objectFit: 'contain' }}
               />
             </div>
           </div>

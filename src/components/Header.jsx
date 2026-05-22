@@ -451,6 +451,7 @@ const Header = ({ companyRefreshKey = 0 }) => {
 
           {/* Logo */}
           <a href="/" className="shrink-0 flex items-center gap-2 transition-opacity hover:opacity-80">
+            <img src="/favicon.png" alt="PrompTool" className="h-7 w-7 object-contain" />
             <span className="text-lg font-bold tracking-tight text-slate-900">Promp<span style={{ color: 'rgb(var(--color-accent))' }}>Tool</span></span>
           </a>
 
