@@ -91,16 +91,16 @@ export default function NotFound() {
           <div className="float" style={{ marginBottom: 32, display: 'inline-block' }}>
             <div className="pulse" style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 96, height: 96,
+              width: 160, height: 160,
               background: '#fff',
-              borderRadius: 24,
+              borderRadius: 36,
               border: '1.5px solid #e2e8f0',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+              boxShadow: '0 12px 48px rgba(6,182,212,0.18), 0 4px 16px rgba(0,0,0,0.08)',
             }}>
               <img
                 src="/favicon.png"
                 alt="PrompTool"
-                style={{ width: 64, height: 64, objectFit: 'contain' }}
+                style={{ width: 120, height: 120, objectFit: 'contain' }}
               />
             </div>
           </div>
