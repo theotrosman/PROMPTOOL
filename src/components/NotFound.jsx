@@ -73,6 +73,7 @@ export default function NotFound() {
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <a href="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             <img src="/favicon.png" alt="PrompTool" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+            <div style={{ width: 1, height: 20, background: '#e2e8f0', margin: '0 2px' }} />
             <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px', color: '#0f172a' }}>
               Promp<span style={{ color: '#06b6d4' }}>Tool</span>
             </span>
