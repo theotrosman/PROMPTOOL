@@ -59,13 +59,32 @@ const Toggle = ({ checked, onChange, id, disabled = false }) => (
     id={id}
     disabled={disabled}
     onClick={() => !disabled && onChange(!checked)}
-    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-500 disabled:opacity-40 disabled:cursor-not-allowed ${
-      checked ? 'bg-slate-800 dark:bg-slate-300' : 'bg-slate-300 dark:bg-slate-600'
-    }`}
+    style={{
+      position: 'relative',
+      display: 'inline-flex',
+      alignItems: 'center',
+      width: 44,
+      height: 24,
+      borderRadius: 999,
+      border: 'none',
+      padding: 2,
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      opacity: disabled ? 0.4 : 1,
+      transition: 'background-color 0.2s',
+      backgroundColor: checked ? '#1e293b' : '#cbd5e1',
+      flexShrink: 0,
+    }}
   >
-    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ${
-      checked ? 'translate-x-5' : 'translate-x-0'
-    }`} />
+    <span style={{
+      display: 'block',
+      width: 20,
+      height: 20,
+      borderRadius: '50%',
+      backgroundColor: '#fff',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      transition: 'transform 0.2s',
+      transform: checked ? 'translateX(20px)' : 'translateX(0px)',
+    }} />
   </button>
 )
 
