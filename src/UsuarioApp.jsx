@@ -68,7 +68,9 @@ function UsuarioApp() {
     porcentajeAprobacion: 0, racha: 0, avgTime: null,
   })
   const [recentAttempts, setRecentAttempts] = useState([])
+  const [allAttemptsForChart, setAllAttemptsForChart] = useState([])
   const [chartData, setChartData] = useState([])
+  const [chartFilter, setChartFilter] = useState('20') // '20' | '3m' | '6m' | 'year' | 'all'
   const [heatmapData, setHeatmapData] = useState({})
   const [chartCompanyNames, setChartCompanyNames] = useState({}) // { company_id: company_name }
   const [topStrengths, setTopStrengths] = useState([])
@@ -213,6 +215,49 @@ function UsuarioApp() {
       supabase.from('usuarios').update({ accent_color: hex }).eq('id_usuario', user.id).then(() => {})
     }
   }
+
+  // Construir chartData a partir de todos los intentos según el filtro activo
+  const buildChartData = (attempts, filter) => {
+    if (!attempts?.length) return []
+    const now = new Date()
+    let filtered = attempts
+
+    if (filter === '20') {
+      filtered = attempts.slice(0, 20)
+    } else if (filter === '1m') {
+      const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth() - 1)
+      filtered = attempts.filter(i => new Date(i.fecha_hora) >= cutoff)
+    } else if (filter === '3m') {
+      const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth() - 3)
+      filtered = attempts.filter(i => new Date(i.fecha_hora) >= cutoff)
+    } else if (filter === '6m') {
+      const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth() - 6)
+      filtered = attempts.filter(i => new Date(i.fecha_hora) >= cutoff)
+    } else if (filter === 'year') {
+      const cutoff = new Date(now); cutoff.setFullYear(cutoff.getFullYear() - 1)
+      filtered = attempts.filter(i => new Date(i.fecha_hora) >= cutoff)
+    }
+    // 'all' → sin filtro
+
+    // Ordenar cronológicamente (más viejo primero)
+    const sorted = [...filtered].reverse()
+    return sorted.map((i, idx) => ({
+      n: idx + 1,
+      score: i.puntaje_similitud || 0,
+      fecha: new Date(i.fecha_hora).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+      diff: i.imagenes_ia?.image_diff || null,
+      company_id: i.imagenes_ia?.company_id || null,
+      is_ranked: i.is_ranked !== false,
+      elo_delta: i.elo_delta ?? null,
+    }))
+  }
+
+  // Recalcular chartData cuando cambia el filtro
+  useEffect(() => {
+    if (allAttemptsForChart.length > 0) {
+      setChartData(buildChartData(allAttemptsForChart, chartFilter))
+    }
+  }, [chartFilter, allAttemptsForChart])
 
   // Convierte hex a filtro CSS para colorear imágenes/GIFs
   // Usa hue-rotate dinámico calculado desde el color — funciona con cualquier hex
@@ -428,17 +473,9 @@ function UsuarioApp() {
             setTopStrengths(countMap(allStrengths).slice(0, 4))
             setTopImprovements(countMap(allImprovements).slice(0, 4))
 
-            // Datos para el gráfico de área (últimos 20 intentos, orden cronológico)
-            const last20 = intentos.slice(0, 20).reverse()
-            setChartData(last20.map((i, idx) => ({
-              n: idx + 1,
-              score: i.puntaje_similitud || 0,
-              fecha: new Date(i.fecha_hora).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
-              diff: i.imagenes_ia?.image_diff || null,
-              company_id: i.imagenes_ia?.company_id || null,
-              is_ranked: i.is_ranked !== false, // default true si no está seteado
-              elo_delta: i.elo_delta ?? null,
-            })))
+            // Datos para el gráfico de área — guardar todos para filtrar dinámicamente
+            setAllAttemptsForChart(intentos)
+            setChartData(buildChartData(intentos, '20'))
 
             // Nombres de empresas para el tooltip del gráfico
             const chartCids = [...new Set(last20.map(i => i.imagenes_ia?.company_id).filter(Boolean))]
@@ -594,16 +631,9 @@ function UsuarioApp() {
             setTopStrengths(countMap(allStrengths).slice(0, 4))
             setTopImprovements(countMap(allImprovements).slice(0, 4))
 
-            // Gráfico de evolución (últimos 20, orden cronológico)
-            const last20 = publicIntentos.slice(0, 20).reverse()
-            setChartData(last20.map((i, idx) => ({
-              n: idx + 1,
-              score: i.puntaje_similitud || 0,
-              fecha: new Date(i.fecha_hora).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
-              diff: i.imagenes_ia?.image_diff || null,
-              company_id: i.imagenes_ia?.company_id || null,
-              is_ranked: i.is_ranked !== false,
-            })))
+            // Gráfico de evolución — guardar todos para filtrar dinámicamente
+            setAllAttemptsForChart(publicIntentos)
+            setChartData(buildChartData(publicIntentos, '20'))
 
             // Nombres de empresas para el tooltip del gráfico
             const chartCids = [...new Set(last20.map(i => i.imagenes_ia?.company_id).filter(Boolean))]
@@ -3170,28 +3200,70 @@ function UsuarioApp() {
             )}
 
             {/* Gráfico de evolución */}
-            {chartData.length > 1 && (
+            {allAttemptsForChart.length > 1 && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
                   <p className="text-sm font-semibold text-slate-700">{t('scoreEvolution')}</p>
-                  {ownProfile && (
-                    <div className="flex items-center gap-1.5">
-                      {CHART_COLORS.map(({ hex, name }) => (
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Filtros de período */}
+                    <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+                      {[
+                        { key: '20',   label: 'Últ. 20' },
+                        { key: '1m',   label: '1M'      },
+                        { key: '3m',   label: '3M'      },
+                        { key: '6m',   label: '6M'      },
+                        { key: 'year', label: '1A'      },
+                        { key: 'all',  label: 'Todo'    },
+                      ].map(({ key, label }) => (
                         <button
-                          key={hex}
-                          title={name}
-                          onClick={() => handleChartColorChange(hex)}
-                          className="h-5 w-5 rounded-full transition-transform hover:scale-110 focus:outline-none"
-                          style={{
-                            backgroundColor: hex,
-                            boxShadow: chartColor === hex ? `0 0 0 2px white, 0 0 0 3.5px ${hex}` : 'none',
-                            transform: chartColor === hex ? 'scale(1.15)' : undefined,
+                          key={key}
+                          onClick={() => setChartFilter(key)}
+                          className="rounded-md px-2.5 py-1 text-xs font-semibold transition-all"
+                          style={chartFilter === key ? {
+                            background: '#fff',
+                            color: chartColor,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.10)',
+                          } : {
+                            color: '#94a3b8',
                           }}
-                        />
+                        >
+                          {label}
+                        </button>
                       ))}
                     </div>
-                  )}
+
+                    {/* Selector de color (solo perfil propio) */}
+                    {ownProfile && (
+                      <div className="flex items-center gap-1">
+                        {CHART_COLORS.map(({ hex, name }) => (
+                          <button
+                            key={hex}
+                            title={name}
+                            onClick={() => handleChartColorChange(hex)}
+                            className="h-5 w-5 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                            style={{
+                              backgroundColor: hex,
+                              boxShadow: chartColor === hex ? `0 0 0 2px white, 0 0 0 3.5px ${hex}` : 'none',
+                              transform: chartColor === hex ? 'scale(1.15)' : undefined,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Contador de puntos mostrados */}
+                <p className="text-xs text-slate-400 mb-2">
+                  {chartData.length} {lang === 'en' ? 'attempts' : 'intentos'}
+                  {chartFilter === '20' && ` · ${lang === 'en' ? 'last 20' : 'últimos 20'}`}
+                  {chartFilter === '1m' && ` · ${lang === 'en' ? 'last month' : 'último mes'}`}
+                  {chartFilter === '3m' && ` · ${lang === 'en' ? 'last 3 months' : 'últimos 3 meses'}`}
+                  {chartFilter === '6m' && ` · ${lang === 'en' ? 'last 6 months' : 'últimos 6 meses'}`}
+                  {chartFilter === 'year' && ` · ${lang === 'en' ? 'last year' : 'último año'}`}
+                  {chartFilter === 'all' && ` · ${lang === 'en' ? 'all time' : 'histórico'}`}
+                </p>
                 <div className="chart-animate">
                   <ResponsiveContainer width="100%" height={160}>
                     <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
