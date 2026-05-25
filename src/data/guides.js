@@ -641,6 +641,10 @@ const normalize = (value = '') =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
 
+export const getGuideById = (id) => GUIDE_LIBRARY.find((g) => g.id === id) ?? null
+
+export const getAllGuideSlugs = () => GUIDE_LIBRARY.map((g) => g.id)
+
 export const getRecommendedGuides = (improvements = [], suggestions = '') => {
   const sourceText = normalize([...(improvements || []), suggestions].join(' '))
 

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 import { useTheme } from '../contexts/ThemeContext'
 import { proxyImg } from '../utils/imgProxy'
+import { landingEditorial } from '../data/siteContent'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 // ── Language detection by browser/location ────────────────────────────────
@@ -1174,10 +1175,31 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         {/* ── CTA ── */}
         <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
           className="flex items-center justify-center px-6 py-12 lg:py-20 lg:px-8">
-          <div className="mx-auto max-w-4xl text-center space-y-6">
-            <h2 className="text-4xl sm:text-5xl font-black tracking-tight">{c.ctaTitle}</h2>
-            <p className={`text-lg max-w-md mx-auto ${muted}`}>{c.ctaDesc}</p>
-            <div className="flex flex-wrap gap-4 justify-center pt-4">
+          <div className="mx-auto max-w-3xl text-center space-y-6">
+            {(() => {
+              const ed = landingEditorial[lang] || landingEditorial.es
+              return (
+                <div className={`text-left rounded-2xl border p-6 sm:p-8 mb-4 ${card}`}>
+                  <p className={`text-xs font-semibold uppercase tracking-widest mb-2 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{ed.tag}</p>
+                  <h2 className="text-xl sm:text-2xl font-bold mb-4">{ed.title}</h2>
+                  <div className="space-y-3">
+                    {ed.paragraphs.map((p, i) => (
+                      <p key={i} className={`text-sm sm:text-base leading-7 ${muted}`}>{p}</p>
+                    ))}
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-4">
+                    {ed.links.map(({ href, label }) => (
+                      <a key={href} href={href} className={`text-sm font-semibold ${dark ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-700'} underline underline-offset-2`}>
+                        {label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">{c.ctaTitle}</h2>
+            <p className={`text-base sm:text-lg max-w-md mx-auto ${muted}`}>{c.ctaDesc}</p>
+            <div className="flex flex-wrap gap-4 justify-center pt-2">
               <button type="button" onClick={onTryApp}
                 className="inline-flex items-center justify-center rounded-lg bg-cyan-600 px-8 py-3.5 text-base font-semibold text-white hover:bg-cyan-700 transition">
                 {c.ctaPlay}

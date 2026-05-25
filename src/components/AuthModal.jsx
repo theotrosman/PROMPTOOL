@@ -140,19 +140,21 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
     ? !loading && !!email
     : !loading && usernameStatus === 'ok' && acceptTerms
 
+  const isPlanStep = mode === 'signup' && signupStep === 'type'
+
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[300] flex items-start sm:items-center justify-center overflow-y-auto overscroll-contain p-3 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onMouseDown={e => { if (e.target === e.currentTarget) e.currentTarget._closeOnMouseUp = true }}
       onMouseUp={e => { if (e.currentTarget._closeOnMouseUp && e.target === e.currentTarget) onClose(); e.currentTarget._closeOnMouseUp = false }}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className={`my-auto w-full rounded-2xl bg-white shadow-2xl flex flex-col max-h-[min(92dvh,calc(100svh-1.5rem))] ${isPlanStep ? 'max-w-md' : 'max-w-sm'}`}
         onMouseDown={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+        <div className="shrink-0 px-5 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-slate-100">
           <div className="flex items-center justify-between mb-1">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
@@ -193,21 +195,18 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
             </div>
           )}
 
-        <div className="px-6 py-5 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 py-4 sm:py-5 space-y-3">
           {/* Mostrar selección de tipo de usuario en signup */}
           {mode === 'signup' && signupStep === 'type' ? (
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-slate-900">
-                {lang === 'en' ? 'Choose your plan' : 'Elige tu plan'}
-              </p>
               <button
                 type="button"
                 onClick={() => selectUserType('individual')}
-                className="w-full rounded-xl border-2 border-slate-300 bg-white p-4 text-left transition hover:border-slate-400 hover:bg-slate-50"
+                className="w-full rounded-xl border-2 border-slate-300 bg-white p-3.5 sm:p-4 text-left transition hover:border-slate-400 hover:bg-slate-50"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                <div className="flex items-start justify-between gap-2 mb-2.5 sm:mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
                       <svg className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
@@ -217,11 +216,11 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
                       <p className="text-xs text-slate-600 mt-0.5">{lang === 'en' ? 'Learn and practice' : 'Aprende y practica'}</p>
                     </div>
                   </div>
-                  <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                  <span className="inline-flex shrink-0 rounded-full bg-emerald-100 px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-bold text-emerald-700">
                     {lang === 'en' ? 'FREE' : 'GRATIS'}
                   </span>
                 </div>
-                <div className="mt-4 space-y-2 text-xs text-slate-700 font-medium">
+                <div className="space-y-1.5 sm:space-y-2 text-xs text-slate-700 font-medium">
                   <div className="flex items-center gap-2">
                     <svg className="h-3.5 w-3.5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
                     <span>{lang === 'en' ? 'Daily challenges' : 'Desafíos diarios'}</span>
@@ -240,13 +239,13 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
               {!inviteCompany && <button
                 type="button"
                 onClick={() => selectUserType('enterprise')}
-                className="w-full rounded-xl border-2 border-violet-400 bg-violet-50 p-4 text-left transition hover:border-violet-500 hover:bg-violet-100 relative overflow-hidden shadow-lg shadow-violet-200/50"
+                className="w-full rounded-xl border-2 border-violet-400 bg-violet-50 p-3.5 sm:p-4 text-left transition hover:border-violet-500 hover:bg-violet-100 relative overflow-hidden shadow-lg shadow-violet-200/50"
               >
-                <div className="absolute top-0 right-0 -mr-12 -mt-8 h-24 w-24 rounded-full bg-violet-300/20" />
+                <div className="absolute top-0 right-0 -mr-12 -mt-8 h-24 w-24 rounded-full bg-violet-300/20 pointer-events-none" />
                 <div className="relative">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100">
+                  <div className="flex items-start justify-between gap-2 mb-2.5 sm:mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100">
                         <svg className="h-4 w-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
@@ -256,11 +255,11 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
                         <p className="text-xs text-slate-600 mt-0.5">{lang === 'en' ? 'For teams and organizations' : 'Para equipos y organizaciones'}</p>
                       </div>
                     </div>
-                    <span className="inline-flex rounded-full bg-violet-500 px-3 py-1 text-xs font-bold text-white shadow-lg">
+                    <span className="inline-flex shrink-0 rounded-full bg-violet-500 px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-bold text-white shadow-lg">
                       {lang === 'en' ? 'FREE TRIAL' : 'PRUEBA GRATIS'}
                     </span>
                   </div>
-                  <div className="mt-4 space-y-2 text-xs text-slate-700 font-medium">
+                  <div className="space-y-1.5 sm:space-y-2 text-xs text-slate-700 font-medium">
                     <div className="flex items-center gap-2">
                       <svg className="h-3.5 w-3.5 text-violet-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
                       <span>{lang === 'en' ? 'Custom challenges for your team' : 'Desafíos propios para tu equipo'}</span>
@@ -428,7 +427,7 @@ const AuthModal = ({ open, onClose, onSignInWithGoogle, onSignInWithEmail, onSig
             </button>
           )}
 
-          <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+          <p className="shrink-0 text-center text-sm text-slate-500 dark:text-slate-400 pb-1">
             {mode === 'signin'
               ? (lang === 'en' ? "Don't have an account? " : '¿No tenés cuenta? ')
               : mode === 'signup' && signupStep === 'type'

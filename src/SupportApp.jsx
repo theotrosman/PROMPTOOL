@@ -6,6 +6,7 @@ import { useLang } from './contexts/LangContext'
 import { supabase } from './supabaseClient'
 import { nowAR } from './utils/dateAR'
 import { CloseIcon } from './components/Icons'
+import PublicFaqBanner from './components/PublicFaqBanner'
 
 function SupportApp() {
   const { user, loading: authLoading } = useAuth()
@@ -116,8 +117,33 @@ function SupportApp() {
   if (!user) return (
     <div className="flex min-h-screen flex-col bg-white">
       <Header />
-      <main className="flex flex-1 items-center justify-center">
-        <p className="text-slate-500">{lang === 'en' ? 'Sign in to access support.' : 'Iniciá sesión para acceder al soporte.'}</p>
+      <main className="mx-auto w-full max-w-2xl flex-1 px-5 sm:px-6 py-10 sm:py-14">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
+          {lang === 'en' ? 'Help & support' : 'Ayuda y soporte'}
+        </h1>
+        <p className="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed">
+          {lang === 'en'
+            ? 'Most questions are answered in our public FAQ. Sign in only if you need to open a private support ticket.'
+            : 'La mayoría de las dudas están en las preguntas frecuentes públicas. Iniciá sesión solo si necesitás abrir un ticket privado.'}
+        </p>
+        <div className="mt-8">
+          <PublicFaqBanner />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-6 text-center">
+          <p className="text-sm text-slate-600 mb-4">
+            {lang === 'en' ? 'Tickets require an account so we can follow up with you.' : 'Los tickets requieren cuenta para poder responderte.'}
+          </p>
+          <a
+            href="/"
+            className="inline-flex rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 transition"
+          >
+            {lang === 'en' ? 'Sign in from home' : 'Iniciar sesión desde el inicio'}
+          </a>
+          <p className="mt-4 text-xs text-slate-500">
+            {lang === 'en' ? 'Or email us: ' : 'O escribinos a: '}
+            <a href="mailto:hola@promptool.ai" className="font-medium text-slate-700 hover:underline">hola@promptool.ai</a>
+          </p>
+        </div>
       </main>
       <Footer />
     </div>
@@ -131,6 +157,7 @@ function SupportApp() {
           <h1 className="text-2xl font-bold text-slate-900">{lang === 'en' ? 'Support' : 'Soporte'}</h1>
           <p className="text-sm text-slate-500 mt-1">{lang === 'en' ? 'Open a ticket and we\'ll get back to you.' : 'Abrí un ticket y te respondemos.'}</p>
         </div>
+        <PublicFaqBanner />
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
           {/* Ticket list */}

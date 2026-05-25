@@ -141,12 +141,15 @@ module.exports = defineConfig({
           if (url.startsWith('/media/')) { res.statusCode = 403; res.end('Forbidden'); return }
           if (/^\/user\/[^/]+/.test(url)) { req.url = '/user.html' + query }
           else if (url === '/admin' || url === '/admin/') { req.url = '/admin.html' + query }
+          else if (/^\/guides\/[^/]+\/?$/.test(url)) { req.url = '/guides.html' + query }
           else if (url === '/guides' || url === '/guides/') { req.url = '/guides.html' + query }
           else if (url === '/support' || url === '/support/') { req.url = '/support.html' + query }
           else if (url === '/terms' || url === '/terms/') { req.url = '/terms.html' + query }
           else if (url === '/privacy' || url === '/privacy/') { req.url = '/privacy.html' + query }
           else if (url === '/tournaments' || url === '/tournaments/') { req.url = '/tournaments.html' + query }
           else if (url === '/leaderboard' || url === '/leaderboard/') { req.url = '/leaderboard.html' + query }
+          else if (url === '/about' || url === '/about/') { req.url = '/about.html' + query }
+          else if (url === '/faq' || url === '/faq/') { req.url = '/faq.html' + query }
           else if (url === '/perfil' || url === '/perfil/' || url.startsWith('/perfil?')) { req.url = '/usuario.html' + query }
           next()
         })
@@ -165,6 +168,8 @@ module.exports = defineConfig({
         tournaments: resolve(__dirname, 'tournaments.html'),
         leaderboard: resolve(__dirname, 'leaderboard.html'),
         support: resolve(__dirname, 'support.html'),
+        about: resolve(__dirname, 'about.html'),
+        faq: resolve(__dirname, 'faq.html'),
         terms: resolve(__dirname, 'terms.html'),
         privacy: resolve(__dirname, 'privacy.html'),
         '404': resolve(__dirname, '404.html'),
