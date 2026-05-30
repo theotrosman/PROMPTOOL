@@ -455,8 +455,8 @@ const InteractiveDemo = ({ dark, lang }) => {
   const [isVisible, setIsVisible] = useState(false)
   const demoRef = useRef(null)
   
-  // Datos reales de ejemplo - gato astronauta
-  const demoImage = 'https://image-generator.com/assets/img/ai-generated-image-main.png'
+  // Datos reales de ejemplo - gato astronauta (imagen fiable de Unsplash)
+  const demoImage = 'https://images.unsplash.com/photo-1446776709462-d6b525fef0bf?w=600&q=80'
   const userPrompt = lang === 'es'
     ? 'Gato naranja con traje de astronauta en el espacio, estrellas y la Tierra de fondo'
     : 'Orange cat in astronaut suit in space with stars and Earth behind'

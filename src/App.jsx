@@ -44,7 +44,10 @@ const GUEST_MAX_ATTEMPTS = 4
 // Columnas reales: id_imagen, url_image, prompt_original, seed, fecha, image_diff, image_theme
 const normalizeImageData = (row) => {
   if (!row) return null
+  // Spread all fields first so challenge-specific columns (challenge_eval_instructions, etc.)
+  // are preserved, then overwrite the fields we normalize.
   return {
+    ...row,
     id_imagen: row.id_imagen ?? null,
     url_image: row.url_image ? proxyImg(row.url_image) : null,
     // prompt_original NO se guarda en estado — se fetcha al momento del submit
@@ -942,15 +945,9 @@ function App() {
           else {
             sessionStorage.setItem('guestDailyDate', new Date().toDateString())
             setGuestDailyDone(true)
-            sessionStorage.setItem('pendingAttempt', JSON.stringify({
-              prompt_usuario: submittedPrompt,
-              puntaje_similitud: finalScore,
-              id_imagen: imageData.id_imagen,
-              fecha_hora: nowAR(),
-              strengths: result.strengths ?? [],
-              improvements: result.improvements ?? [],
-              modo: mode,
-            }))
+            // NOTE: The attempt was already saved to guestAttempts[] above.
+            // Do NOT also write pendingAttempt here — that would double-migrate
+            // the same attempt when the guest later signs up.
           }
         }
 
