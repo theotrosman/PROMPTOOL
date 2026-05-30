@@ -71,18 +71,26 @@ export default function PrivacyApp() {
                 <li><strong>Supabase</strong> — database, authentication, and file storage.</li>
                 <li><strong>Groq API</strong> — AI-powered prompt analysis (prompts are sent to Groq for scoring; they are not stored by Groq beyond the request).</li>
                 <li><strong>Google OAuth</strong> — optional sign-in method.</li>
+                <li><strong>Google AdSense</strong> — if enabled, displays ads and may use cookies to serve personalized or non-personalized ads. See <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Google&apos;s advertising policies</a>.</li>
               </ul>
             </Section>
           </div>
 
           <div className="pt-10">
-            <Section title="6. Data Retention">
+            <Section title="6. Cookies and Advertising">
+              <p>We use essential cookies for authentication and preferences. If Google AdSense is active on the site, Google and its partners may store and read cookies in your browser for ad delivery, frequency capping, and measurement, in accordance with your consent settings where applicable.</p>
+              <p>You can manage ad personalization in <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Google Ads Settings</a> or opt out of third-party ad cookies via <a href="https://www.aboutads.info/choices/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">aboutads.info</a>.</p>
+            </Section>
+          </div>
+
+          <div className="pt-10">
+            <Section title="7. Data Retention">
               <p>Your data is retained for as long as your account is active. You may request deletion of your account and associated data by contacting us directly.</p>
             </Section>
           </div>
 
           <div className="pt-10">
-            <Section title="7. Your Rights">
+            <Section title="8. Your Rights">
               <p>You have the right to:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Access the personal data we hold about you.</li>
@@ -94,13 +102,13 @@ export default function PrivacyApp() {
           </div>
 
           <div className="pt-10">
-            <Section title="8. Changes to This Policy">
+            <Section title="9. Changes to This Policy">
               <p>We may update this Privacy Policy from time to time. We will notify users of significant changes by updating the date at the top of this page.</p>
             </Section>
           </div>
 
           <div className="pt-10">
-            <Section title="9. Contact">
+            <Section title="10. Contact">
               <p>For privacy-related questions or data requests, contact us via LinkedIn:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li><a href="https://www.linkedin.com/in/theotrosman/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Theo Trosman</a></li>

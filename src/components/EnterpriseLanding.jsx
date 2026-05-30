@@ -117,9 +117,21 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
   const dark = theme === 'dark'
 
   const [currentSection, setCurrentSection] = useState(0)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const containerRef = useRef(null)
   const isScrolling = useRef(false)
   const currentIdx = useRef(0)
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
+  const sectionStyle = (tall = false) =>
+    isMobile || tall
+      ? { minHeight: '100svh', scrollSnapAlign: 'start' }
+      : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }
 
   // Custom plan state
   const [members, setMembers] = useState(25)
@@ -150,6 +162,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
   }
 
   const animateScrollTo = (targetIdx) => {
+    if (isMobile) return
     const container = containerRef.current
     if (!container || isScrolling.current) return
     const from = container.scrollTop
@@ -177,6 +190,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
   }
 
   useEffect(() => {
+    if (isMobile) return
     const container = containerRef.current
     if (!container) return
     let wheelTimeout = null
@@ -193,9 +207,10 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
     }
     container.addEventListener('wheel', onWheel, { passive: false })
     return () => { container.removeEventListener('wheel', onWheel); clearTimeout(wheelTimeout) }
-  }, [])
+  }, [isMobile])
 
   useEffect(() => {
+    if (isMobile) return
     const container = containerRef.current
     if (!container) return
     let touchStartY = 0
@@ -215,7 +230,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
       container.removeEventListener('touchstart', onTouchStart)
       container.removeEventListener('touchend', onTouchEnd)
     }
-  }, [])
+  }, [isMobile])
 
   useEffect(() => {
     const container = containerRef.current
@@ -250,31 +265,33 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
   const complexityPct = Math.min(Math.round((members / 500) * 60 + (activeFeatureCount / 6) * 40), 100)
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
-      {/* Nav dots */}
-      <div className="fixed right-5 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2.5">
-        {Array.from({ length: TOTAL_SECTIONS }).map((_, i) => (
-          <button
-            key={i}
-            onClick={() => scrollTo(i)}
-            aria-label={`Sección ${i + 1}`}
-            className={`rounded-full transition-all duration-300 ${
-              i === currentSection
-                ? 'h-6 w-2 bg-violet-500'
-                : `h-2 w-2 ${dark ? 'bg-slate-600 hover:bg-slate-400' : 'bg-slate-300 hover:bg-slate-500'}`
-            }`}
-          />
-        ))}
-      </div>
+    <div className={isMobile ? 'min-h-screen overflow-hidden' : 'fixed inset-0 overflow-hidden'}>
+      {/* Nav dots — solo desktop */}
+      {!isMobile && (
+        <div className="fixed right-5 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2.5">
+          {Array.from({ length: TOTAL_SECTIONS }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => scrollTo(i)}
+              aria-label={`Sección ${i + 1}`}
+              className={`rounded-full transition-all duration-300 ${
+                i === currentSection
+                  ? 'h-6 w-2 bg-violet-500'
+                  : `h-2 w-2 ${dark ? 'bg-slate-600 hover:bg-slate-400' : 'bg-slate-300 hover:bg-slate-500'}`
+              }`}
+            />
+          ))}
+        </div>
+      )}
 
       <div
         ref={containerRef}
-        className={`h-full overflow-y-scroll ${bg}`}
-        style={{ overscrollBehavior: 'none', scrollSnapType: 'y mandatory', touchAction: 'none' }}
+        className={`${isMobile ? 'overflow-y-auto' : 'h-full overflow-y-scroll'} ${bg}`}
+        style={isMobile ? {} : { overscrollBehavior: 'none', scrollSnapType: 'y mandatory', touchAction: 'none' }}
       >
 
         {/* ── HERO ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="relative flex items-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle()} className="relative flex items-center px-4 py-20 sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={onBack}
@@ -378,7 +395,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── FEATURES ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle()} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
             <Reveal>
               <div className="mb-10 sm:mb-14">
@@ -410,7 +427,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── DASHBOARD PREVIEW ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle()} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl grid gap-12 lg:gap-20 lg:grid-cols-2 items-center">
             <Reveal>
               <div>
@@ -480,7 +497,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── CHALLENGES ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle()} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl grid gap-12 lg:gap-20 lg:grid-cols-2 items-center">
             <Reveal>
               <div>
@@ -537,7 +554,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── GUIDES ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle()} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl grid gap-12 lg:gap-20 lg:grid-cols-2 items-center">
             <Reveal>
               <div>
@@ -614,33 +631,33 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── PRICING ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle(true)} className="flex flex-col justify-center px-4 py-12 sm:py-16 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
             <Reveal>
-              <div className="text-center mb-10 sm:mb-14">
-                <div className="flex justify-center mb-5">
-                  <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold ${
+              <div className="text-center mb-6 sm:mb-10">
+                <div className="flex justify-center mb-4 sm:mb-5">
+                  <div className={`inline-flex items-center gap-2 rounded-full border px-3 sm:px-4 py-1.5 text-[11px] sm:text-xs font-semibold text-center max-w-full ${
                     dark ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
                   }`}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                    Gratis hasta el 20 de junio de 2026 — Estamos en beta
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                    <span>Gratis hasta el 20 de junio de 2026 — Estamos en beta</span>
                   </div>
                 </div>
-                <p className={`text-xs font-semibold uppercase tracking-widest mb-4 ${accentText}`}>Planes</p>
-                <h2 className="text-3xl sm:text-4xl font-bold mb-4">Elegí tu plan</h2>
-                <p className={`text-base sm:text-lg max-w-xl mx-auto ${muted}`}>
+                <p className={`text-xs font-semibold uppercase tracking-widest mb-3 sm:mb-4 ${accentText}`}>Planes</p>
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-3 sm:mb-4">Elegí tu plan</h2>
+                <p className={`text-sm sm:text-base lg:text-lg max-w-xl mx-auto px-2 ${muted}`}>
                   Probá el sistema completo sin costo hasta el lanzamiento oficial.
                 </p>
               </div>
             </Reveal>
 
-            <div className="grid gap-5 sm:gap-6 lg:grid-cols-3">
+            <div className="grid gap-4 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 pt-2 sm:pt-4">
               {PLANS.map((plan, i) => (
                 <Reveal key={plan.name} delay={i * 80}>
-                  <div className={`relative rounded-2xl border p-6 sm:p-7 flex flex-col h-full ${card} ${plan.popular ? (dark ? 'ring-2 ring-violet-500' : 'ring-2 ring-violet-500') : ''}`}>
+                  <div className={`relative rounded-2xl border p-5 sm:p-6 lg:p-7 flex flex-col h-full ${card} ${plan.popular ? (dark ? 'ring-2 ring-violet-500' : 'ring-2 ring-violet-500') : ''} ${plan.popular ? 'mt-4 sm:mt-0' : ''}`}>
                     {plan.popular && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                        <span className="bg-violet-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                        <span className="bg-violet-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-sm">
                           Más popular
                         </span>
                       </div>
@@ -697,7 +714,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── CUSTOM PLAN BUILDER ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="flex items-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle(true)} className="flex flex-col justify-center px-4 py-12 sm:py-16 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-4xl">
             <Reveal>
               <div className="text-center mb-10">
@@ -791,7 +808,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── CTA ── */}
-        <section style={{ height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }} className="flex items-center justify-center px-4 py-20 sm:px-6 lg:px-8">
+        <section style={sectionStyle()} className="flex items-center justify-center px-4 py-20 sm:px-6 lg:px-8">
           <Reveal>
             <div className="mx-auto max-w-3xl text-center space-y-6">
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight">

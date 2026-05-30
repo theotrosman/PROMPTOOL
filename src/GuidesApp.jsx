@@ -1,24 +1,34 @@
 import Header from './components/Header'
 import Footer from './components/Footer'
 import GuidesSection from './components/GuidesSection'
+import GuideCatalog from './components/GuideCatalog'
+import GuideArticle from './components/GuideArticle'
+import GuideNotFound from './components/GuideNotFound'
 import { useLang } from './contexts/LangContext'
 import { useAuth } from './hooks/useAuth'
 import AuthModal from './components/AuthModal'
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { getGuideById } from './data/guides'
+import { getGuideSlugFromPath } from './utils/guideRoutes'
 
 const GuidesApp = () => {
   const { lang } = useLang()
   const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth()
   const [authOpen, setAuthOpen] = useState(false)
   const [companyAssignments, setCompanyAssignments] = useState([])
+  const [slug, setSlug] = useState(() => getGuideSlugFromPath())
 
-  // Cargar guías asignadas por la empresa del usuario
+  useEffect(() => {
+    const onPop = () => setSlug(getGuideSlugFromPath())
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   useEffect(() => {
     if (!user) return
     const fetchAssignments = async () => {
       try {
-        // Obtener el company_id del usuario
         const { data: profile } = await supabase
           .from('usuarios')
           .select('company_id')
@@ -27,7 +37,6 @@ const GuidesApp = () => {
 
         if (!profile?.company_id) return
 
-        // Leer las asignaciones del training_config de la empresa
         const { data: company } = await supabase
           .from('usuarios')
           .select('training_config')
@@ -35,11 +44,10 @@ const GuidesApp = () => {
           .maybeSingle()
 
         const all = company?.training_config?.guide_assignments || []
-        // Filtrar: globales (target_user_id null) + las específicas para este usuario
-        const mine = all.filter(a => !a.target_user_id || a.target_user_id === user.id)
+        const mine = all.filter((a) => !a.target_user_id || a.target_user_id === user.id)
         setCompanyAssignments(mine)
       } catch {
-        // silent — si no hay datos, no rompe nada
+        // silent
       }
     }
     fetchAssignments()
@@ -53,59 +61,54 @@ const GuidesApp = () => {
     )
   }
 
-  if (!user) {
-    return (
-      <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-        <Header />
-        <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
-          <svg className="h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-          </svg>
-          <h2 className="text-xl font-semibold text-slate-800">
-            {lang === 'en' ? 'Sign in to access the guides' : 'Iniciá sesión para acceder a las guías'}
-          </h2>
-          <p className="text-sm text-slate-500 max-w-xs">
-            {lang === 'en'
-              ? 'The guides are available to registered users only.'
-              : 'Las guías están disponibles solo para usuarios registrados.'}
-          </p>
-          <button onClick={() => setAuthOpen(true)}
-            className="mt-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition"
-            style={{ backgroundColor: 'rgb(var(--color-accent))' }}>
-            {lang === 'en' ? 'Sign in' : 'Iniciar sesión'}
-          </button>
-        </main>
-        <Footer />
-        <AuthModal open={authOpen} onClose={() => setAuthOpen(false)}
-          onSignInWithGoogle={signInWithGoogle}
-          onSignInWithEmail={signInWithEmail}
-          onSignUpWithEmail={signUpWithEmail} />
-      </div>
-    )
+  if (slug) {
+    const guide = getGuideById(slug)
+    if (!guide) return <GuideNotFound />
+    return <GuideArticle guide={guide} />
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <Header />
       <main className="flex-1 py-6">
-        <section className="mx-auto w-full max-w-none px-6">
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.5rem] border border-slate-200 bg-white px-6 py-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">PrompTool</p>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-900">
-                {lang === 'en' ? 'Guides' : 'Guías'}
-              </h1>
+        <section className="mx-auto w-full max-w-none px-4 sm:px-6">
+          <div className="mb-4 rounded-[1.5rem] border border-slate-200 bg-white px-5 sm:px-6 py-4 sm:py-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">PrompTool</p>
+                <h1 className="mt-1 text-2xl sm:text-3xl font-semibold text-slate-900">
+                  {lang === 'en' ? 'Prompt engineering guides' : 'Guías de prompt engineering'}
+                </h1>
+                <p className="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
+                  {lang === 'en'
+                    ? 'Free, in-depth lessons on zero-shot, few-shot, visual description, and image-generation best practices.'
+                    : 'Lecciones gratuitas sobre zero-shot, few-shot, descripción visual y buenas prácticas para imágenes con IA.'}
+                </p>
+              </div>
+              {!user && (
+                <button
+                  type="button"
+                  onClick={() => setAuthOpen(true)}
+                  className="shrink-0 self-start rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition"
+                  style={{ backgroundColor: 'rgb(var(--color-accent))' }}
+                >
+                  {lang === 'en' ? 'Sign in to save progress' : 'Iniciar sesión para guardar progreso'}
+                </button>
+              )}
             </div>
-            <p className="text-sm text-slate-500 hidden sm:block">
-              {lang === 'en'
-                ? 'Learn how to write better prompts for AI image generation.'
-                : 'Aprendé a escribir mejores prompts para generación de imágenes con IA.'}
-            </p>
           </div>
         </section>
-        <GuidesSection companyAssignments={companyAssignments} />
+        <GuideCatalog />
+        <GuidesSection companyAssignments={user ? companyAssignments : []} />
       </main>
       <Footer />
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onSignInWithGoogle={signInWithGoogle}
+        onSignInWithEmail={signInWithEmail}
+        onSignUpWithEmail={signUpWithEmail}
+      />
     </div>
   )
 }

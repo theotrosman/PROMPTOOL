@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import GUIDE_LIBRARY from '../data/guides'
+import { guideArticlePath } from '../utils/guideRoutes'
 import { useLang } from '../contexts/LangContext'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../supabaseClient'
@@ -538,17 +539,19 @@ const GuidesSection = ({ recommendedGuideIds = [], companyAssignments = [] }) =>
   const allGuides = [...GUIDE_LIBRARY, ...customCompanyGuides]
 
   const selectGuide = (id) => {
-    // Check if it's a library guide
+    // Check if it's a library guide — URL dedicada para SEO (/guides/:slug)
     if (GUIDE_LIBRARY.some((g) => g.id === id)) {
-      setSelectedId((prev) => {
-        if (prev === id) return prev
-        return id
-      })
+      const articlePath = guideArticlePath(id)
+      if (window.location.pathname !== articlePath) {
+        window.location.href = articlePath
+        return
+      }
+      setSelectedId((prev) => (prev === id ? prev : id))
       setActiveSection('library')
       const desired = `#guia-${id}`
       if (window.location.hash !== desired) {
         internalHashUpdateRef.current = true
-        window.history.replaceState(null, '', desired)
+        window.history.replaceState(null, '', `${window.location.pathname}${desired}`)
       }
       return
     }
@@ -870,12 +873,11 @@ const GuidesSection = ({ recommendedGuideIds = [], companyAssignments = [] }) =>
                   const pct = guideProgress[guide.id] ?? 0
                   const isDone = pct >= 100
                   return (
-                    <button
+                    <a
                       key={guide.id}
-                      type="button"
-                      onClick={() => selectGuide(guide.id)}
-                      className={`guide-nav group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all duration-200 ${
-                        isActive ? `${a.soft} ${a.border} shadow-sm` : 'border-transparent hover:bg-slate-50'
+                      href={guideArticlePath(guide.id)}
+                      className={`guide-nav group relative flex w-full items-start gap-3 rounded-[1.25rem] border px-3 py-3 text-left transition-all duration-300 no-underline ${
+                        isActive ? `bg-white ${a.border} shadow-sm` : 'border-transparent hover:bg-white/70'
                       }`}
                     >
                       {/* Progress ring */}
@@ -901,7 +903,13 @@ const GuidesSection = ({ recommendedGuideIds = [], companyAssignments = [] }) =>
                           </span>
                         )}
                       </span>
-                    </button>
+                      <span
+                        className={`absolute inset-y-3 right-3 w-1 rounded-full transition-all duration-300 ${
+                          isActive ? `${a.pill}` : 'bg-transparent'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </a>
                   )
                 })}
               </nav>

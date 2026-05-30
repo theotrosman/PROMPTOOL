@@ -20,12 +20,14 @@ const Footer = () => (
           © 2026 PrompTool Team. All rights reserved.
         </p>
 
-        {/* Center — legal links */}
+        {/* Center — legal & editorial links */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-400">
-          <a href="/terms" className="transition hover:text-slate-700">Terms of Service</a>
-          <a href="/privacy" className="transition hover:text-slate-700">Privacy Policy</a>
-          <a href="/support" className="transition hover:text-slate-700">Support</a>
+          <a href="/about" className="transition hover:text-slate-700">About</a>
           <a href="/guides" className="transition hover:text-slate-700">Guides</a>
+          <a href="/faq" className="transition hover:text-slate-700">FAQ</a>
+          <a href="/support" className="transition hover:text-slate-700">Support</a>
+          <a href="/terms" className="transition hover:text-slate-700">Terms</a>
+          <a href="/privacy" className="transition hover:text-slate-700">Privacy</a>
         </div>
 
         {/* Right — creators */}
