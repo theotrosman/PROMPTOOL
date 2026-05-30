@@ -53,7 +53,7 @@ function LeaderboardApp() {
   const myRowRef = useRef(null)
 
   const cols = [
-    { key: 'elo_rating',           label: lang === 'en' ? 'ELO' : 'Puntuación',    suffix: '',  tableOnly: false },
+    { key: 'elo_rating',           label: lang === 'en' ? 'Score' : 'Puntaje general',    suffix: '',  tableOnly: false },
     { key: 'promedio_score',       label: lang === 'en' ? 'Avg'      : 'Promedio',  suffix: '%', tableOnly: false },
     { key: 'mejor_score',          label: lang === 'en' ? 'Best'     : 'Mejor',     suffix: '%', tableOnly: false },
     { key: 'total_intentos',       label: lang === 'en' ? 'Attempts' : 'Intentos',  suffix: '',  tableOnly: false },
@@ -346,12 +346,12 @@ function LeaderboardApp() {
                   {myAttempts}<span className="text-slate-300">/5</span>
                 </p>
                 <p className="mt-1 text-xs text-slate-500 font-medium">
-                  {lang === 'en' ? 'ranked games to join the league' : 'partidas rankeadas para entrar a la liga'}
+                  {lang === 'en' ? 'ranked games to join the league' : 'partidas para entrar a la liga'}
                 </p>
                 <p className="mt-0.5 text-[11px] text-slate-400">
                   {lang === 'en'
-                    ? 'Play with the Ranked toggle on'
-                    : 'Juga con el toggle Rankeado activado'}
+                    ? 'Play with Ranked mode on'
+                    : 'Jugá en modo Competitivo'}
                 </p>
               </div>
             )}

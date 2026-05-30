@@ -1775,16 +1775,47 @@ RESPONSE RULES:
     )
 
     // ── KPI calculations ──
+    // When a time cutoff is active, compute KPIs from attempt data (not all-time DB columns)
     const memberCount = filteredUsers.length
-    const activeMembers = filteredUsers.filter(u => (u.total_intentos || 0) > 0).length
+    const usingTimeFilter = !!timeCutoff
+
+    // Build per-user stats from filtered attempts when time filter is active
+    const userAttemptStats = usingTimeFilter
+      ? filteredUsers.reduce((acc, u) => {
+          const userAttempts = memberFilteredAttempts.filter(a => a.id_usuario === u.id_usuario)
+          acc[u.id_usuario] = {
+            count: userAttempts.length,
+            avgScore: userAttempts.length > 0
+              ? Math.round(userAttempts.reduce((s, a) => s + (a.puntaje_similitud || 0), 0) / userAttempts.length)
+              : 0,
+          }
+          return acc
+        }, {})
+      : null
+
+    const activeMembers = usingTimeFilter
+      ? filteredUsers.filter(u => (userAttemptStats[u.id_usuario]?.count || 0) > 0).length
+      : filteredUsers.filter(u => (u.total_intentos || 0) > 0).length
     const inactiveMembers = memberCount - activeMembers
+
     const avgScore = memberCount > 0
-      ? Math.round(filteredUsers.reduce((s, u) => s + (u.promedio_score || 0), 0) / memberCount)
+      ? usingTimeFilter
+        ? (() => {
+            const active = filteredUsers.filter(u => (userAttemptStats[u.id_usuario]?.count || 0) > 0)
+            return active.length > 0
+              ? Math.round(active.reduce((s, u) => s + (userAttemptStats[u.id_usuario]?.avgScore || 0), 0) / active.length)
+              : 0
+          })()
+        : Math.round(filteredUsers.reduce((s, u) => s + (u.promedio_score || 0), 0) / memberCount)
       : 0
+
     const avgElo = memberCount > 0
       ? Math.round(filteredUsers.reduce((s, u) => s + (u.elo_rating || 1000), 0) / memberCount)
       : 1000
-    const totalAttempts = filteredUsers.reduce((s, u) => s + (u.total_intentos || 0), 0)
+
+    const totalAttempts = usingTimeFilter
+      ? memberFilteredAttempts.length
+      : filteredUsers.reduce((s, u) => s + (u.total_intentos || 0), 0)
     const participationRate = memberCount > 0 ? Math.round((activeMembers / memberCount) * 100) : 0
 
     // Recruiter-specific stats

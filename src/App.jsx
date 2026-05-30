@@ -406,7 +406,7 @@ function App() {
       setUserTypeLoading(true)
       const { data } = await supabase
         .from('usuarios')
-        .select('user_type, racha_actual, company_id, enterprise_onboarded')
+        .select('user_type, racha_actual, company_id, enterprise_onboarded, user_onboarded')
         .eq('id_usuario', user.id)
         .maybeSingle()
       const type = data?.user_type || 'individual'
@@ -418,7 +418,7 @@ function App() {
       // Onboarding — solo una vez por usuario
       if (type === 'enterprise' && !data?.enterprise_onboarded) {
         setShowEnterpriseOnboarding(true)
-      } else if (type !== 'enterprise' && !localStorage.getItem(`user_onboarded_${user.id}`)) {
+      } else if (type !== 'enterprise' && !data?.user_onboarded) {
         setShowUserOnboarding(true)
       }
     }
@@ -1838,9 +1838,9 @@ function App() {
       {/* User onboarding — solo primera vez (usuarios y guests) */}
       {showUserOnboarding && (
         <Suspense fallback={null}>
-          <UserOnboarding onDone={() => {
+          <UserOnboarding onDone={async () => {
             if (user) {
-              localStorage.setItem(`user_onboarded_${user.id}`, '1')
+              await supabase.from('usuarios').update({ user_onboarded: true }).eq('id_usuario', user.id)
             } else {
               localStorage.setItem('user_onboarded_guest', '1')
             }
