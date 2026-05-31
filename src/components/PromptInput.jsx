@@ -545,7 +545,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
         )}
       </div>
 
-      <div className="flex items-center gap-2 text-xs font-medium">
+      <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
         <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
         {onModeChange ? (
           <div className="relative group">
@@ -745,7 +745,9 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
             <div className="ml-3 h-2 w-2 rotate-45 bg-slate-900 -mt-1" />
           </div>
         </div>
+        </div>
 
+        <div className="flex items-center gap-2 shrink-0">
         {onToggleRanked && (
           <div className="relative group">
             <button
@@ -794,8 +796,6 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
             </div>
           </div>
         )}
-
-        </div>
 
         {/* New image button — active in random, locked in daily */}
         {(onNewRandom || mode === 'daily') && (
@@ -866,6 +866,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
             </div>
           </div>
         )}
+        </div>
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-amber-100 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">

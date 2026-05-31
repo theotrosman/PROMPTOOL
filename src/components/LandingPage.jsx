@@ -455,11 +455,12 @@ const InteractiveDemo = ({ dark, lang }) => {
   const [isVisible, setIsVisible] = useState(false)
   const demoRef = useRef(null)
   
-  // Datos reales de ejemplo - gato astronauta (imagen fiable de Unsplash)
+  // Datos reales de ejemplo — gato naranja en el espacio
+  // TODO: reemplazar demoImage con la URL real de Supabase Storage una vez subida
   const demoImage = 'https://images.unsplash.com/photo-1446776709462-d6b525fef0bf?w=600&q=80'
   const userPrompt = lang === 'es'
-    ? 'Gato naranja con traje de astronauta en el espacio, estrellas y la Tierra de fondo'
-    : 'Orange cat in astronaut suit in space with stars and Earth behind'
+    ? 'Generame un gato naranja en el espacio agarrando la via lactea, que sea gigante'
+    : 'Generate a giant orange cat in space grabbing the Milky Way'
   const targetScore = 73
   
   const card = dark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
@@ -467,14 +468,14 @@ const InteractiveDemo = ({ dark, lang }) => {
   
   // Sugerencias de mejora
   const improvements = lang === 'en' ? [
-    'Add more details about the cat\'s appearance (breed, size, expression)',
-    'Specify the lighting style (cinematic, natural, dramatic)',
-    'Describe the astronaut suit in more detail',
+    'Add more details about the cat\'s appearance (breed, fur color, expression)',
+    'Specify the lighting style (cinematic, nebula glow, dramatic)',
+    'Describe the scale and perspective (giant, cosmic, surreal)',
     'Mention the art style (photorealistic, digital art, illustration)'
   ] : [
-    'Agrega más detalles sobre la apariencia del gato (raza, tamaño, expresión)',
-    'Especifica el estilo de iluminación (cinematográfica, natural, dramática)',
-    'Describe el traje de astronauta con más detalle',
+    'Agrega más detalles sobre la apariencia del gato (raza, color del pelaje, expresión)',
+    'Especifica el estilo de iluminación (cinematográfica, brillo de nebulosa, dramática)',
+    'Describe la escala y perspectiva (gigante, cósmico, surrealista)',
     'Menciona el estilo artístico (fotorrealista, arte digital, ilustración)'
   ]
   
