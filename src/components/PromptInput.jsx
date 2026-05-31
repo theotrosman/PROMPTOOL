@@ -545,8 +545,8 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-xs font-medium">
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
+      <div className="flex flex-col gap-2 text-xs font-medium sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
         {onModeChange ? (
           <div className="relative group">
             <button
@@ -747,7 +747,8 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
         </div>
 
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        {(onToggleRanked || onNewRandom || mode === 'daily') && (
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
         {onToggleRanked && (
           <div className="relative group">
             <button
@@ -799,7 +800,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
 
         {/* New image button — active in random, locked in daily */}
         {(onNewRandom || mode === 'daily') && (
-          <div className="relative group/newimg shrink-0">
+          <div className="relative group/newimg">
             {mode === 'daily' ? (
               /* ── Locked state (daily mode) ── */
               <span
@@ -867,6 +868,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
           </div>
         )}
         </div>
+        )}
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-amber-100 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
