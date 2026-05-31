@@ -588,12 +588,13 @@ const InteractiveDemo = ({ dark, lang }) => {
               {lang === 'en' ? 'Daily' : 'Diario'}
             </span>
           </div>
-          <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-slate-200 bg-slate-900">
-            <img 
-              src={demoImage} 
-              alt="Demo challenge" 
+          <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-slate-200 bg-gradient-to-br from-slate-800 to-slate-900">
+            <img
+              src={demoImage}
+              alt="Demo challenge"
               className="w-full h-full object-cover object-center"
-              loading="lazy"
+              loading="eager"
+              decoding="async"
               style={{ objectPosition: '50% 35%' }}
             />
           </div>
@@ -962,8 +963,8 @@ const LandingPage = ({ onOpenAuth, onTryApp, onEnterprise }) => {
         </section>
 
         {/* ── HOW IT WORKS ── */}
-        <section style={isMobile ? { minHeight: '100svh', scrollSnapAlign: 'start' } : { height: '100svh', overflowY: 'hidden', scrollSnapAlign: 'start' }}
-          className="flex items-center px-6 py-12 lg:py-20 lg:px-8">
+        <section style={{ minHeight: '100svh', scrollSnapAlign: 'start' }}
+          className="flex items-center px-6 py-12 lg:py-16 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
             <div className="text-center mb-8 lg:mb-12">
               <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? 'text-cyan-400' : 'text-cyan-600'}`}>{c.howTag}</p>
