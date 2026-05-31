@@ -189,6 +189,54 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
     requestAnimationFrame(step)
   }
 
+  const getActiveSection = () => {
+    const container = containerRef.current
+    if (!container) return null
+    return container.querySelectorAll(':scope > section')[currentIdx.current] ?? null
+  }
+
+  const getSectionScrollState = () => {
+    const container = containerRef.current
+    const section = getActiveSection()
+    if (!container || !section) {
+      return { sectionTallerThanViewport: false, atSectionTop: true, atSectionBottom: true, sectionTop: 0, sectionBottom: 0 }
+    }
+    const sectionTop = section.offsetTop
+    const sectionBottom = sectionTop + section.offsetHeight
+    const scrollTop = container.scrollTop
+    const clientHeight = container.clientHeight
+    return {
+      sectionTallerThanViewport: section.offsetHeight > clientHeight + 4,
+      atSectionTop: scrollTop <= sectionTop + 2,
+      atSectionBottom: scrollTop + clientHeight >= sectionBottom - 2,
+      sectionTop,
+      sectionBottom,
+    }
+  }
+
+  const scrollWithinSection = (deltaY) => {
+    const container = containerRef.current
+    if (!container) return false
+    const { sectionTallerThanViewport, atSectionTop, atSectionBottom, sectionTop, sectionBottom } = getSectionScrollState()
+    if (!sectionTallerThanViewport) return false
+
+    const clientHeight = container.clientHeight
+    const scrollTop = container.scrollTop
+
+    if (deltaY > 0 && !atSectionBottom) {
+      container.style.scrollSnapType = 'none'
+      container.scrollTop = Math.min(scrollTop + deltaY, sectionBottom - clientHeight)
+      return true
+    }
+    if (deltaY < 0 && !atSectionTop) {
+      container.style.scrollSnapType = 'none'
+      container.scrollTop = Math.max(scrollTop + deltaY, sectionTop)
+      return true
+    }
+    container.style.scrollSnapType = 'y mandatory'
+    return false
+  }
+
   useEffect(() => {
     if (isMobile) return
     const container = containerRef.current
@@ -197,12 +245,13 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
     const onWheel = (e) => {
       e.preventDefault()
       if (isScrolling.current) return
+      if (scrollWithinSection(e.deltaY)) return
       clearTimeout(wheelTimeout)
       wheelTimeout = setTimeout(() => {
         const next = e.deltaY > 0
           ? Math.min(currentIdx.current + 1, TOTAL_SECTIONS - 1)
           : Math.max(currentIdx.current - 1, 0)
-        animateScrollTo(next)
+        if (next !== currentIdx.current) animateScrollTo(next)
       }, 30)
     }
     container.addEventListener('wheel', onWheel, { passive: false })
@@ -219,10 +268,11 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
       if (isScrolling.current) return
       const delta = touchStartY - e.changedTouches[0].clientY
       if (Math.abs(delta) < 40) return
+      if (scrollWithinSection(delta)) return
       const next = delta > 0
         ? Math.min(currentIdx.current + 1, TOTAL_SECTIONS - 1)
         : Math.max(currentIdx.current - 1, 0)
-      animateScrollTo(next)
+      if (next !== currentIdx.current) animateScrollTo(next)
     }
     container.addEventListener('touchstart', onTouchStart, { passive: true })
     container.addEventListener('touchend', onTouchEnd, { passive: true })
@@ -237,6 +287,10 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
     if (!container) return
     const onScroll = () => {
       if (isScrolling.current) return
+      const { atSectionTop, atSectionBottom, sectionTallerThanViewport } = getSectionScrollState()
+      if (sectionTallerThanViewport && (atSectionTop || atSectionBottom)) {
+        container.style.scrollSnapType = 'y mandatory'
+      }
       const sections = container.querySelectorAll(':scope > section')
       const mid = container.scrollTop + container.clientHeight / 2
       let closest = 0
@@ -631,7 +685,7 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── PRICING ── */}
-        <section style={sectionStyle(true)} className="flex flex-col justify-center px-4 py-8 sm:py-10 sm:px-6 lg:px-8">
+        <section style={sectionStyle(true)} className="flex flex-col justify-start px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
             <Reveal>
               <div className="text-center mb-3 sm:mb-4">
@@ -706,93 +760,97 @@ const EnterpriseLanding = ({ onBack, onOpenAuth }) => {
         </section>
 
         {/* ── CUSTOM PLAN BUILDER ── */}
-        <section style={sectionStyle(true)} className="flex flex-col justify-center px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-4xl">
+        <section style={sectionStyle(true)} className="flex flex-col justify-start px-4 py-5 sm:py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-5xl">
             <Reveal>
-              <div className="text-center mb-4">
-                <p className={`text-xs font-semibold uppercase tracking-widest mb-2 ${accentText}`}>Plan a medida</p>
-                <h2 className="text-2xl sm:text-3xl font-bold mb-2">¿Ningún plan te convence?</h2>
-                <p className={`text-sm sm:text-base ${muted}`}>
+              <div className="text-center mb-3 sm:mb-4">
+                <p className={`text-xs font-semibold uppercase tracking-widest mb-1.5 ${accentText}`}>Plan a medida</p>
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-1.5">¿Ningún plan te convence?</h2>
+                <p className={`text-sm ${muted}`}>
                   Configurá tu plan ideal según el tamaño de tu equipo y las funciones que necesitás.
                 </p>
               </div>
             </Reveal>
 
             <Reveal delay={80}>
-              <div className={`rounded-2xl border p-4 sm:p-5 ${card}`}>
-                {/* Members slider */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="font-semibold text-sm sm:text-base">Miembros del equipo</label>
-                    <span className="text-2xl font-black text-violet-500">{members}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="5"
-                    max="500"
-                    step="5"
-                    value={members}
-                    onChange={e => setMembers(Number(e.target.value))}
-                    className="w-full accent-violet-500 h-2 rounded-lg cursor-pointer"
-                  />
-                  <div className={`flex justify-between text-xs mt-2 ${subtle}`}>
-                    <span>5</span><span>100</span><span>250</span><span>500</span>
-                  </div>
-                </div>
-
-                {/* Feature toggles */}
-                <div className="mb-4">
-                  <p className="font-semibold mb-2 text-sm">Funciones</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {CUSTOM_FEATURES.map(({ key, label }) => (
-                      <label
-                        key={key}
-                        className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer transition select-none ${
-                          customFeatures[key]
-                            ? dark ? 'border-violet-500/40 bg-violet-500/10' : 'border-violet-300 bg-violet-50'
-                            : dark ? 'border-slate-700 hover:border-slate-600' : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        <span className={`text-sm font-medium ${customFeatures[key] ? accentText : ''}`}>{label}</span>
-                        <input
-                          type="checkbox"
-                          checked={customFeatures[key]}
-                          onChange={e => setCustomFeatures(f => ({ ...f, [key]: e.target.checked }))}
-                          className="accent-violet-500 h-4 w-4 cursor-pointer"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Result card */}
-                <div className={`rounded-xl border p-4 ${dark ? 'border-violet-500/30 bg-violet-500/5' : 'border-violet-200 bg-violet-50'}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-widest mb-2 ${accentText}`}>Tu plan estimado</p>
-                  <p className="text-xl sm:text-2xl font-black mb-1">{getCustomPlanLabel()}</p>
-                  <p className={`text-sm ${muted}`}>{members} miembros · {activeFeatureCount} función{activeFeatureCount !== 1 ? 'es' : ''} activa{activeFeatureCount !== 1 ? 's' : ''}</p>
-
-                  <div className="mt-3 mb-1">
-                    <div className={`h-2 rounded-full overflow-hidden ${dark ? 'bg-slate-700' : 'bg-violet-200'}`}>
-                      <div
-                        className="h-full bg-violet-500 rounded-full transition-all duration-500"
-                        style={{ width: `${complexityPct}%` }}
+              <div className={`rounded-2xl border p-3 sm:p-4 lg:p-5 ${card}`}>
+                <div className="md:grid md:grid-cols-2 md:gap-4 lg:gap-5 md:items-start">
+                  <div className="min-w-0">
+                    {/* Members slider */}
+                    <div className="mb-3 sm:mb-4">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="font-semibold text-sm">Miembros del equipo</label>
+                        <span className="text-xl sm:text-2xl font-black text-violet-500">{members}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="5"
+                        max="500"
+                        step="5"
+                        value={members}
+                        onChange={e => setMembers(Number(e.target.value))}
+                        className="w-full accent-violet-500 h-2 rounded-lg cursor-pointer"
                       />
+                      <div className={`flex justify-between text-xs mt-1.5 ${subtle}`}>
+                        <span>5</span><span>100</span><span>250</span><span>500</span>
+                      </div>
+                    </div>
+
+                    {/* Feature toggles */}
+                    <div>
+                      <p className="font-semibold mb-2 text-sm">Funciones</p>
+                      <div className="grid gap-1.5 sm:gap-2 grid-cols-2">
+                        {CUSTOM_FEATURES.map(({ key, label }) => (
+                          <label
+                            key={key}
+                            className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 sm:px-3 sm:py-2.5 cursor-pointer transition select-none ${
+                              customFeatures[key]
+                                ? dark ? 'border-violet-500/40 bg-violet-500/10' : 'border-violet-300 bg-violet-50'
+                                : dark ? 'border-slate-700 hover:border-slate-600' : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <span className={`text-xs sm:text-sm font-medium leading-tight ${customFeatures[key] ? accentText : ''}`}>{label}</span>
+                            <input
+                              type="checkbox"
+                              checked={customFeatures[key]}
+                              onChange={e => setCustomFeatures(f => ({ ...f, [key]: e.target.checked }))}
+                              className="accent-violet-500 h-4 w-4 shrink-0 cursor-pointer"
+                            />
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <p className={`text-xs mb-3 ${subtle}`}>Complejidad del plan: {complexityPct}%</p>
 
-                  <div className={`rounded-lg border p-2.5 text-center mb-3 ${dark ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50'}`}>
-                    <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">Gratis</p>
-                    <p className={`text-xs mt-0.5 ${subtle}`}>Hasta el 20 de junio de 2026 — Beta</p>
+                  {/* Result card */}
+                  <div className={`rounded-xl border p-3 sm:p-4 md:sticky md:top-4 ${dark ? 'border-violet-500/30 bg-violet-500/5' : 'border-violet-200 bg-violet-50'}`}>
+                    <p className={`text-xs font-semibold uppercase tracking-widest mb-1.5 ${accentText}`}>Tu plan estimado</p>
+                    <p className="text-lg sm:text-xl font-black mb-0.5">{getCustomPlanLabel()}</p>
+                    <p className={`text-sm ${muted}`}>{members} miembros · {activeFeatureCount} función{activeFeatureCount !== 1 ? 'es' : ''} activa{activeFeatureCount !== 1 ? 's' : ''}</p>
+
+                    <div className="mt-2.5 mb-1">
+                      <div className={`h-1.5 rounded-full overflow-hidden ${dark ? 'bg-slate-700' : 'bg-violet-200'}`}>
+                        <div
+                          className="h-full bg-violet-500 rounded-full transition-all duration-500"
+                          style={{ width: `${complexityPct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <p className={`text-xs mb-2.5 ${subtle}`}>Complejidad del plan: {complexityPct}%</p>
+
+                    <div className={`rounded-lg border p-2 sm:p-2.5 text-center mb-2.5 ${dark ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50'}`}>
+                      <p className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">Gratis</p>
+                      <p className={`text-xs mt-0.5 ${subtle}`}>Hasta el 20 de junio de 2026 — Beta</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={onOpenAuth}
+                      className="w-full inline-flex items-center justify-center rounded-lg bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 transition"
+                    >
+                      Crear cuenta enterprise
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={onOpenAuth}
-                    className="w-full inline-flex items-center justify-center rounded-lg bg-violet-600 px-8 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 transition"
-                  >
-                    Crear cuenta enterprise
-                  </button>
                 </div>
               </div>
             </Reveal>
