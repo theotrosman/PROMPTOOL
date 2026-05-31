@@ -312,14 +312,26 @@ export default function SettingsModal({ open, onClose, user, signOut }) {
                 </span>
               </div>
               <button
+                type="button"
+                role="switch"
+                aria-checked={notifSound}
                 onClick={() => {
                   const next = !notifSound
                   setNotifSound(next)
                   localStorage.setItem('notifSound', next ? 'on' : 'off')
                 }}
-                className={`relative h-5 w-9 rounded-full transition-colors ${notifSound ? 'bg-slate-900 dark:bg-slate-100' : 'bg-slate-200 dark:bg-slate-700'}`}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+                  notifSound
+                    ? 'settings-toggle-on bg-slate-900 dark:bg-slate-200'
+                    : 'settings-toggle-off bg-slate-200 dark:bg-slate-700'
+                }`}
               >
-                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white dark:bg-slate-900 shadow transition-transform ${notifSound ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                <span
+                  aria-hidden="true"
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out dark:bg-slate-900 ${
+                    notifSound ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
               </button>
             </div>
           </SECTION>
