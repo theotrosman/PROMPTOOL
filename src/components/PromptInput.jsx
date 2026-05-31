@@ -546,7 +546,7 @@ const PromptInput = ({ promptUsuario, setPromptUsuario, onSubmit, isLoading, dis
       </div>
 
       <div className="flex items-center gap-2 text-xs font-medium">
-        <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
         {onModeChange ? (
           <div className="relative group">
             <button
