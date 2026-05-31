@@ -578,32 +578,35 @@ function App() {
             // Daily: misma imagen del día que para usuarios registrados
             const hoy = new Date()
             hoy.setHours(23, 59, 59, 999)
-            const { data } = await supabase.from('imagenes_ia')
+            const { data, error } = await supabase.from('imagenes_ia')
               .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
               .is('company_id', null)
               .lte('fecha', hoy.toISOString())
               .order('fecha', { ascending: false })
               .limit(1)
               .maybeSingle()
+            if (error) throw error
             row = data
           } else {
             // Random: imagen Easy aleatoria, persistida en sessionStorage para
             // que no cambie si el usuario recarga dentro de la misma sesión
             const savedId = sessionStorage.getItem('guestImageId')
             if (savedId) {
-              const { data } = await supabase.from('imagenes_ia')
+              const { data, error } = await supabase.from('imagenes_ia')
                 .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
                 .eq('id_imagen', savedId)
                 .is('company_id', null)
                 .maybeSingle()
+              if (error) throw error
               row = data
             }
             if (!row) {
               // Sin imagen guardada (primera visita o sesión nueva): elegir una Easy al azar
-              const { data: rows } = await supabase.from('imagenes_ia')
+              const { data: rows, error } = await supabase.from('imagenes_ia')
                 .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id')
                 .eq('image_diff', 'Easy')
                 .is('company_id', null)
+              if (error) throw error
               if (rows && rows.length > 0) {
                 row = rows[Math.floor(Math.random() * rows.length)]
               }
@@ -611,7 +614,7 @@ function App() {
             if (row) sessionStorage.setItem('guestImageId', row.id_imagen)
           }
 
-          if (!row) { setImageStatus('error'); return }
+          if (!row) { setImageStatus('empty'); return }
           setImageData(normalizeImageData(row))
           setDifficulty(row.image_diff || 'Easy')
           setImageStatus('ok')

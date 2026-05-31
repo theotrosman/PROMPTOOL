@@ -10,6 +10,9 @@ const ALLOWED_DOMAINS = [
   'i.imgur.com',
   'image-generator.com',
   'cdn.spaceprompts.com',
+  'googleusercontent.com',
+  'lh3.googleusercontent.com',
+  'blogger.googleusercontent.com',
 ]
 
 // Block private/internal IP ranges (SSRF protection)
