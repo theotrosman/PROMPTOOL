@@ -455,9 +455,8 @@ const InteractiveDemo = ({ dark, lang }) => {
   const [isVisible, setIsVisible] = useState(false)
   const demoRef = useRef(null)
   
-  // Datos reales de ejemplo — gato naranja en el espacio
-  // TODO: reemplazar demoImage con la URL real de Supabase Storage una vez subida
-  const demoImage = 'https://images.unsplash.com/photo-1446776709462-d6b525fef0bf?w=600&q=80'
+  // Foto: gato naranja de Andrew McCarthy alcanzando la Vía Láctea
+  const demoImage = 'https://petapixel.com/2025/10/13/astrophotographer-andrew-mccarthy-adds-his-adorable-cat-to-far-out-space-photos/spicy-star/'
   const userPrompt = lang === 'es'
     ? 'Generame un gato naranja en el espacio agarrando la via lactea, que sea gigante'
     : 'Generate a giant orange cat in space grabbing the Milky Way'
@@ -588,14 +587,14 @@ const InteractiveDemo = ({ dark, lang }) => {
               {lang === 'en' ? 'Daily' : 'Diario'}
             </span>
           </div>
-          <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-slate-200 bg-gradient-to-br from-slate-800 to-slate-900">
+          <div className="relative aspect-[3/4] rounded-xl overflow-hidden border border-slate-200 bg-gradient-to-br from-slate-800 to-slate-900 max-h-72 lg:max-h-80">
             <img
               src={demoImage}
-              alt="Demo challenge"
+              alt=""
               className="w-full h-full object-cover object-center"
               loading="eager"
               decoding="async"
-              style={{ objectPosition: '50% 35%' }}
+              style={{ objectPosition: '50% 30%' }}
             />
           </div>
         </div>
