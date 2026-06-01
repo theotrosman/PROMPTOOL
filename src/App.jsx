@@ -456,6 +456,7 @@ function App() {
 
   useEffect(() => {
     if (user) setShowLanding(false)
+    else setShowLanding(true)
   }, [user])
 
   // Apply visual mode only when NOT on landing page
