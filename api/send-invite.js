@@ -123,44 +123,20 @@ function buildEmailHtml({ companyName, inviterName, recipientEmail, joinUrl, isE
 
 const ALLOWED_JOIN_ORIGINS = ['https://promptool.app', 'https://www.promptool.app', 'https://promptool.vercel.app']
 
-// Verify JWT by calling Supabase auth API — try multiple env var names to handle Vercel config differences
-async function verifySupabaseJwt(authHeader) {
-  const token = authHeader?.replace('Bearer ', '').trim()
-  if (!token) return null
-  // Supabase JWTs are 3-part base64 strings — quick structural check before the network call
-  if (token.split('.').length !== 3) return null
-
-  const SUPABASE_URL = (
-    process.env.SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    ''
-  ).replace(/\/$/, '')
-
-  const SUPABASE_KEY =
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    ''
-
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    // Can't verify — trust the structural check above and let other validations protect the endpoint
-    console.warn('[send-invite] Supabase env vars missing — skipping JWT network verification')
-    return { id: 'unverified' }
+// Per-IP rate limit: max 10 invite emails per hour
+const ipRateMap = new Map()
+function checkIpRateLimit(ip) {
+  const now = Date.now()
+  const WINDOW = 60 * 60 * 1000 // 1 hour
+  const MAX = 10
+  const entry = ipRateMap.get(ip)
+  if (!entry || now > entry.resetAt) {
+    ipRateMap.set(ip, { count: 1, resetAt: now + WINDOW })
+    return true
   }
-
-  try {
-    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_KEY },
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!r.ok) return null
-    return await r.json()
-  } catch {
-    // Network error verifying token — fall back to structural check
-    console.warn('[send-invite] JWT network verification failed — falling back to structural check')
-    return { id: 'unverified' }
-  }
+  if (entry.count >= MAX) return false
+  entry.count++
+  return true
 }
 
 export default async function handler(req, res) {
@@ -174,9 +150,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // Require a Bearer token (structural check + optional Supabase verification)
-  const supabaseUser = await verifySupabaseJwt(req.headers.authorization)
-  if (!supabaseUser) return res.status(401).json({ error: 'Unauthorized' })
+  // Rate limit by IP to prevent invite spam
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown'
+  if (!checkIpRateLimit(clientIp)) {
+    return res.status(429).json({ error: 'Too many requests' })
+  }
 
   const RESEND_API_KEY = process.env.RESEND_API_KEY
   if (!RESEND_API_KEY) return res.status(500).json({ error: 'Email service not configured' })
