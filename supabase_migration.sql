@@ -135,8 +135,21 @@ END $$;
 
 
 -- ══════════════════════════════════════════════════════════════
--- PASO 7 — RPCs críticos (si no existen aún)
+-- PASO 7 — RPCs críticos
+-- DROP primero para evitar conflictos de nombres de parámetros
 -- ══════════════════════════════════════════════════════════════
+
+DROP FUNCTION IF EXISTS join_company_by_link(uuid);
+DROP FUNCTION IF EXISTS accept_team_invitation(uuid);
+DROP FUNCTION IF EXISTS leave_company();
+DROP FUNCTION IF EXISTS remove_team_member(uuid);
+DROP FUNCTION IF EXISTS assign_company_role(uuid, text);
+DROP FUNCTION IF EXISTS set_company_display_name(uuid, text);
+DROP FUNCTION IF EXISTS create_custom_role(text, text);
+DROP FUNCTION IF EXISTS delete_custom_role(text);
+DROP FUNCTION IF EXISTS assign_guide_to_members(jsonb);
+DROP FUNCTION IF EXISTS update_guide_progress(uuid, text, text, boolean);
+DROP FUNCTION IF EXISTS update_guide_progress(uuid, text, text);
 
 -- join_company_by_link: llamado cuando alguien hace clic en el link de invitación
 CREATE OR REPLACE FUNCTION join_company_by_link(p_company_id UUID)
