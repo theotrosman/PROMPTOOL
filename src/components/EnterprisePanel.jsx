@@ -4140,43 +4140,62 @@ RESPONSE RULES:
             return (
               <div key={ch.id_imagen} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden hover:border-violet-300 hover:shadow-md transition group">
                 <div className="h-40 bg-slate-100 dark:bg-slate-800 overflow-hidden relative">
-                  {ch.url_image
-                    ? <img src={ch.url_image} alt="challenge" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    : <div className="h-full w-full flex items-center justify-center bg-slate-100 dark:bg-slate-800">
-                        <svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                  {(() => {
+                    const ct = ch.challenge_content_type || 'image'
+                    if (ct === 'code') return (
+                      <div className="h-full w-full flex flex-col items-center justify-center bg-slate-900 gap-1.5">
+                        <svg className="h-8 w-8 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" /></svg>
+                        <span className="text-xs font-semibold text-slate-400">{lang === 'en' ? 'Code challenge' : 'Desafío de código'}</span>
                       </div>
-                  }
-                  <button
-                    onClick={() => openEditChallengeModal(ch)}
+                    )
+                    if (ct === 'document') return (
+                      <div className="h-full w-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 gap-1.5">
+                        <svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                        <span className="text-xs font-semibold text-slate-400">{lang === 'en' ? 'Document challenge' : 'Desafío de documento'}</span>
+                      </div>
+                    )
+                    return ch.url_image
+                      ? <img src={ch.url_image} alt="challenge" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      : <div className="h-full w-full flex items-center justify-center"><svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg></div>
+                  })()}
+                  <button onClick={() => openEditChallengeModal(ch)}
                     className="absolute top-2 right-2 h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm text-slate-600 dark:text-slate-400 hover:bg-violet-100 hover:text-violet-600 dark:hover:bg-violet-900/70 dark:hover:text-violet-400 transition shadow-sm border border-slate-200/50 dark:border-slate-700/50"
-                    title={lang === 'en' ? 'Edit challenge' : 'Editar desafío'}
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                    title={lang === 'en' ? 'Edit' : 'Editar'}>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   </button>
-                  <button
-                    onClick={() => fetchChallengeStats(ch.id_imagen, ch.image_theme || 'Challenge')}
+                  <button onClick={() => fetchChallengeStats(ch.id_imagen, ch.image_theme || 'Challenge')}
                     className="absolute top-2 right-12 h-8 w-8 flex items-center justify-center rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm text-slate-600 dark:text-slate-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/70 dark:hover:text-blue-400 transition shadow-sm border border-slate-200/50 dark:border-slate-700/50"
-                    title={lang === 'en' ? 'View stats' : 'Ver estadísticas'}
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
+                    title={lang === 'en' ? 'Stats' : 'Estadísticas'}>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                   </button>
                 </div>
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className={`text-[11px] font-semibold rounded-full border px-2 py-0.5 ${diffClass}`}>{ch.image_diff || 'Medium'}</span>
-                    {ch.image_theme && (
-                      <span className="text-[11px] text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5 truncate max-w-[120px]">{ch.image_theme}</span>
-                    )}
+                    {ch.image_theme && <span className="text-[11px] text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5 truncate max-w-[120px]">{ch.image_theme}</span>}
                   </div>
                   {ch.prompt_original && <p className="text-xs text-slate-500 line-clamp-2 mb-3">{ch.prompt_original}</p>}
-                  <p className="text-[11px] text-slate-400">
-                    {ch.fecha ? new Date(ch.fecha).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-[11px] text-slate-400">
+                      {ch.fecha ? new Date(ch.fecha).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                    </p>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/?challenge=${ch.id_imagen}`
+                        navigator.clipboard?.writeText(url).catch(() => {})
+                        setEnterpriseActionStatus(lang === 'en' ? '✓ Link copied' : '✓ Link copiado')
+                        setTimeout(() => setEnterpriseActionStatus(null), 2500)
+                      }}
+                      className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-300 dark:hover:bg-violet-900/30 dark:hover:text-violet-400 transition"
+                      title={lang === 'en' ? 'Copy challenge link to share with your team' : 'Copiar link para compartir con el equipo'}
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                      {lang === 'en' ? 'Copy link' : 'Copiar link'}
+                    </button>
+                  </div>
+                  {enterpriseActionStatus && enterpriseActionStatus.includes('✓') && (
+                    <p className="text-[11px] text-emerald-600 mt-1 font-medium">{enterpriseActionStatus}</p>
+                  )}
                 </div>
               </div>
             )

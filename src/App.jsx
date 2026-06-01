@@ -41,16 +41,26 @@ import('./components/ConfigModal').then(({ loadVisualMode, applyVisualMode }) =>
 // para todos — registrados y no registrados.
 const GUEST_MAX_ATTEMPTS = 4
 
+const _NON_IMG_EXTS = new Set(['js','jsx','ts','tsx','py','cs','java','cpp','c','h','hpp','css','scss','html','xml','json','sql','sh','bash','rb','go','rs','php','swift','kt','vue','yaml','yml','toml','r','lua','dart','scala','txt','md','csv','log'])
+const _isNonImage = (url) => {
+  if (!url) return false
+  const ext = url.split('.').pop()?.toLowerCase().split('?')[0] || ''
+  return _NON_IMG_EXTS.has(ext)
+}
+
 // Columnas reales: id_imagen, url_image, prompt_original, seed, fecha, image_diff, image_theme
 const normalizeImageData = (row) => {
   if (!row) return null
-  // Spread all fields first so challenge-specific columns (challenge_eval_instructions, etc.)
-  // are preserved, then overwrite the fields we normalize.
+  const rawUrl = row.url_image
   return {
     ...row,
     id_imagen: row.id_imagen ?? null,
-    url_image: row.url_image ? `/api/img-proxy?url=${encodeURIComponent(row.url_image)}` : null,
-    // prompt_original NO se guarda en estado — se fetcha al momento del submit
+    // Code/doc files must NOT go through img-proxy (it rejects non-image content types)
+    url_image: rawUrl
+      ? (_isNonImage(rawUrl)
+          ? rawUrl
+          : `/api/img-proxy?url=${encodeURIComponent(rawUrl)}`)
+      : null,
     seed: row.seed ?? null,
     fecha: row.fecha ?? null,
     image_diff: row.image_diff ?? 'Medium',
@@ -227,17 +237,30 @@ function App() {
     guestToastTimerRef.current = setTimeout(() => setGuestFeatureToast(''), 4000)
   }
 
-  // AdBlocker detection
+  // AdBlocker detection — uses absolute positioning (fixed makes offsetParent always null → false positive)
   useEffect(() => {
     const testEl = document.createElement('div')
     testEl.className = 'adsbygoogle'
-    testEl.style.cssText = 'position:fixed;top:-2px;left:-2px;width:1px;height:1px;pointer-events:none;opacity:0;'
+    testEl.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;pointer-events:none;'
     document.body.appendChild(testEl)
-    requestAnimationFrame(() => {
-      const blocked = testEl.offsetHeight === 0 || !testEl.offsetParent
+    const timer = setTimeout(() => {
+      try {
+        const cs = window.getComputedStyle(testEl)
+        const blocked =
+          testEl.offsetHeight === 0 ||
+          cs.display === 'none' ||
+          cs.visibility === 'hidden' ||
+          parseFloat(cs.height) === 0
+        if (document.body.contains(testEl)) document.body.removeChild(testEl)
+        if (blocked) setAdBlockDetected(true)
+      } catch {
+        if (document.body.contains(testEl)) document.body.removeChild(testEl)
+      }
+    }, 300)
+    return () => {
+      clearTimeout(timer)
       if (document.body.contains(testEl)) document.body.removeChild(testEl)
-      if (blocked) setAdBlockDetected(true)
-    })
+    }
   }, [])
 
   // Limpiar timers al desmontar
@@ -295,16 +318,34 @@ function App() {
       try {
         const { data, error } = await supabase
           .from('imagenes_ia')
-          .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id, challenge_eval_instructions')
+          .select('id_imagen, url_image, seed, fecha, image_diff, image_theme, company_id, challenge_eval_instructions, challenge_content_type')
           .eq('id_imagen', challengeId)
           .maybeSingle()
         if (error || !data) { setImageStatus('error'); return }
+
+        // Access control: enterprise challenges require login + company membership
+        if (data.company_id) {
+          if (!user) {
+            setImageStatus('challenge_auth_required')
+            setAuthModalOpen(true)
+            return
+          }
+          const { data: membership } = await supabase
+            .from('usuarios')
+            .select('company_id')
+            .eq('id_usuario', user.id)
+            .maybeSingle()
+          if (membership?.company_id !== data.company_id) {
+            setImageStatus('challenge_forbidden')
+            return
+          }
+        }
+
         setImageData(normalizeImageData(data))
         setDifficulty(data.image_diff || 'Medium')
         setMode('challenge')
         setImageStatus('ok')
         startFocusTracking()
-        // Cargar datos de la empresa
         if (data.company_id) {
           const { data: co } = await supabase
             .from('usuarios')
@@ -318,7 +359,7 @@ function App() {
       }
     }
     loadChallenge()
-  }, [challengeId])
+  }, [challengeId, user?.id])
 
   // Manejar link de invitación ?invite=COMPANY_ID
   useEffect(() => {
@@ -750,10 +791,13 @@ function App() {
     if (submitted || mode !== 'random' || challengeId || !imageData) return
 
     let blurTimer = null
+    // Track whether the image change was triggered by a tab switch (visibilitychange)
+    // so handleFocus doesn't race with handleVisibility and clear the ref first
+    let visibilityTriggered = false
 
     const handleBlur = () => {
       blurTimer = setTimeout(() => {
-        if (!document.hasFocus()) {
+        if (!document.hasFocus() && !document.hidden) {
           flashAnticheatWarning(9000)
           handleForcedImageChange('blur')
           imageChangedByFocusRef.current = true
@@ -763,6 +807,8 @@ function App() {
 
     const handleFocus = () => {
       if (blurTimer) { clearTimeout(blurTimer); blurTimer = null }
+      // Skip — tab-switch visibility handled separately to avoid race condition
+      if (visibilityTriggered) return
       if (imageChangedByFocusRef.current) {
         imageChangedByFocusRef.current = false
         setFocusWarningOpen(true)
@@ -771,12 +817,16 @@ function App() {
 
     const handleVisibility = () => {
       if (document.hidden) {
+        visibilityTriggered = true
         flashAnticheatWarning(9000)
         handleForcedImageChange('visibility')
         imageChangedByFocusRef.current = true
-      } else if (imageChangedByFocusRef.current) {
-        imageChangedByFocusRef.current = false
-        setFocusWarningOpen(true)
+      } else if (visibilityTriggered) {
+        visibilityTriggered = false
+        if (imageChangedByFocusRef.current) {
+          imageChangedByFocusRef.current = false
+          setFocusWarningOpen(true)
+        }
       }
     }
 
@@ -1601,6 +1651,22 @@ function App() {
         )}
         <EnterprisePanel user={user} />
       </Suspense>
+    )
+  }
+
+  // Challenge access denied screens
+  if (challengeId && imageStatus === 'challenge_forbidden') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 text-slate-900 px-4">
+        <div className="max-w-sm text-center space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-100">
+            <svg className="h-8 w-8 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          </div>
+          <h1 className="text-xl font-bold">Acceso restringido</h1>
+          <p className="text-slate-500 text-sm">Este desafío es exclusivo para miembros de la empresa que lo creó. Pedí que te inviten para poder acceder.</p>
+          <a href="/" className="inline-block rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 transition">Ir al inicio</a>
+        </div>
+      </div>
     )
   }
 
